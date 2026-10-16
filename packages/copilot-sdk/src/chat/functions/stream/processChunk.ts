@@ -55,6 +55,9 @@ export function processStreamChunk(
     case "message:end":
       return {
         ...state,
+        ...(chunk.providerMetadata
+          ? { providerMetadata: chunk.providerMetadata }
+          : {}),
         finishReason: "stop",
       };
 

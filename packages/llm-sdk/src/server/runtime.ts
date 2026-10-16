@@ -250,6 +250,9 @@ export class Runtime {
         id: `msg_${i}`,
         role: m.role as Message["role"],
         content: m.content,
+        providerMetadata: m.providerMetadata,
+        tool_calls: m.tool_calls as Message["tool_calls"],
+        tool_call_id: m.tool_call_id,
       }),
     );
 
@@ -1074,6 +1077,10 @@ export class Runtime {
     const toolContextData =
       "toolContext" in this.config ? this.config.toolContext : undefined;
 
+    let adapterProviderMetadata:
+      | import("../core/openai-responses").ProviderMetadata
+      | undefined;
+
     // Capture usage from adapter for onFinish callback (server-side only)
     let adapterUsage:
       | {
@@ -1255,6 +1262,7 @@ export class Runtime {
           return; // Exit on error
 
         case "done":
+          adapterProviderMetadata = event.providerMetadata;
           // Capture usage from adapter's done event (for onFinish callback)
           // We don't yield done yet - we need to check for tool calls first
           if (event.usage) {
@@ -1316,6 +1324,9 @@ export class Runtime {
         const assistantMessage: AssistantToolMessage = {
           role: "assistant",
           content: accumulatedText || null,
+          ...(adapterProviderMetadata
+            ? { providerMetadata: adapterProviderMetadata }
+            : {}),
           tool_calls: toolCalls.map((tc) => ({
             id: tc.id,
             type: "function" as const,
@@ -1362,6 +1373,9 @@ export class Runtime {
         const assistantWithToolCalls: DoneEventMessage = {
           role: "assistant",
           content: accumulatedText || null,
+          ...(adapterProviderMetadata
+            ? { providerMetadata: adapterProviderMetadata }
+            : {}),
           tool_calls: serverToolResults.map((tr) => {
             const tc = toolCalls.find((t) => t.id === tr.id);
             return {
@@ -1424,6 +1438,9 @@ export class Runtime {
         const assistantMessage: AssistantToolMessage = {
           role: "assistant",
           content: accumulatedText || null,
+          ...(adapterProviderMetadata
+            ? { providerMetadata: adapterProviderMetadata }
+            : {}),
           tool_calls: clientToolCalls.map((tc) => ({
             id: tc.id,
             type: "function" as const,
@@ -1459,10 +1476,13 @@ export class Runtime {
     }
 
     // No tool calls - add final assistant message and we're done
-    if (accumulatedText) {
+    if (accumulatedText || adapterProviderMetadata) {
       newMessages.push({
         role: "assistant" as const,
         content: accumulatedText,
+        ...(adapterProviderMetadata
+          ? { providerMetadata: adapterProviderMetadata }
+          : {}),
       });
     }
 
@@ -1630,7 +1650,10 @@ export class Runtime {
             content: result.content,
           } as StreamEvent;
         }
-        yield { type: "message:end" } as StreamEvent;
+        yield {
+          type: "message:end",
+          providerMetadata: result.providerMetadata,
+        } as StreamEvent;
 
         // Check for tool calls
         if (result.toolCalls.length > 0) {
@@ -1773,6 +1796,9 @@ export class Runtime {
             const assistantMessage: AssistantToolMessage = {
               role: "assistant",
               content: result.content || null,
+              ...(result.providerMetadata
+                ? { providerMetadata: result.providerMetadata }
+                : {}),
               tool_calls: result.toolCalls.map((tc) => ({
                 id: tc.id,
                 type: "function" as const,
@@ -1817,6 +1843,9 @@ export class Runtime {
             const assistantWithToolCalls: DoneEventMessage = {
               role: "assistant",
               content: result.content || null,
+              ...(result.providerMetadata
+                ? { providerMetadata: result.providerMetadata }
+                : {}),
               tool_calls: result.toolCalls.map((tc) => ({
                 id: tc.id,
                 type: "function" as const,
@@ -1861,6 +1890,9 @@ export class Runtime {
             const assistantMessage: AssistantToolMessage = {
               role: "assistant",
               content: result.content || null,
+              ...(result.providerMetadata
+                ? { providerMetadata: result.providerMetadata }
+                : {}),
               tool_calls: clientToolCalls.map((tc) => ({
                 id: tc.id,
                 type: "function" as const,
@@ -1896,10 +1928,13 @@ export class Runtime {
         }
 
         // No tool calls - we're done
-        if (result.content) {
+        if (result.content || result.providerMetadata) {
           newMessages.push({
             role: "assistant" as const,
             content: result.content,
+            ...(result.providerMetadata
+              ? { providerMetadata: result.providerMetadata }
+              : {}),
           });
         }
 

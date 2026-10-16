@@ -147,6 +147,9 @@ export function streamStateToMessage(state: StreamingMessageState): UIMessage {
 
   return {
     id: state.messageId,
+    ...(state.providerMetadata
+      ? { providerMetadata: state.providerMetadata }
+      : {}),
     role: "assistant" as const,
     content: state.content,
     thinking: state.thinking || undefined,

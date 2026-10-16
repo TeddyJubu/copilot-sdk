@@ -16,6 +16,7 @@ export interface ChatRequest {
   messages: Array<{
     role: string;
     content: string | null;
+    providerMetadata?: Record<string, unknown>;
     tool_calls?: unknown[];
     tool_call_id?: string;
     attachments?: unknown[];
@@ -52,6 +53,7 @@ export interface ChatResponse {
   messages: Array<{
     role: string;
     content: string | null;
+    providerMetadata?: Record<string, unknown>;
     tool_calls?: unknown[];
     /** Tool call ID for tool result messages */
     tool_call_id?: string;
@@ -103,7 +105,7 @@ export interface Citation {
 export type StreamChunk =
   | { type: "message:start"; id: string }
   | { type: "message:delta"; content: string }
-  | { type: "message:end" }
+  | { type: "message:end"; providerMetadata?: Record<string, unknown> }
   | { type: "thinking:delta"; content: string }
   | { type: "tool_calls"; toolCalls: unknown[]; assistantMessage: unknown }
   | { type: "source:add"; source: unknown }
@@ -118,6 +120,7 @@ export type StreamChunk =
       messages?: Array<{
         role: string;
         content: string | null;
+        providerMetadata?: Record<string, unknown>;
         tool_calls?: unknown[];
         tool_call_id?: string;
       }>;

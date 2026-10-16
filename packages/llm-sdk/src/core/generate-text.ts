@@ -25,6 +25,8 @@
 
 import type {
   GenerateTextParams,
+  AssistantMessage,
+  ToolMessage,
   GenerateTextResult,
   GenerateStep,
   CoreMessage,
@@ -73,6 +75,7 @@ export async function generateText(
     // Call model
     const result = await model.doGenerate({
       messages,
+      openai: params.openai,
       tools: formattedTools,
       temperature: params.temperature,
       reasoningEffort: params.reasoningEffort,
@@ -143,20 +146,20 @@ export async function generateText(
       toolResults: stepToolResults,
       finishReason: result.finishReason,
       usage: result.usage,
+      providerMetadata: result.providerMetadata,
     });
 
-    // If no tool calls, we're done
-    if (!result.toolCalls || result.toolCalls.length === 0) {
-      break;
-    }
-
-    // Add assistant message with tool calls
+    // Keep every assistant turn, including the final text and opaque replay state.
     const assistantMessage: AssistantMessage = {
       role: "assistant",
       content: result.text || null,
-      toolCalls: result.toolCalls,
+      ...(result.toolCalls.length ? { toolCalls: result.toolCalls } : {}),
+      ...(result.providerMetadata
+        ? { providerMetadata: result.providerMetadata }
+        : {}),
     };
     messages = [...messages, assistantMessage];
+    if (!result.toolCalls || result.toolCalls.length === 0) break;
 
     // Add tool result messages
     for (const tr of stepToolResults) {
@@ -174,6 +177,7 @@ export async function generateText(
 
   return {
     text: lastStep?.text ?? "",
+    providerMetadata: lastStep?.providerMetadata,
     usage: sumUsage(steps),
     finishReason: lastStep?.finishReason ?? "stop",
     steps,
@@ -188,18 +192,6 @@ export async function generateText(
 // ============================================
 // Helper Functions
 // ============================================
-
-interface AssistantMessage {
-  role: "assistant";
-  content: string | null;
-  toolCalls?: ToolCall[];
-}
-
-interface ToolMessage {
-  role: "tool";
-  toolCallId: string;
-  content: string;
-}
 
 /**
  * Build initial messages from params

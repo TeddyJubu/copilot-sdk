@@ -44,6 +44,91 @@ endpoints keep Chat routing. Servers with different parameter rules can set
 installed OpenAI client that exposes `responses.create`; older clients fail with
 an actionable error. This routing does not add the separate Decisions API.
 
+## OpenAI Responses and continuation
+
+Select Responses explicitly, including calls without tools:
+
+```ts
+import { generateText, streamText } from "@yourgpt/llm-sdk";
+import { openai, createOpenAI } from "@yourgpt/llm-sdk/openai";
+
+const model = openai("gpt-6-luna", {
+  api: "responses",
+  responses: { store: false },
+});
+const first = await generateText({ model, prompt: "Remember code ORBIT-42." });
+const next = await streamText({
+  model,
+  messages: [
+    ...first.response.messages,
+    { role: "user", content: "What was the code?" },
+  ],
+});
+console.log(await next.text);
+const history = (await next.response).messages;
+const providerState = await next.providerMetadata;
+```
+
+`api` accepts `"auto"` (the existing default routing), `"chat"`, and `"responses"`.
+Responses options also select Responses. Default custom-endpoint routing remains
+Chat; opt into Responses only when that endpoint implements it. Azure and other
+compatible services are not certified by the OpenAI tests. Supplying
+Responses-only options with `api: "chat"` fails before a network request.
+
+The same options work on `createOpenAI({ api, responses })` for Runtime, and on
+`OpenAIAdapter`. Per-call overrides use `generateText({ openai: { api, responses },
+... })` or `runtime.chat({ config: { openai: { api, responses } }, ... })`.
+Request values override provider defaults. `reasoningEffort` remains a separate
+existing option; `responses.reasoningSummary` requests a reasoning summary.
+
+**Stateless replay:** use `store: false` and preserve the returned message objects,
+including `providerMetadata`. Each assistant's `providerMetadata.openai.response`
+contains the response ID, ordered native output items, raw usage, status and
+refusals. Completed encrypted reasoning, native search items, citations and
+function-call IDs survive the next turn. Automatic tool loops retain them too.
+Streams use completed items, never partially streamed reasoning. Models may
+return no reasoning items on simple requests; the SDK preserves what is returned.
+Do not edit opaque output items or carry them across unrelated conversations.
+
+`generateText().response.messages` now includes the final assistant turn as well
+as tool turns. `streamText().response` returns the same complete history after
+consuming its shared execution; accessing it does not make a second API call.
+The Copilot client preserves provider state through JSON/SSE tool continuation
+and serialized UI-message restoration. Custom `StorageAdapter` implementations
+must retain `StorageMessage.metadata.providerMetadata`; map it back to the
+message's top-level `providerMetadata` when restoring. The existing YourGPT cloud
+storage adapter stores display/tool records and does **not** yet guarantee
+lossless Responses replay after a remote session reload.
+
+**Stored continuation:** explicitly use `store: true`, take the returned
+`providerMetadata.openai.response.id`, and pass it as
+`openai: { responses: { previousResponseId: id } }` on the next call. Send only new
+input after that response, and resend system instructions; do not also resend
+its entire history. The SDK does not automatically advance or persist response
+IDs. If `store` is omitted, the provider default is unchanged (OpenAI currently
+stores Responses by default).
+
+Other supported Responses options are `include`, `promptCacheKey`,
+`promptCacheOptions` (`mode`, `ttl`) and legacy `promptCacheRetention`
+(`"in_memory"` or `"24h"`). With `store: false`, `reasoning.encrypted_content` is
+included automatically. Cache options are forwarded; availability and retention
+support remain model-specific. Raw usage preserves cache/reasoning breakdowns;
+this does not add pricing/accounting logic.
+
+Modern Responses accepts image URLs, data URLs/bytes, and file URL/base64 inputs.
+This does not add generalized image-bearing function results, native MCP approval
+flows, background jobs, or Decisions. Failed/incomplete/cancelled streams do not
+produce executable partial function calls or a successful final result.
+
+The contracts were checked against [OpenAI conversation state](https://developers.openai.com/api/docs/guides/conversation-state),
+[Responses request fields](https://developers.openai.com/api/reference/resources/responses/methods/create),
+and [Vercel's OpenAI provider](https://ai-sdk.dev/providers/ai-sdk-providers/openai).
+Offline checks run with `pnpm --filter @yourgpt/llm-sdk test`; Copilot integration
+checks run with `pnpm test:compatibility` after building both SDKs. The optional
+`test/live/responses.cjs` runner requires `RUN_OPENAI_LIVE=1` and a privately
+supplied `OPENAI_API_KEY`; it makes real requests and deletes its synthetic stored
+responses after testing continuation.
+
 ## Compatibility fallback
 
 Transient failures retain bounded retries and fallback. Compatibility errors such

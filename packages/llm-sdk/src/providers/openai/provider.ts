@@ -1,9 +1,11 @@
+import {
+  resolveOpenAITransport,
+  useOpenAIResponses,
+  type OpenAITransportOptions,
+} from "../../core/openai-responses";
 import { OpenAIAdapter } from "../../adapters/openai";
 import type { ChatCompletionRequest } from "../../adapters/base";
-import {
-  requiresOpenAIResponses,
-  type OpenAIParameterOptions,
-} from "../../core/openai-parameters";
+import { type OpenAIParameterOptions } from "../../core/openai-parameters";
 import { errorFromEvent, throwIfAborted } from "../../core/provider-error";
 /**
  * OpenAI Provider - Modern Pattern
@@ -120,7 +122,8 @@ const OPENAI_MODELS: Record<string, OpenAIModelConfig> = {
 // Provider Options
 // ============================================
 
-export interface OpenAIProviderOptions extends OpenAIParameterOptions {
+export interface OpenAIProviderOptions
+  extends OpenAIParameterOptions, OpenAITransportOptions {
   /** API key (defaults to OPENAI_API_KEY env var) */
   apiKey?: string;
   /** Base URL for API (defaults to https://api.openai.com/v1) */
@@ -184,9 +187,17 @@ export function openai(
   }
 
   function useResponses(params: DoGenerateParams): boolean {
-    return (
-      !!params.tools?.length &&
-      requiresOpenAIResponses(modelId, baseURL, parameterOptions(params))
+    return useOpenAIResponses(
+      modelId,
+      baseURL,
+      parameterOptions(params),
+      resolveOpenAITransport(options, params.openai),
+      !!params.tools?.length,
+      params.messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          !!message.providerMetadata?.openai?.response,
+      ),
     );
   }
 
@@ -200,7 +211,7 @@ export function openai(
   function responsesRequest(params: DoGenerateParams): ChatCompletionRequest {
     return {
       messages: [],
-      rawMessages: formatMessagesForOpenAI(params.messages),
+      rawMessages: formatMessagesForOpenAI(params.messages, true),
       toolDefinitions: params.tools?.map((raw) => {
         const tool = raw as {
           type: string;
@@ -218,6 +229,10 @@ export function openai(
         };
       }),
       config: {
+        openai: {
+          ...resolveOpenAITransport(options, params.openai),
+          api: "responses",
+        },
         temperature: params.temperature,
         maxTokens: params.maxTokens,
         responseFormat: params.responseFormat,
@@ -256,13 +271,18 @@ export function openai(
         return {
           text: result.content,
           toolCalls: result.toolCalls,
-          finishReason: result.toolCalls.length ? "tool-calls" : "stop",
+          finishReason: result.toolCalls.length
+            ? "tool-calls"
+            : result.providerMetadata?.openai?.response?.refusals.length
+              ? "content-filter"
+              : "stop",
           usage: result.usage ?? {
             promptTokens: 0,
             completionTokens: 0,
             totalTokens: 0,
           },
           rawResponse: result.rawResponse,
+          providerMetadata: result.providerMetadata,
         };
       }
       const client = await getClient();
@@ -351,7 +371,12 @@ export function openai(
             case "done":
               yield {
                 type: "finish",
-                finishReason: hasTools ? "tool-calls" : "stop",
+                finishReason: hasTools
+                  ? "tool-calls"
+                  : event.providerMetadata?.openai?.response?.refusals.length
+                    ? "content-filter"
+                    : "stop",
+                providerMetadata: event.providerMetadata,
                 usage: {
                   promptTokens: event.usage?.prompt_tokens ?? 0,
                   completionTokens: event.usage?.completion_tokens ?? 0,
@@ -469,7 +494,10 @@ function mapFinishReason(reason: string | null): FinishReason {
 /**
  * Format CoreMessage[] for OpenAI API
  */
-function formatMessagesForOpenAI(messages: CoreMessage[]): any[] {
+function formatMessagesForOpenAI(
+  messages: CoreMessage[],
+  responses = false,
+): any[] {
   return messages.map((msg) => {
     switch (msg.role) {
       case "system":
@@ -491,12 +519,27 @@ function formatMessagesForOpenAI(messages: CoreMessage[]): any[] {
                 typeof part.image === "string"
                   ? part.image
                   : Buffer.from(part.image).toString("base64");
-              const url = imageData.startsWith("data:")
+              const url = /^(data:|https?:\/\/)/.test(imageData)
                 ? imageData
                 : `data:${part.mimeType ?? "image/png"};base64,${imageData}`;
               return { type: "image_url", image_url: { url, detail: "auto" } };
             }
-            return { type: "text", text: "" };
+            if (part.type === "file") {
+              if (!responses)
+                throw new Error(
+                  "File inputs require the Responses API on this OpenAI path",
+                );
+              return /^https?:\/\//.test(part.data)
+                ? { type: "input_file", file_url: part.data }
+                : {
+                    type: "input_file",
+                    filename: part.filename ?? "document.pdf",
+                    file_data: part.data.startsWith("data:")
+                      ? part.data
+                      : `data:${part.mimeType};base64,${part.data}`,
+                  };
+            }
+            throw new Error("Unsupported OpenAI message content");
           }),
         };
 
@@ -504,6 +547,9 @@ function formatMessagesForOpenAI(messages: CoreMessage[]): any[] {
         const assistantMsg: any = {
           role: "assistant",
           content: msg.content,
+          ...(responses && msg.providerMetadata
+            ? { providerMetadata: msg.providerMetadata }
+            : {}),
         };
         if (msg.toolCalls && msg.toolCalls.length > 0) {
           assistantMsg.tool_calls = msg.toolCalls.map((tc) => ({

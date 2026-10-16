@@ -1,6 +1,12 @@
 import {
+  resolveOpenAITransport,
+  useOpenAIResponses,
+  responseMetadata,
+  getResponseReplay,
+  type OpenAITransportOptions,
+} from "../core/openai-responses";
+import {
   buildOpenAIParameters,
-  requiresOpenAIResponses,
   type OpenAIParameterOptions,
 } from "../core/openai-parameters";
 import { providerErrorEvent, throwIfAborted } from "../core/provider-error";
@@ -32,7 +38,8 @@ import {
 /**
  * OpenAI adapter configuration
  */
-export interface OpenAIAdapterConfig extends OpenAIParameterOptions {
+export interface OpenAIAdapterConfig
+  extends OpenAIParameterOptions, OpenAITransportOptions {
   organization?: string;
   headers?: Record<string, string>;
   apiKey: string;
@@ -109,17 +116,18 @@ export class OpenAIAdapter implements LLMAdapter {
   }
 
   private shouldUseResponsesApi(request: ChatCompletionRequest): boolean {
-    if (this.toolDefinitions(request).length === 0) return false;
-    if (
-      request.providerToolOptions?.openai?.nativeToolSearch?.enabled === true &&
-      request.providerToolOptions.openai.nativeToolSearch.useResponsesApi !==
-        false
-    )
-      return true;
-    return requiresOpenAIResponses(
+    return useOpenAIResponses(
       request.config?.model || this.model,
       this.config.baseUrl,
       this.parameterOptions(request),
+      resolveOpenAITransport(this.config, request.config?.openai),
+      this.toolDefinitions(request).length > 0,
+      !!(request.rawMessages ?? request.messages)?.some(
+        (message: any) => message.providerMetadata?.openai?.response,
+      ),
+      request.providerToolOptions?.openai?.nativeToolSearch?.enabled === true &&
+        request.providerToolOptions.openai.nativeToolSearch.useResponsesApi !==
+          false,
     );
   }
 
@@ -170,8 +178,8 @@ export class OpenAIAdapter implements LLMAdapter {
   ): Array<Record<string, unknown>> {
     const sourceMessages =
       request.rawMessages && request.rawMessages.length > 0
-        ? this.formatRawMessages(request.rawMessages)
-        : (formatMessagesForOpenAI(request.messages, undefined) as Array<
+        ? this.formatRawMessages(request.rawMessages, true)
+        : (formatMessagesForOpenAI(request.messages, undefined, true) as Array<
             Record<string, unknown>
           >);
     const input: Array<Record<string, unknown>> = [];
@@ -182,7 +190,7 @@ export class OpenAIAdapter implements LLMAdapter {
         // pass it as a message. Dropping it silently loses the prompt, so
         // forward it as a developer turn (the Responses equivalent) unless
         // instructions already covers it.
-        if (!request.systemPrompt && message.content) {
+        if (message.content && message.content !== request.systemPrompt) {
           input.push({
             type: "message",
             role: "developer",
@@ -193,6 +201,11 @@ export class OpenAIAdapter implements LLMAdapter {
       }
 
       if (message.role === "assistant") {
+        const replay = getResponseReplay(message.providerMetadata);
+        if (replay) {
+          input.push(...replay);
+          continue;
+        }
         const content = this.toResponsesContent(message.content, "assistant");
 
         if (
@@ -251,9 +264,10 @@ export class OpenAIAdapter implements LLMAdapter {
   /** Preserve Copilot screenshot attachments on every OpenAI transport. */
   private formatRawMessages(
     messages: Array<Record<string, unknown>>,
+    preserveProviderMetadata = false,
   ): Array<Record<string, unknown>> {
     return messages.map((message) => {
-      const { attachments, ...rest } = message;
+      const { attachments, providerMetadata, ...rest } = message;
       let content = message.content;
       if (
         message.role === "assistant" &&
@@ -279,7 +293,13 @@ export class OpenAIAdapter implements LLMAdapter {
           content = [...parts, ...images];
         }
       }
-      return { ...rest, content };
+      return {
+        ...rest,
+        content,
+        ...(preserveProviderMetadata && providerMetadata
+          ? { providerMetadata }
+          : {}),
+      };
     });
   }
 
@@ -403,19 +423,37 @@ export class OpenAIAdapter implements LLMAdapter {
       textFromOutput ||
       (typeof response?.output_text === "string" ? response.output_text : "");
 
+    const seenCallIds = new Set<string>();
     const toolCalls = Array.isArray(response?.output)
       ? response.output
           .filter((item: any) => item?.type === "function_call")
-          .map((item: any) => ({
-            id: item.call_id ?? item.id ?? generateToolCallId(),
-            name: item.name,
-            args: JSON.parse(item.arguments ?? "{}"),
-          }))
+          .map((item: any) => {
+            if (
+              typeof item.call_id !== "string" ||
+              !item.call_id ||
+              typeof item.name !== "string" ||
+              !item.name ||
+              typeof item.arguments !== "string" ||
+              (item.status && item.status !== "completed")
+            ) {
+              throw new Error("Responses contains an incomplete function call");
+            }
+            if (seenCallIds.has(item.call_id))
+              throw new Error("Responses contains duplicate function call IDs");
+            seenCallIds.add(item.call_id);
+            const args = JSON.parse(item.arguments);
+            if (!args || typeof args !== "object" || Array.isArray(args))
+              throw new Error(
+                "Responses function arguments must be a JSON object",
+              );
+            return { id: item.call_id, name: item.name, args };
+          })
       : [];
 
     return {
       content,
       toolCalls,
+      providerMetadata: responseMetadata(response),
       usage: response?.usage
         ? {
             promptTokens: response.usage.input_tokens ?? 0,
@@ -435,6 +473,17 @@ export class OpenAIAdapter implements LLMAdapter {
     stream: boolean,
   ): Record<string, unknown> {
     const openaiToolOptions = request.providerToolOptions?.openai;
+    const options = resolveOpenAITransport(
+      this.config,
+      request.config?.openai,
+    ).responses;
+    const parameters = buildOpenAIParameters(
+      request.config?.model || this.model,
+      request.config?.maxTokens ?? this.config.maxTokens,
+      request.config?.temperature ?? this.config.temperature,
+      this.parameterOptions(request),
+      "responses",
+    );
     const responsesTextFormat = toOpenAIResponsesTextFormat(
       request.config?.responseFormat,
     );
@@ -450,13 +499,40 @@ export class OpenAIAdapter implements LLMAdapter {
       ),
       tool_choice: openaiToolOptions?.toolChoice,
       parallel_tool_calls: openaiToolOptions?.parallelToolCalls,
-      ...buildOpenAIParameters(
-        modelIdForPayload,
-        request.config?.maxTokens ?? this.config.maxTokens,
-        request.config?.temperature ?? this.config.temperature,
-        this.parameterOptions(request),
-        "responses",
-      ),
+      ...parameters,
+      ...(options?.reasoningSummary
+        ? {
+            reasoning: {
+              ...(parameters.reasoning as object),
+              summary: options.reasoningSummary,
+            },
+          }
+        : {}),
+      ...(options?.store !== undefined ? { store: options.store } : {}),
+      ...(options?.previousResponseId !== undefined
+        ? { previous_response_id: options.previousResponseId }
+        : {}),
+      ...(options?.promptCacheKey !== undefined
+        ? { prompt_cache_key: options.promptCacheKey }
+        : {}),
+      ...(options?.promptCacheOptions !== undefined
+        ? { prompt_cache_options: options.promptCacheOptions }
+        : {}),
+      ...(options?.promptCacheRetention !== undefined
+        ? { prompt_cache_retention: options.promptCacheRetention }
+        : {}),
+      ...(options?.store === false || options?.include
+        ? {
+            include: [
+              ...new Set([
+                ...(options?.include ?? []),
+                ...(options?.store === false
+                  ? ["reasoning.encrypted_content"]
+                  : []),
+              ]),
+            ],
+          }
+        : {}),
       ...(responsesTextFormat ? { text: { format: responsesTextFormat } } : {}),
       stream,
     };
@@ -536,6 +612,10 @@ export class OpenAIAdapter implements LLMAdapter {
       | undefined;
     const citations: Citation[] = [];
     let completed = false;
+    let terminalResponse: any;
+    let responseIdentity: any = {};
+    const outputItems = new Map<number, any>();
+    let streamedText = "";
 
     function* flushToolCalls(): Generator<StreamEvent> {
       for (const call of toolCalls.values()) {
@@ -555,11 +635,30 @@ export class OpenAIAdapter implements LLMAdapter {
       throwIfAborted(request.signal);
       logProviderPayload("openai", "stream chunk", event, request.debug);
 
+      if (completed)
+        throw new Error("Responses stream emitted an event after completion");
       const index: number = event?.output_index ?? 0;
 
       switch (event?.type) {
+        case "response.created":
+          responseIdentity = {
+            id: event.response?.id,
+            model: event.response?.model,
+          };
+          break;
+        case "response.output_item.done":
+          if (event.item) outputItems.set(index, event.item);
+          if (event.item?.type === "function_call") {
+            toolCalls.set(index, {
+              id: event.item.call_id,
+              name: event.item.name,
+              arguments: event.item.arguments,
+            });
+          }
+          break;
         case "response.output_text.delta":
           if (event.delta) {
+            streamedText += event.delta;
             yield { type: "message:delta", content: event.delta };
           }
           break;
@@ -567,7 +666,7 @@ export class OpenAIAdapter implements LLMAdapter {
         case "response.output_item.added":
           if (event.item?.type === "function_call") {
             toolCalls.set(index, {
-              id: event.item.call_id ?? event.item.id ?? generateToolCallId(),
+              id: event.item.call_id ?? "",
               name: event.item.name ?? "",
               arguments: event.item.arguments ?? "",
             });
@@ -590,7 +689,10 @@ export class OpenAIAdapter implements LLMAdapter {
         }
 
         case "response.completed": {
+          if (event.response?.status && event.response.status !== "completed")
+            throw new Error(`Responses stream ${event.response.status}`);
           completed = true;
+          terminalResponse = { ...responseIdentity, ...event.response };
           // Citations ride on the output_text annotations rather than arriving
           // as their own events, so harvest them from the terminal payload.
           const found = this.collectResponsesCitations(
@@ -634,14 +736,79 @@ export class OpenAIAdapter implements LLMAdapter {
     throwIfAborted(request.signal);
     if (!completed)
       throw new Error("Responses stream ended without a completed response");
+    // The final output is authoritative. Keep completed items when a compatible
+    // server omits them from the terminal envelope; never replay partial reasoning.
+    const output = terminalResponse.output?.length
+      ? terminalResponse.output
+      : [...outputItems.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([, item]) => item);
+    if (output.some((item: any) => item.type === "function_call"))
+      toolCalls.clear();
+    for (const [index, item] of output.entries()) {
+      if (item.type === "function_call") {
+        toolCalls.set(index, {
+          id: item.call_id,
+          name: item.name,
+          arguments: item.arguments,
+        });
+      }
+    }
+    // Reconcile by call ID to avoid duplicate calls if terminal output indexes differ.
+    const uniqueCalls = new Map<
+      string,
+      { id: string; name: string; arguments: string }
+    >();
+    for (const call of toolCalls.values()) {
+      if (!call.id || !call.name)
+        throw new Error("Responses stream contains an incomplete tool call");
+      uniqueCalls.set(call.id, call);
+    }
+    toolCalls.clear();
+    [...uniqueCalls.values()].forEach((call, index) =>
+      toolCalls.set(index, call),
+    );
+    if (!output.length && toolCalls.size) {
+      for (const call of toolCalls.values())
+        output.push({
+          type: "function_call",
+          call_id: call.id,
+          name: call.name,
+          arguments: call.arguments,
+        });
+    }
+    if (!output.length && streamedText)
+      output.push({
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: streamedText, annotations: [] }],
+      });
+    terminalResponse.output = output;
+    const finalText = this.parseResponsesResult(terminalResponse).content;
+    if (
+      finalText.startsWith(streamedText) &&
+      finalText.length > streamedText.length
+    ) {
+      yield {
+        type: "message:delta",
+        content: finalText.slice(streamedText.length),
+      };
+    }
     yield* flushToolCalls();
 
     if (citations.length > 0) {
       yield { type: "citation", citations: deduplicateCitations(citations) };
     }
 
-    yield { type: "message:end" };
-    yield { type: "done", usage };
+    yield {
+      type: "message:end",
+      providerMetadata: responseMetadata(terminalResponse),
+    };
+    yield {
+      type: "done",
+      usage,
+      providerMetadata: responseMetadata(terminalResponse),
+    };
   }
 
   async *stream(request: ChatCompletionRequest): AsyncGenerator<StreamEvent> {

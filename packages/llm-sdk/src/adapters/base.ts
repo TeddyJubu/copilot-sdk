@@ -15,6 +15,7 @@ import type { TokenUsage } from "../core/types";
  * Request-level LLM configuration overrides
  */
 export interface RequestLLMConfig {
+  openai?: import("../core/openai-responses").OpenAITransportOptions;
   model?: string;
   reasoningEffort?: import("../core/openai-parameters").OpenAIReasoningEffort;
   temperature?: number;
@@ -59,6 +60,7 @@ export interface ChatCompletionRequest {
  * Non-streaming completion result
  */
 export interface CompletionResult {
+  providerMetadata?: import("../core/openai-responses").ProviderMetadata;
   /** Text content */
   content: string;
   /** Tool calls */
@@ -937,6 +939,7 @@ export type OpenAIMessage =
   | { role: "user"; content: string | OpenAIContentBlock[] }
   | {
       role: "assistant";
+      providerMetadata?: import("../core/openai-responses").ProviderMetadata;
       content: string | null;
       tool_calls?: Array<{
         id: string;
@@ -953,6 +956,7 @@ export type OpenAIMessage =
 export function formatMessagesForOpenAI(
   messages: Message[],
   systemPrompt?: string,
+  preserveProviderMetadata = false,
 ): OpenAIMessage[] {
   const formatted: OpenAIMessage[] = [];
 
@@ -975,6 +979,9 @@ export function formatMessagesForOpenAI(
         role: "assistant",
         // Gemini/xAI (OpenAI-compatible) reject content: "" on assistant messages with tool_calls
         content: hasToolCalls ? msg.content || null : msg.content,
+        ...(preserveProviderMetadata && msg.providerMetadata
+          ? { providerMetadata: msg.providerMetadata }
+          : {}),
       };
       if (hasToolCalls) {
         (assistantMsg as { tool_calls: typeof msg.tool_calls }).tool_calls =

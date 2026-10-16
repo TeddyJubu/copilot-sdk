@@ -171,7 +171,7 @@ function estimateMessageTokens(
     ? JSON.stringify(message.attachments)
     : "";
   return estimateTokens(
-    `${message.role}\n${content}\n${toolCalls}\n${attachments}`,
+    `${message.role}\n${content}\n${toolCalls}\n${attachments}\n${message.providerMetadata ? JSON.stringify(message.providerMetadata) : ""}`,
     charsPerToken,
   );
 }
@@ -1308,15 +1308,75 @@ export class ChatContextOptimizer {
       allTools.map((tool) => [tool.name, tool] as const),
     );
 
-    return messages.map((message) => {
+    const explicitResultIds = new Set(
+      messages
+        .filter((message) => message.role === "tool")
+        .map((message) => message.toolCallId),
+    );
+    return messages.flatMap((message): RequestMessage[] => {
       if (message.role !== "tool") {
-        return {
+        const assistant: RequestMessage = {
           role: message.role,
           content: message.content,
           tool_calls: message.toolCalls,
           tool_call_id: message.toolCallId,
           attachments: message.attachments,
+          ...(message.providerMetadata
+            ? { providerMetadata: message.providerMetadata }
+            : {}),
         };
+        // Streaming UI stores completed server executions on the assistant. A
+        // replayed Responses function call must retain its matching output too.
+        const response = (
+          message.providerMetadata?.openai as
+            | {
+                response?: {
+                  output?: Array<{
+                    type: string;
+                    call_id?: string;
+                    name?: string;
+                    arguments?: string;
+                  }>;
+                };
+              }
+            | undefined
+        )?.response;
+        const replayedCalls = (response?.output ?? []).filter(
+          (item) => item.type === "function_call",
+        );
+        const callIds = new Set(replayedCalls.map((item) => item.call_id));
+        if (replayedCalls.length) {
+          // Keep ordinary tool links too, for context accounting and explicit
+          // switches back to Chat. Responses itself replays the opaque output.
+          assistant.tool_calls = replayedCalls.map((item) => ({
+            id: item.call_id,
+            type: "function",
+            function: { name: item.name, arguments: item.arguments },
+          }));
+        }
+        const executions = message.metadata?.toolExecutions;
+        const results: RequestMessage[] = [];
+        if (message.role === "assistant" && Array.isArray(executions)) {
+          for (const execution of executions) {
+            if (
+              !callIds.has(execution.id) ||
+              explicitResultIds.has(execution.id) ||
+              (execution.result === undefined && !execution.error)
+            )
+              continue;
+            results.push({
+              role: "tool",
+              tool_call_id: execution.id,
+              content: buildToolResultContentForPrompt(
+                execution.result ?? { error: execution.error },
+                toolDefMap.get(execution.name),
+                execution.args ?? {},
+                this.config,
+              ),
+            });
+          }
+        }
+        return [assistant, ...results];
       }
 
       const toolCall = message.toolCallId
@@ -1342,11 +1402,13 @@ export class ChatContextOptimizer {
         );
       }
 
-      return {
-        role: message.role,
-        content,
-        tool_call_id: message.toolCallId,
-      };
+      return [
+        {
+          role: message.role,
+          content,
+          tool_call_id: message.toolCallId,
+        },
+      ];
     });
   }
 }

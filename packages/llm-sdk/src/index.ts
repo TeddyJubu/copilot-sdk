@@ -232,3 +232,11 @@ export type {
   FallbackInfo,
   RetryInfo,
 } from "./fallback/types";
+
+export type {
+  OpenAITransportOptions,
+  OpenAIResponsesOptions,
+  OpenAIResponseItem,
+  OpenAIResponseMetadata,
+  ProviderMetadata,
+} from "./core/openai-responses";

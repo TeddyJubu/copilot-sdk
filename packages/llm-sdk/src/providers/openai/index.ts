@@ -177,6 +177,8 @@ export function createOpenAI(config: OpenAIProviderConfig = {}): AIProvider {
       model: modelId,
       baseUrl: config.baseUrl,
       reasoningEffort: config.reasoningEffort,
+      api: config.api,
+      responses: config.responses,
       parameterPolicy: config.parameterPolicy,
       onWarning: config.onWarning,
     });
@@ -220,3 +222,11 @@ export type {
   OpenAIReasoningEffort,
   OpenAIParameterOptions,
 } from "../../core/openai-parameters";
+
+export type {
+  OpenAITransportOptions,
+  OpenAIResponsesOptions,
+  OpenAIResponseItem,
+  OpenAIResponseMetadata,
+  ProviderMetadata,
+} from "../../core/openai-responses";

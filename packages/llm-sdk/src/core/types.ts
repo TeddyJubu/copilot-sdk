@@ -5,6 +5,10 @@
  */
 
 import type { z } from "zod";
+import type {
+  OpenAITransportOptions,
+  ProviderMetadata,
+} from "./openai-responses";
 
 // ============================================
 // Language Model Types
@@ -97,6 +101,8 @@ export interface UserMessage {
 }
 
 export interface AssistantMessage {
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   role: "assistant";
   content: string | null;
   toolCalls?: ToolCall[];
@@ -127,6 +133,7 @@ export interface ImagePart {
 }
 
 export interface FilePart {
+  filename?: string;
   type: "file";
   /** Base64 data or URL */
   data: string;
@@ -199,6 +206,8 @@ export interface ToolResult {
  * Parameters for model.doGenerate() and model.doStream()
  */
 export interface DoGenerateParams {
+  /** OpenAI endpoint and Responses options. */
+  openai?: OpenAITransportOptions;
   /** Messages to send to LLM */
   messages: CoreMessage[];
   /** Tools available to the LLM (already formatted for provider) */
@@ -219,6 +228,8 @@ export interface DoGenerateParams {
  * Result from model.doGenerate()
  */
 export interface DoGenerateResult {
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   /** Generated text content */
   text: string;
   /** Tool calls requested by the LLM */
@@ -282,6 +293,8 @@ export interface ToolResultChunk {
 }
 
 export interface FinishChunk {
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   type: "finish";
   finishReason: FinishReason;
   usage?: TokenUsage;
@@ -300,6 +313,8 @@ export interface ErrorChunk {
  * Parameters for generateText()
  */
 export interface GenerateTextParams {
+  /** OpenAI endpoint and Responses options. */
+  openai?: OpenAITransportOptions;
   /** Language model to use */
   model: LanguageModel;
   /** Simple prompt (converted to user message) */
@@ -328,6 +343,8 @@ export interface GenerateTextParams {
  * Result from generateText()
  */
 export interface GenerateTextResult {
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   /** Final text output */
   text: string;
   /** Token usage */
@@ -350,6 +367,8 @@ export interface GenerateTextResult {
  * A single step in the generation process
  */
 export interface GenerateStep {
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   /** Text generated in this step */
   text: string;
   /** Tool calls made in this step */
@@ -375,6 +394,9 @@ export type StreamTextParams = GenerateTextParams;
  * Result from streamText()
  */
 export interface StreamTextResult {
+  /** Final conversation, including opaque provider state for replay. */
+  readonly response: Promise<{ messages: CoreMessage[] }>;
+  readonly providerMetadata: Promise<ProviderMetadata | undefined>;
   /** Async iterable of text chunks only */
   textStream: AsyncIterable<string>;
 
@@ -407,8 +429,18 @@ export type StreamPart =
   | { type: "tool-call-complete"; toolCall: ToolCall }
   | { type: "tool-result"; toolCallId: string; result: unknown }
   | { type: "step-start"; step: number }
-  | { type: "step-finish"; step: number; finishReason: FinishReason }
-  | { type: "finish"; finishReason: FinishReason; usage: TokenUsage }
+  | {
+      type: "step-finish";
+      step: number;
+      finishReason: FinishReason;
+      providerMetadata?: ProviderMetadata;
+    }
+  | {
+      type: "finish";
+      finishReason: FinishReason;
+      usage: TokenUsage;
+      providerMetadata?: ProviderMetadata;
+    }
   | { type: "error"; error: Error };
 
 /**

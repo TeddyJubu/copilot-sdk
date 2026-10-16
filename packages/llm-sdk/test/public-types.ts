@@ -38,3 +38,35 @@ void createRuntime({ adapter: chain }).chat({
   messages: [],
   config: { reasoningEffort: effort },
 });
+
+import type {
+  OpenAIResponsesOptions,
+  ProviderMetadata,
+} from "@yourgpt/llm-sdk";
+const responses: OpenAIResponsesOptions = {
+  store: false,
+  reasoningSummary: "auto",
+};
+const responsesModel = openai("gpt-6-luna", { api: "responses", responses });
+void generateText({
+  model: responsesModel,
+  prompt: "test",
+  openai: { responses: { previousResponseId: "resp_test" } },
+}).then((result) => {
+  const metadata: ProviderMetadata | undefined = result.providerMetadata;
+  return generateText({
+    model: responsesModel,
+    messages: result.response.messages,
+  });
+});
+void streamText({ model: responsesModel, prompt: "test" }).then(
+  async (result) => {
+    const metadata: ProviderMetadata | undefined =
+      await result.providerMetadata;
+    return (await result.response).messages;
+  },
+);
+void createRuntime({
+  provider: createOpenAI({ api: "responses", responses }),
+  model: "gpt-6-luna",
+}).chat({ messages: [], config: { openai: { api: "responses", responses } } });

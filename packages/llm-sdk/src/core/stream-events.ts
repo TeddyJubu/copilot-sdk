@@ -52,6 +52,7 @@ export interface MessageDeltaEvent extends BaseEvent {
  * Message finished streaming
  */
 export interface MessageEndEvent extends BaseEvent {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   type: "message:end";
 }
 
@@ -142,6 +143,7 @@ export interface ToolCallInfo {
  * Assistant message with tool calls
  */
 export interface AssistantToolMessage {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   role: "assistant";
   content: string | null;
   tool_calls: Array<{
@@ -224,6 +226,7 @@ export interface CitationEvent extends BaseEvent {
  * Message format for done event (API format with snake_case)
  */
 export interface DoneEventMessage {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   role: "assistant" | "tool";
   content: string | null;
   tool_calls?: Array<{
@@ -261,6 +264,7 @@ export interface ThreadCreatedEvent extends BaseEvent {
  * Stream completed
  */
 export interface DoneEvent extends BaseEvent {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   type: "done";
   requiresAction?: boolean;
   messages?: DoneEventMessage[];
@@ -364,6 +368,7 @@ export interface MessageMetadata {
  * Message type (simplified for llm-sdk)
  */
 export interface Message {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   id: string;
   thread_id?: string;
   role: MessageRole;
@@ -685,6 +690,7 @@ export function createMessage(
     tool_calls: partial.tool_calls,
     tool_call_id: partial.tool_call_id,
     metadata: partial.metadata,
+    providerMetadata: partial.providerMetadata,
     created_at: partial.created_at ?? new Date(),
   };
 }

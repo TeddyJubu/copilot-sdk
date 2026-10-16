@@ -344,3 +344,159 @@ for (const model of models)
       }
     });
   }
+
+for (const streaming of [false, true])
+  for (const kind of ["server", "client", "mixed"])
+    test(`Responses replay ${streaming ? "SSE" : "JSON"}: ${kind} tools, persisted restore and next user turn`, async () => {
+      const originalReply = providerReply;
+      let executed = 0;
+      const calls = (
+        kind === "mixed" ? definitions : definitions.slice(0, 1)
+      ).map((tool, i) => ({
+        type: "function_call",
+        id: `fc_${i}`,
+        call_id: `call_${i}`,
+        name: tool.name,
+        arguments: '{"id":"check"}',
+        status: "completed",
+      }));
+      const reasoning = {
+        type: "reasoning",
+        id: "rs_turn1",
+        summary: [],
+        encrypted_content: "complete-encrypted-state",
+      };
+      providerReply = (endpoint, { body }) => {
+        assert.equal(endpoint, "/responses");
+        assert.equal(body.store, false);
+        if (requests.length > 1) {
+          assert.deepEqual(
+            body.input.find((item) => item.type === "reasoning"),
+            reasoning,
+          );
+          const replayedCalls = body.input.filter(
+            (item) => item.type === "function_call",
+          );
+          const replayedResults = body.input.filter(
+            (item) => item.type === "function_call_output",
+          );
+          assert.equal(replayedCalls.length, calls.length);
+          assert.equal(replayedResults.length, calls.length);
+          assert.deepEqual(
+            replayedResults.map((item) => item.call_id).sort(),
+            calls.map((item) => item.call_id).sort(),
+          );
+          for (const result of replayedResults) {
+            assert.ok(
+              body.input.findIndex(
+                (item) =>
+                  item.type === "function_call" &&
+                  item.call_id === result.call_id,
+              ) < body.input.indexOf(result),
+            );
+          }
+        }
+        const output =
+          requests.length === 1
+            ? [reasoning, ...calls]
+            : [
+                {
+                  type: "message",
+                  id: `msg_${requests.length}`,
+                  role: "assistant",
+                  status: "completed",
+                  content: [
+                    { type: "output_text", text: "done", annotations: [] },
+                  ],
+                },
+              ];
+        const result = {
+          id: `resp_${requests.length}`,
+          status: "completed",
+          output,
+          usage: responseUsage,
+          store: false,
+        };
+        if (!body.stream) return result;
+        return chunks([
+          ...output.flatMap((item, output_index) => [
+            { type: "response.output_item.added", output_index, item },
+            ...(item.type === "message"
+              ? [{ type: "response.output_text.delta", delta: "done" }]
+              : []),
+            { type: "response.output_item.done", output_index, item },
+          ]),
+          { type: "response.completed", response: result },
+        ]);
+      };
+      runtime = createRuntime({
+        provider: createOpenAI({
+          apiKey: "test-only",
+          api: "responses",
+          responses: { store: false },
+        }),
+        model: "gpt-4o",
+        maxIterations: 3,
+        tools:
+          kind === "client"
+            ? []
+            : [
+                {
+                  ...definitions[0],
+                  location: "server",
+                  handler: async () => {
+                    executed++;
+                    return { success: true, data: { code: "ORBIT-42" } };
+                  },
+                },
+              ],
+      });
+      const init = {
+        runtimeUrl: "https://copilot.test/api/chat",
+        streaming,
+        threadId: "existing-thread",
+      };
+      const chat = new ReactChat(init);
+      let restored;
+      const pending = [];
+      chat.onToolCalls((event) => pending.push(event));
+      if (kind !== "server")
+        chat.setTools([
+          { ...definitions[kind === "mixed" ? 1 : 0], location: "client" },
+        ]);
+      try {
+        assert.equal(await chat.sendMessage("Inspect"), true);
+        if (kind !== "server") {
+          assert.equal(pending.length, 1);
+          await chat.continueWithToolResults(
+            pending[0].toolCalls.map((call) => ({
+              toolCallId: call.id,
+              result: { success: true, data: { code: "ORBIT-42" } },
+            })),
+          );
+        }
+        assert.equal(chat.error, undefined);
+        assert.equal(chat.status, "ready");
+        assert.equal(requests.length, 2);
+        assert.ok(
+          chat.messages.some((message) =>
+            message.providerMetadata?.openai?.response?.output?.some(
+              (item) => item.id === "rs_turn1",
+            ),
+          ),
+        );
+        restored = new ReactChat({
+          ...init,
+          initialMessages: JSON.parse(JSON.stringify(chat.messages)),
+        });
+        assert.equal(await restored.sendMessage("What was done?"), true);
+        assert.equal(restored.error, undefined);
+        assert.equal(restored.status, "ready");
+        assert.equal(requests.length, 3);
+        assert.equal(executed, kind === "client" ? 0 : 1);
+      } finally {
+        providerReply = originalReply;
+        chat.dispose();
+        restored?.dispose();
+      }
+    });

@@ -1,3 +1,4 @@
+import type { ProviderMetadata } from "./openai-responses";
 /**
  * streamText - Stream text from a language model
  *
@@ -58,6 +59,8 @@ export async function streamText(
   }
 
   // State for collecting results
+  let messages = buildMessages(params);
+  let finalProviderMetadata: ProviderMetadata | undefined;
   let fullText = "";
   let finalUsage: TokenUsage = {
     promptTokens: 0,
@@ -68,8 +71,6 @@ export async function streamText(
 
   // Create the stream generator
   async function* createFullStream(): AsyncGenerator<StreamPart> {
-    let messages = buildMessages(params);
-
     for (let step = 0; step < maxSteps; step++) {
       yield { type: "step-start", step };
 
@@ -86,6 +87,7 @@ export async function streamText(
 
       // Collect data from this step
       let stepText = "";
+      let stepProviderMetadata: ProviderMetadata | undefined;
       const toolCalls: ToolCall[] = [];
       let currentToolCall: Partial<ToolCall> | null = null;
       let stepFinishReason: FinishReason = "stop";
@@ -94,6 +96,7 @@ export async function streamText(
         // Stream from model
         for await (const chunk of model.doStream({
           messages,
+          openai: params.openai,
           tools: formattedTools,
           temperature: params.temperature,
           reasoningEffort: params.reasoningEffort,
@@ -118,6 +121,8 @@ export async function streamText(
               break;
 
             case "finish":
+              stepProviderMetadata = chunk.providerMetadata;
+              finalProviderMetadata = chunk.providerMetadata;
               stepFinishReason = chunk.finishReason;
               finalFinishReason = chunk.finishReason;
               if (chunk.usage) {
@@ -144,20 +149,24 @@ export async function streamText(
         return;
       }
 
-      yield { type: "step-finish", step, finishReason: stepFinishReason };
-
-      // If no tool calls, we're done
-      if (toolCalls.length === 0 || !tools) {
-        break;
-      }
-
-      // Execute tools and continue
-      const assistantMessage: CoreMessage = {
-        role: "assistant",
-        content: stepText || null,
-        toolCalls,
+      yield {
+        type: "step-finish",
+        step,
+        finishReason: stepFinishReason,
+        providerMetadata: stepProviderMetadata,
       };
-      messages = [...messages, assistantMessage];
+      messages = [
+        ...messages,
+        {
+          role: "assistant",
+          content: stepText || null,
+          ...(toolCalls.length ? { toolCalls } : {}),
+          ...(stepProviderMetadata
+            ? { providerMetadata: stepProviderMetadata }
+            : {}),
+        },
+      ];
+      if (toolCalls.length === 0 || !tools) break;
 
       // Execute each tool
       for (const call of toolCalls) {
@@ -227,6 +236,7 @@ export async function streamText(
       type: "finish",
       finishReason: finalFinishReason,
       usage: finalUsage,
+      providerMetadata: finalProviderMetadata,
     };
   }
 
@@ -287,6 +297,12 @@ export async function streamText(
     textStream: createTextStream(),
     fullStream: sharedStream(),
 
+    get response(): Promise<{ messages: CoreMessage[] }> {
+      return consumeStream().then(() => ({ messages }));
+    },
+    get providerMetadata(): Promise<ProviderMetadata | undefined> {
+      return consumeStream().then(() => finalProviderMetadata);
+    },
     get text(): Promise<string> {
       return consumeStream().then(() => fullText);
     },

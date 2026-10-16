@@ -205,6 +205,7 @@ export interface MessageAttachment {
 export interface ChatRequest {
   /** Conversation messages */
   messages: Array<{
+    providerMetadata?: import("../core/openai-responses").ProviderMetadata;
     role: string;
     content: string;
     /** Attachments like images (for vision support) */
@@ -224,6 +225,7 @@ export interface ChatRequest {
   botId?: string;
   /** LLM config overrides */
   config?: {
+    openai?: import("../core/openai-responses").OpenAITransportOptions;
     reasoningEffort?: import("../core/openai-parameters").OpenAIReasoningEffort;
     temperature?: number;
     maxTokens?: number;

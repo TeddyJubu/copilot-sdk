@@ -20,6 +20,8 @@ export type MessageRole = "user" | "assistant" | "system" | "tool";
  * This is what your UI renders and what gets persisted.
  */
 export interface UIMessage {
+  /** Opaque provider state, retained without interpreting encrypted reasoning. */
+  providerMetadata?: Record<string, unknown>;
   /** Unique message ID */
   id: string;
   /** Message role */
@@ -69,6 +71,8 @@ export interface StreamToolResult {
  * Stream state during message generation
  */
 export interface StreamingMessageState {
+  /** Opaque provider state, retained without interpreting encrypted reasoning. */
+  providerMetadata?: Record<string, unknown>;
   /** Message being built */
   messageId: string;
   /** Accumulated content */

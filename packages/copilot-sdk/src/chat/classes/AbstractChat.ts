@@ -1107,6 +1107,17 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
         return;
       }
 
+      if (
+        chunk.type === "message:end" &&
+        chunk.providerMetadata &&
+        this.streamState
+      ) {
+        this.streamState = {
+          ...this.streamState,
+          providerMetadata: chunk.providerMetadata,
+        };
+      }
+
       // Handle message:end mid-stream (server-side agent loop turn completed)
       // This creates separate messages for each turn instead of combining them
       // Split on text content OR server-side tool executions (no text, tool-only turns)
@@ -1308,6 +1319,9 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
                 role: msg.role as T["role"],
                 content: msg.content ?? "",
                 toolCalls: msg.tool_calls as T["toolCalls"],
+                ...(msg.providerMetadata
+                  ? { providerMetadata: msg.providerMetadata }
+                  : {}),
                 toolCallId: msg.tool_call_id,
                 createdAt: new Date(),
               } as T);
@@ -1701,6 +1715,9 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
               role: msg.role as T["role"],
               content: msg.content ?? "",
               toolCalls: msg.tool_calls as T["toolCalls"],
+              ...(msg.providerMetadata
+                ? { providerMetadata: msg.providerMetadata }
+                : {}),
               toolCallId: msg.tool_call_id,
               createdAt: new Date(),
               metadata,
@@ -1984,6 +2001,9 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
         role: msg.role as T["role"],
         content: msg.content ?? "",
         toolCalls: msg.tool_calls as T["toolCalls"],
+        ...(msg.providerMetadata
+          ? { providerMetadata: msg.providerMetadata }
+          : {}),
         // CRITICAL: Preserve toolCallId for tool messages (fixes Anthropic API errors)
         toolCallId: msg.tool_call_id,
         createdAt: new Date(),
