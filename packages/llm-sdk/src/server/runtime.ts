@@ -570,14 +570,28 @@ export class Runtime {
       }
 
       // Build JSON response
+      // Only unresolved client tools should be dispatched on a suspended turn.
+      // Server tools also emit action:start, but their results already exist in
+      // the history. Match generate() and StreamResult.collect() here.
+      const resolvedToolIds = new Set(
+        (messages ?? [])
+          .filter((message) => message.role === "tool" && message.tool_call_id)
+          .map((message) => message.tool_call_id),
+      );
+      const responseToolCalls = requiresAction
+        ? toolCalls.filter((call) => !resolvedToolIds.has(call.id))
+        : toolCalls;
       const response = {
         success: !error,
         content,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        toolCalls: responseToolCalls.length > 0 ? responseToolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         messages,
         requiresAction,
         error,
+        // Copilot's HTTP transport reads a top-level message for HTTP errors.
+        // Retain the structured error as well for existing API consumers.
+        ...(error ? { message: error.message } : {}),
         // Include raw events for debugging
         _events: this.config.debug ? events : undefined,
       };
@@ -603,6 +617,7 @@ export class Runtime {
       return new Response(
         JSON.stringify({
           success: false,
+          message: err instanceof Error ? err.message : "Unknown error",
           error: {
             message: err instanceof Error ? err.message : "Unknown error",
           },

@@ -10,6 +10,7 @@ import type {
   WebSearchConfig,
   Citation,
   ToolDefinition,
+  MessageAttachment,
 } from "../core/stream-events";
 import { generateMessageId, generateToolCallId } from "../core/utils";
 import type {
@@ -25,6 +26,7 @@ import {
   normalizeObjectJsonSchema,
   toOpenAIResponseFormat,
   toOpenAIResponsesTextFormat,
+  attachmentToOpenAIImage,
 } from "./base";
 
 /**
@@ -168,7 +170,7 @@ export class OpenAIAdapter implements LLMAdapter {
   ): Array<Record<string, unknown>> {
     const sourceMessages =
       request.rawMessages && request.rawMessages.length > 0
-        ? request.rawMessages
+        ? this.formatRawMessages(request.rawMessages)
         : (formatMessagesForOpenAI(request.messages, undefined) as Array<
             Record<string, unknown>
           >);
@@ -244,6 +246,41 @@ export class OpenAIAdapter implements LLMAdapter {
     }
 
     return input;
+  }
+
+  /** Preserve Copilot screenshot attachments on every OpenAI transport. */
+  private formatRawMessages(
+    messages: Array<Record<string, unknown>>,
+  ): Array<Record<string, unknown>> {
+    return messages.map((message) => {
+      const { attachments, ...rest } = message;
+      let content = message.content;
+      if (
+        message.role === "assistant" &&
+        Array.isArray(message.tool_calls) &&
+        message.tool_calls.length > 0 &&
+        content === ""
+      ) {
+        content = null;
+      }
+      if (Array.isArray(attachments) && attachments.length > 0) {
+        const images = attachments
+          .filter((attachment) => attachment && typeof attachment === "object")
+          .map((attachment) =>
+            attachmentToOpenAIImage(attachment as MessageAttachment),
+          )
+          .filter((image) => image !== null);
+        if (images.length > 0) {
+          const parts = Array.isArray(content)
+            ? content
+            : content
+              ? [{ type: "text", text: content }]
+              : [];
+          content = [...parts, ...images];
+        }
+      }
+      return { ...rest, content };
+    });
   }
 
   /**
@@ -634,67 +671,7 @@ export class OpenAIAdapter implements LLMAdapter {
     // Use raw messages if provided (for agent loop with tool calls), otherwise format from Message[]
     let messages: Array<Record<string, unknown>>;
     if (request.rawMessages && request.rawMessages.length > 0) {
-      // Process raw messages - convert any attachments to OpenAI vision format
-      const processedMessages = request.rawMessages.map((msg) => {
-        // Normalize assistant messages with tool_calls: empty string content → null
-        // Gemini/xAI (OpenAI-compatible) reject content: "" on assistant messages with tool_calls
-        if (
-          msg.role === "assistant" &&
-          Array.isArray(msg.tool_calls) &&
-          msg.tool_calls.length > 0 &&
-          msg.content === ""
-        ) {
-          return { ...msg, content: null };
-        }
-
-        // Check if message has attachments (images)
-        const hasAttachments =
-          msg.attachments &&
-          Array.isArray(msg.attachments) &&
-          msg.attachments.length > 0;
-
-        if (hasAttachments) {
-          // Convert to OpenAI multimodal content format
-          const content: Array<Record<string, unknown>> = [];
-
-          // Add text content if present
-          if (msg.content) {
-            content.push({ type: "text", text: msg.content });
-          }
-
-          // Add image attachments
-          for (const attachment of msg.attachments as Array<{
-            type: string;
-            data?: string;
-            url?: string;
-            mimeType?: string;
-          }>) {
-            if (attachment.type === "image") {
-              let imageUrl: string;
-
-              if (attachment.url) {
-                // Use URL directly (cloud storage)
-                imageUrl = attachment.url;
-              } else if (attachment.data) {
-                // Use base64 data
-                imageUrl = attachment.data.startsWith("data:")
-                  ? attachment.data
-                  : `data:${attachment.mimeType || "image/png"};base64,${attachment.data}`;
-              } else {
-                continue; // Skip if no data or URL
-              }
-
-              content.push({
-                type: "image_url",
-                image_url: { url: imageUrl, detail: "auto" },
-              });
-            }
-          }
-
-          return { ...msg, content, attachments: undefined };
-        }
-        return msg;
-      });
+      const processedMessages = this.formatRawMessages(request.rawMessages);
 
       // Add system prompt at the start if provided and not already present
       if (request.systemPrompt) {
@@ -938,18 +915,7 @@ export class OpenAIAdapter implements LLMAdapter {
 
     let messages: Array<Record<string, unknown>>;
     if (request.rawMessages && request.rawMessages.length > 0) {
-      const sanitized = request.rawMessages.map((msg) => {
-        // Gemini/xAI (OpenAI-compatible) reject content: "" on assistant messages with tool_calls
-        if (
-          msg.role === "assistant" &&
-          Array.isArray(msg.tool_calls) &&
-          msg.tool_calls.length > 0 &&
-          msg.content === ""
-        ) {
-          return { ...msg, content: null };
-        }
-        return msg;
-      });
+      const sanitized = this.formatRawMessages(request.rawMessages);
       if (
         request.systemPrompt &&
         !sanitized.some((message) => message.role === "system")

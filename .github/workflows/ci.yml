@@ -36,3 +36,6 @@ jobs:
 
       - name: Build packages
         run: pnpm build
+
+      - name: Copilot integration regressions
+        run: pnpm test:compatibility
