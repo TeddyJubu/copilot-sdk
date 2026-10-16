@@ -34,6 +34,7 @@
     "./ui/themes/twitter.css": "./dist/themes/twitter.css",
     "./ui/themes/catppuccin.css": "./dist/themes/catppuccin.css",
     "./ui/themes/modern-minimal.css": "./dist/themes/modern-minimal.css",
+    "./ui/themes/copilot.css": "./dist/themes/copilot.css",
     "./tools/web-search": {
       "types": "./dist/tools/web-search/index.d.ts",
       "import": "./dist/tools/web-search/index.js",

@@ -57,6 +57,7 @@ export default defineConfig({
       "src/ui/styles/themes/modern-minimal.css",
       "dist/themes/modern-minimal.css",
     );
+    copyFileSync("src/ui/styles/themes/copilot.css", "dist/themes/copilot.css");
 
     console.log("✓ CSS files copied");
   },
