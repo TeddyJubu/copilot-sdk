@@ -214,7 +214,15 @@ export interface FallbackChainConfig {
   onFallback?: (info: FallbackInfo) => void;
 
   /**
-   * Custom predicate to decide whether an error should trigger a fallback.
+   * Additional errors that may advance to the next model without retrying the
+   * current model. Use a narrow compatibility predicate (status/code/param).
+   * Transient retries/fallbacks retain their existing behavior. Cancellation
+   * and failures after stream output never retry or fall back.
+   */
+  fallbackErrors?: (error: unknown) => boolean;
+
+  /**
+   * Custom predicate controlling same-model retries and subsequent fallback.
    *
    * By default, the following trigger fallback:
    * - HTTP 5xx server errors
@@ -228,8 +236,8 @@ export interface FallbackChainConfig {
    *
    * @example
    * ```typescript
-   * // Also fall back on any error
-   * retryableErrors: () => true,
+   * // Retry only the transient failures your provider identifies.
+   * retryableErrors: (error) => isTransientProviderError(error),
    * ```
    */
   retryableErrors?: (error: unknown) => boolean;

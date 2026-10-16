@@ -1,3 +1,9 @@
+import {
+  buildOpenAIParameters,
+  requiresOpenAIResponses,
+  type OpenAIParameterOptions,
+} from "../core/openai-parameters";
+import { providerErrorEvent, throwIfAborted } from "../core/provider-error";
 import type {
   LLMConfig,
   StreamEvent,
@@ -15,7 +21,6 @@ import {
   buildOpenAITokenParams,
   formatMessagesForOpenAI,
   formatTools,
-  isOpenAIReasoningModel,
   logProviderPayload,
   normalizeObjectJsonSchema,
   toOpenAIResponseFormat,
@@ -25,7 +30,9 @@ import {
 /**
  * OpenAI adapter configuration
  */
-export interface OpenAIAdapterConfig {
+export interface OpenAIAdapterConfig extends OpenAIParameterOptions {
+  organization?: string;
+  headers?: Record<string, string>;
   apiKey: string;
   model?: string;
   baseUrl?: string;
@@ -72,72 +79,46 @@ export class OpenAIAdapter implements LLMAdapter {
       this.client = new OpenAI({
         apiKey: this.config.apiKey,
         baseURL: this.config.baseUrl,
+        organization: this.config.organization,
+        defaultHeaders: this.config.headers,
       });
     }
     return this.client;
   }
 
-  private shouldUseResponsesApi(request: ChatCompletionRequest): boolean {
-    const hasTools =
-      Array.isArray(request.toolDefinitions) &&
-      request.toolDefinitions.length > 0;
-    if (!hasTools) return false;
+  private parameterOptions(
+    request: ChatCompletionRequest,
+  ): OpenAIParameterOptions {
+    return {
+      ...this.config,
+      reasoningEffort:
+        request.config?.reasoningEffort ?? this.config.reasoningEffort,
+    };
+  }
 
-    // Native tool search is Responses-only — this is what the path was built for.
+  private toolDefinitions(request: ChatCompletionRequest): ToolDefinition[] {
+    if (request.toolDefinitions?.length) return request.toolDefinitions;
+    return formatTools(request.actions ?? []).map((tool: any) => ({
+      name: tool.function.name,
+      description: tool.function.description ?? "",
+      location: "server" as const,
+      inputSchema: tool.function.parameters,
+    }));
+  }
+
+  private shouldUseResponsesApi(request: ChatCompletionRequest): boolean {
+    if (this.toolDefinitions(request).length === 0) return false;
     if (
       request.providerToolOptions?.openai?.nativeToolSearch?.enabled === true &&
       request.providerToolOptions.openai.nativeToolSearch.useResponsesApi !==
         false
-    ) {
+    )
       return true;
-    }
-
-    // gpt-5.4+ reject function tools on /v1/chat/completions whenever reasoning is
-    // in play. Only two ways out: send reasoning_effort:'none' (which disables
-    // reasoning entirely — a real quality loss on a model billed for reasoning), or
-    // use /v1/responses, which supports tools WITH reasoning intact. We take the
-    // latter.
-    //
-    // Why this is model-gated rather than always-on: only 5.4+ have the restriction,
-    // and Chat Completions remains the better-tested path here (true token streaming,
-    // vision/attachment handling). Routing everything to Responses would regress
-    // those for no benefit.
-    //
-    // Note this fires even though the SDK never sets reasoning_effort: gpt-5.6
-    // reasons BY DEFAULT, so the conflict is server-side and omitting the param
-    // does not opt out. On <=5.5 omitting it was sufficient, which is why this only
-    // began failing with 5.6.
-    return this.requiresResponsesApiForTools(
+    return requiresOpenAIResponses(
       request.config?.model || this.model,
+      this.config.baseUrl,
+      this.parameterOptions(request),
     );
-  }
-
-  /**
-   * Whether this model rejects function tools on /v1/chat/completions.
-   *
-   * Applies to OpenAI proper only — the adapter is reused for OpenAI-compatible
-   * providers (Azure, xAI, Google, Fireworks) whose endpoints have no such
-   * restriction and may not implement /v1/responses at all.
-   */
-  private requiresResponsesApiForTools(modelId: string | undefined): boolean {
-    if (!modelId) return false;
-    // gpt-5.4, 5.5, 5.6, ... — but NOT gpt-5 / gpt-5.1 / gpt-5-chat.
-    if (!/^gpt-5\.(?:[4-9]|\d{2,})/i.test(modelId)) return false;
-
-    // Must be OpenAI's OWN endpoint. `this.provider` is NOT sufficient:
-    // resolveProviderName defaults to "openai" for any unrecognised baseUrl, so
-    // TogetherAI, LiteLLM/vLLM gateways and self-hosted proxies all report
-    // "openai". Those speak Chat Completions and may not implement /v1/responses
-    // at all — routing them there would turn a working call into a 404.
-    // Check the URL itself, and treat only api.openai.com (or an unset baseUrl,
-    // which the openai client resolves to api.openai.com) as OpenAI proper.
-    const baseUrl = this.config.baseUrl;
-    if (!baseUrl) return true;
-    try {
-      return new URL(baseUrl).hostname === "api.openai.com";
-    } catch {
-      return false;
-    }
   }
 
   /**
@@ -391,13 +372,7 @@ export class OpenAIAdapter implements LLMAdapter {
           .map((item: any) => ({
             id: item.call_id ?? item.id ?? generateToolCallId(),
             name: item.name,
-            args: (() => {
-              try {
-                return JSON.parse(item.arguments ?? "{}");
-              } catch {
-                return {};
-              }
-            })(),
+            args: JSON.parse(item.arguments ?? "{}"),
           }))
       : [];
 
@@ -432,25 +407,19 @@ export class OpenAIAdapter implements LLMAdapter {
       instructions: request.systemPrompt,
       input: this.buildResponsesInput(request),
       tools: this.buildResponsesTools(
-        request.toolDefinitions ?? [],
+        this.toolDefinitions(request),
         request.providerToolOptions?.openai?.nativeToolSearch?.enabled === true,
         this.buildResponsesWebSearchTool(request),
       ),
-      tool_choice:
-        openaiToolOptions?.toolChoice === "required"
-          ? "required"
-          : openaiToolOptions?.toolChoice === "auto"
-            ? "auto"
-            : undefined,
+      tool_choice: openaiToolOptions?.toolChoice,
       parallel_tool_calls: openaiToolOptions?.parallelToolCalls,
-      // Reasoning models reject `temperature` outright — sending it would swap one
-      // 400 for another. isOpenAIReasoningModel already encodes that family test.
-      ...(isOpenAIReasoningModel(modelIdForPayload)
-        ? {}
-        : {
-            temperature: request.config?.temperature ?? this.config.temperature,
-          }),
-      max_output_tokens: request.config?.maxTokens ?? this.config.maxTokens,
+      ...buildOpenAIParameters(
+        modelIdForPayload,
+        request.config?.maxTokens ?? this.config.maxTokens,
+        request.config?.temperature ?? this.config.temperature,
+        this.parameterOptions(request),
+        "responses",
+      ),
       ...(responsesTextFormat ? { text: { format: responsesTextFormat } } : {}),
       stream,
     };
@@ -462,12 +431,28 @@ export class OpenAIAdapter implements LLMAdapter {
     request: ChatCompletionRequest,
   ): Promise<CompletionResult> {
     const client = await this.getClient();
+    throwIfAborted(request.signal);
     const payload = this.buildResponsesPayload(request, false);
 
     logProviderPayload("openai", "request payload", payload, request.debug);
-    const response = await client.responses.create(payload);
+    if (!client.responses?.create)
+      throw new Error(
+        "This OpenAI client does not support Responses; install an openai version with Responses support.",
+      );
+    const response = await client.responses.create(payload, {
+      signal: request.signal,
+    });
+    throwIfAborted(request.signal);
     logProviderPayload("openai", "response payload", response, request.debug);
 
+    if (response.status && response.status !== "completed") {
+      throw Object.assign(
+        new Error(
+          response.error?.message ?? `Responses request ${response.status}`,
+        ),
+        response.error,
+      );
+    }
     return this.parseResponsesResult(response);
   }
 
@@ -488,10 +473,17 @@ export class OpenAIAdapter implements LLMAdapter {
     request: ChatCompletionRequest,
   ): AsyncGenerator<StreamEvent> {
     const client = await this.getClient();
+    throwIfAborted(request.signal);
     const payload = this.buildResponsesPayload(request, true);
     logProviderPayload("openai", "request payload", payload, request.debug);
 
-    const stream = await client.responses.create(payload);
+    if (!client.responses?.create)
+      throw new Error(
+        "This OpenAI client does not support Responses; install an openai version with Responses support.",
+      );
+    const stream = await client.responses.create(payload, {
+      signal: request.signal,
+    });
 
     // Keyed by the output_index the API uses to demultiplex concurrent items.
     const toolCalls = new Map<
@@ -506,8 +498,14 @@ export class OpenAIAdapter implements LLMAdapter {
         }
       | undefined;
     const citations: Citation[] = [];
+    let completed = false;
 
     function* flushToolCalls(): Generator<StreamEvent> {
+      for (const call of toolCalls.values()) {
+        if (!call.name)
+          throw new Error("Responses tool call is missing its name");
+        JSON.parse(call.arguments || "{}");
+      }
       for (const call of toolCalls.values()) {
         yield { type: "action:start", id: call.id, name: call.name };
         yield { type: "action:args", id: call.id, args: call.arguments };
@@ -517,7 +515,7 @@ export class OpenAIAdapter implements LLMAdapter {
     }
 
     for await (const event of stream as AsyncIterable<any>) {
-      if (request.signal?.aborted) break;
+      throwIfAborted(request.signal);
       logProviderPayload("openai", "stream chunk", event, request.debug);
 
       const index: number = event?.output_index ?? 0;
@@ -554,8 +552,8 @@ export class OpenAIAdapter implements LLMAdapter {
           break;
         }
 
-        case "response.completed":
-        case "response.incomplete": {
+        case "response.completed": {
+          completed = true;
           // Citations ride on the output_text annotations rather than arriving
           // as their own events, so harvest them from the terminal payload.
           const found = this.collectResponsesCitations(
@@ -577,18 +575,28 @@ export class OpenAIAdapter implements LLMAdapter {
           break;
         }
 
-        case "error":
-        case "response.failed":
+        case "response.incomplete":
           throw new Error(
-            event.message ??
-              event.response?.error?.message ??
-              "Responses stream failed",
+            `Responses stream incomplete: ${event.response?.incomplete_details?.reason ?? "unknown reason"}`,
           );
+        case "error":
+        case "response.failed": {
+          const details = event.response?.error ?? event;
+          throw Object.assign(
+            new Error(details.message ?? "Responses stream failed"),
+            {
+              code: details.code,
+              param: details.param,
+              status: details.status,
+            },
+          );
+        }
       }
     }
 
-    // Flush after the loop so a stream that ends without a terminal event
-    // still emits its tool calls rather than dropping them.
+    throwIfAborted(request.signal);
+    if (!completed)
+      throw new Error("Responses stream ended without a completed response");
     yield* flushToolCalls();
 
     if (citations.length > 0) {
@@ -600,6 +608,7 @@ export class OpenAIAdapter implements LLMAdapter {
   }
 
   async *stream(request: ChatCompletionRequest): AsyncGenerator<StreamEvent> {
+    throwIfAborted(request.signal);
     if (this.shouldUseResponsesApi(request)) {
       const messageId = generateMessageId();
       yield { type: "message:start", id: messageId };
@@ -615,11 +624,7 @@ export class OpenAIAdapter implements LLMAdapter {
         yield* this.streamWithResponses(request);
         return;
       } catch (error) {
-        yield {
-          type: "error",
-          message: error instanceof Error ? error.message : "Unknown error",
-          code: "OPENAI_RESPONSES_ERROR",
-        };
+        yield providerErrorEvent(error, "OPENAI_RESPONSES_ERROR");
         return;
       }
     }
@@ -714,9 +719,21 @@ export class OpenAIAdapter implements LLMAdapter {
     }
 
     // Build tools array
-    const tools: Array<Record<string, unknown>> = request.actions?.length
-      ? formatTools(request.actions)
-      : [];
+    const tools: Array<Record<string, unknown>> = request.toolDefinitions
+      ?.length
+      ? request.toolDefinitions
+          .filter((tool) => tool.available !== false)
+          .map((tool) => ({
+            type: "function",
+            function: {
+              name: tool.name,
+              description: tool.description,
+              parameters: normalizeObjectJsonSchema(
+                tool.inputSchema as Record<string, unknown> | undefined,
+              ),
+            },
+          }))
+      : formatTools(request.actions ?? []);
 
     // Check for web search configuration (from request or adapter config)
     const webSearchConfig = request.webSearch ?? this.config.webSearch;
@@ -767,20 +784,27 @@ export class OpenAIAdapter implements LLMAdapter {
           modelIdForPayload,
           request.config?.maxTokens ?? this.config.maxTokens,
           request.config?.temperature ?? this.config.temperature,
+          this.parameterOptions(request),
         ),
         response_format: toOpenAIResponseFormat(request.config?.responseFormat),
         stream: true,
         stream_options: { include_usage: true },
       };
       logProviderPayload("openai", "request payload", payload, request.debug);
-      const stream = await client.chat.completions.create(payload);
+      const stream = await client.chat.completions.create(payload, {
+        signal: request.signal,
+      });
 
-      let currentToolCall: {
-        id: string;
-        name: string;
-        arguments: string;
-        extra_content?: Record<string, unknown>;
-      } | null = null;
+      const toolCalls = new Map<
+        number,
+        {
+          id: string;
+          name: string;
+          arguments: string;
+          extra_content?: Record<string, unknown>;
+        }
+      >();
+      let finishReason: string | undefined;
 
       // Track citations from web search
       const collectedCitations: Citation[] = [];
@@ -797,9 +821,7 @@ export class OpenAIAdapter implements LLMAdapter {
       for await (const chunk of stream) {
         logProviderPayload("openai", "stream chunk", chunk, request.debug);
         // Check for abort
-        if (request.signal?.aborted) {
-          break;
-        }
+        throwIfAborted(request.signal);
 
         const delta = chunk.choices[0]?.delta;
         const choice = chunk.choices[0];
@@ -841,49 +863,19 @@ export class OpenAIAdapter implements LLMAdapter {
           }
         }
 
-        // Handle tool calls
-        if (delta?.tool_calls) {
-          for (const toolCall of delta.tool_calls) {
-            // New tool call
-            if (toolCall.id) {
-              // End previous tool call if any
-              if (currentToolCall) {
-                yield {
-                  type: "action:args",
-                  id: currentToolCall.id,
-                  args: currentToolCall.arguments,
-                };
-                yield {
-                  type: "action:end",
-                  id: currentToolCall.id,
-                  name: currentToolCall.name,
-                };
-              }
-
-              const tcExtraContent = (toolCall as any).extra_content as
-                | Record<string, unknown>
-                | undefined;
-
-              currentToolCall = {
-                id: toolCall.id,
-                name: toolCall.function?.name || "",
-                arguments: toolCall.function?.arguments || "",
-                ...(tcExtraContent ? { extra_content: tcExtraContent } : {}),
-              };
-
-              yield {
-                type: "action:start",
-                id: currentToolCall.id,
-                name: currentToolCall.name,
-                ...(currentToolCall.extra_content
-                  ? { extra_content: currentToolCall.extra_content }
-                  : {}),
-              };
-            } else if (currentToolCall && toolCall.function?.arguments) {
-              // Append to current tool call arguments
-              currentToolCall.arguments += toolCall.function.arguments;
-            }
-          }
+        for (const part of delta?.tool_calls ?? []) {
+          const index = part.index ?? 0;
+          const call = toolCalls.get(index) ?? {
+            id: "",
+            name: "",
+            arguments: "",
+          };
+          if (part.id) call.id = part.id;
+          if (part.function?.name) call.name += part.function.name;
+          if (part.function?.arguments)
+            call.arguments += part.function.arguments;
+          if (part.extra_content) call.extra_content = part.extra_content;
+          toolCalls.set(index, call);
         }
 
         // Capture usage from final chunk (OpenAI sends it with stream_options.include_usage)
@@ -895,23 +887,31 @@ export class OpenAIAdapter implements LLMAdapter {
           };
         }
 
-        // Check for finish
-        if (choice?.finish_reason) {
-          // Complete any pending tool call
-          if (currentToolCall) {
-            yield {
-              type: "action:args",
-              id: currentToolCall.id,
-              args: currentToolCall.arguments,
-            };
-            yield {
-              type: "action:end",
-              id: currentToolCall.id,
-              name: currentToolCall.name,
-            };
-            currentToolCall = null;
-          }
-        }
+        if (choice?.finish_reason) finishReason = choice.finish_reason;
+      }
+      throwIfAborted(request.signal);
+      if (!finishReason)
+        throw new Error("OpenAI stream ended without a finish reason");
+      if (
+        toolCalls.size &&
+        !["tool_calls", "function_call"].includes(finishReason)
+      ) {
+        throw new Error("OpenAI stream ended with incomplete tool calls");
+      }
+      for (const call of toolCalls.values()) {
+        if (!call.id || !call.name)
+          throw new Error("OpenAI stream contains an incomplete tool call");
+        JSON.parse(call.arguments || "{}");
+      }
+      for (const call of toolCalls.values()) {
+        yield {
+          type: "action:start",
+          id: call.id,
+          name: call.name,
+          ...(call.extra_content ? { extra_content: call.extra_content } : {}),
+        };
+        yield { type: "action:args", id: call.id, args: call.arguments };
+        yield { type: "action:end", id: call.id, name: call.name };
       }
 
       // Emit citations if we collected any
@@ -924,15 +924,12 @@ export class OpenAIAdapter implements LLMAdapter {
       yield { type: "message:end" };
       yield { type: "done", usage };
     } catch (error) {
-      yield {
-        type: "error",
-        message: error instanceof Error ? error.message : "Unknown error",
-        code: `${this.provider.toUpperCase()}_ERROR`,
-      };
+      yield providerErrorEvent(error, `${this.provider.toUpperCase()}_ERROR`);
     }
   }
 
   async complete(request: ChatCompletionRequest): Promise<CompletionResult> {
+    throwIfAborted(request.signal);
     if (this.shouldUseResponsesApi(request)) {
       return this.completeWithResponses(request);
     }
@@ -971,9 +968,21 @@ export class OpenAIAdapter implements LLMAdapter {
       ) as Array<Record<string, unknown>>;
     }
 
-    const tools: Array<Record<string, unknown>> = request.actions?.length
-      ? formatTools(request.actions)
-      : [];
+    const tools: Array<Record<string, unknown>> = request.toolDefinitions
+      ?.length
+      ? request.toolDefinitions
+          .filter((tool) => tool.available !== false)
+          .map((tool) => ({
+            type: "function",
+            function: {
+              name: tool.name,
+              description: tool.description,
+              parameters: normalizeObjectJsonSchema(
+                tool.inputSchema as Record<string, unknown> | undefined,
+              ),
+            },
+          }))
+      : formatTools(request.actions ?? []);
 
     const openaiToolOptions = request.providerToolOptions?.openai;
     const toolChoice =
@@ -999,13 +1008,16 @@ export class OpenAIAdapter implements LLMAdapter {
         modelIdForCompletePayload,
         request.config?.maxTokens ?? this.config.maxTokens,
         request.config?.temperature ?? this.config.temperature,
+        this.parameterOptions(request),
       ),
       response_format: toOpenAIResponseFormat(request.config?.responseFormat),
       stream: false,
     };
 
     logProviderPayload("openai", "request payload", payload, request.debug);
-    const response = await client.chat.completions.create(payload);
+    const response = await client.chat.completions.create(payload, {
+      signal: request.signal,
+    });
     logProviderPayload("openai", "response payload", response, request.debug);
 
     const choice = response.choices?.[0];

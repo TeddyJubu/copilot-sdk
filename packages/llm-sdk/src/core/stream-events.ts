@@ -117,6 +117,12 @@ export interface ErrorEvent extends BaseEvent {
   type: "error";
   message: string;
   code?: string;
+  status?: number;
+  providerCode?: string;
+  param?: string;
+  requestId?: string;
+  /** In-process cause, omitted from serialized error events. */
+  cause?: unknown;
 }
 
 /**
@@ -308,6 +314,7 @@ export type ResponseFormat =
  * LLM configuration
  */
 export interface LLMConfig {
+  reasoningEffort?: import("./openai-parameters").OpenAIReasoningEffort;
   temperature?: number;
   maxTokens?: number;
   responseFormat?: ResponseFormat;

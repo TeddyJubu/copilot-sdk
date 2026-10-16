@@ -1,10 +1,15 @@
+import {
+  errorFromEvent,
+  isAbortError,
+  throwIfAborted,
+} from "../core/provider-error";
 import type {
   LLMAdapter,
   ChatCompletionRequest,
   CompletionResult,
 } from "../adapters/base";
 import type { StreamEvent } from "../core/stream-events";
-import type { FallbackChainConfig, FallbackFailure, RetryInfo } from "./types";
+import type { FallbackChainConfig, FallbackFailure } from "./types";
 import { FallbackExhaustedError } from "./errors";
 import { MemoryRoutingStore } from "./routing-store";
 
@@ -28,9 +33,8 @@ const ROUND_ROBIN_KEY = "ygpt_fallback_rr_index";
  *
  * Google SDK & Ollama — fall through to message-based detection.
  *
- * In streaming mode: adapters swallow thrown errors and yield { type:"error", message }.
- * The fallback chain creates `new Error(message)` from those, so only message survives.
- * Message-based detection handles that path.
+ * Streaming error events retain structured provider fields when available.
+ * Message-based detection supports older adapters that only supply a message.
  *
  * In complete() mode: real SDK class instances are thrown, so constructor.name + status checks fire.
  */
@@ -129,17 +133,39 @@ function calcDelay(
   return base * Math.pow(2, attempt - 1); // exponential: base, base*2, base*4...
 }
 
-/** Sleep helper */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** Cancellation also interrupts retry backoff. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal);
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      try {
+        throwIfAborted(signal);
+      } catch (error) {
+        reject(error);
+      }
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 // ─── Internal resolved config type ───────────────────────────────────────────
 
 type ResolvedConfig = Required<
-  Omit<FallbackChainConfig, "onFallback" | "onRetry" | "retryableErrors">
+  Omit<
+    FallbackChainConfig,
+    "onFallback" | "onRetry" | "retryableErrors" | "fallbackErrors"
+  >
 > &
-  Pick<FallbackChainConfig, "onFallback" | "onRetry" | "retryableErrors">;
+  Pick<
+    FallbackChainConfig,
+    "onFallback" | "onRetry" | "retryableErrors" | "fallbackErrors"
+  >;
 
 // ─── FallbackChain ────────────────────────────────────────────────────────────
 
@@ -161,6 +187,7 @@ class FallbackChain implements LLMAdapter {
       onFallback: config.onFallback,
       onRetry: config.onRetry,
       retryableErrors: config.retryableErrors,
+      fallbackErrors: config.fallbackErrors,
     };
   }
 
@@ -185,9 +212,18 @@ class FallbackChain implements LLMAdapter {
   }
 
   private _isRetryable(error: unknown): boolean {
+    if (isAbortError(error)) return false;
     return this._config.retryableErrors
       ? this._config.retryableErrors(error)
       : defaultIsRetryable(error);
+  }
+
+  private _canFallback(error: unknown): boolean {
+    return (
+      !isAbortError(error) &&
+      (this._isRetryable(error) ||
+        this._config.fallbackErrors?.(error) === true)
+    );
   }
 
   /**
@@ -203,79 +239,54 @@ class FallbackChain implements LLMAdapter {
   private async *_streamWithRetries(
     adapter: LLMAdapter,
     request: ChatCompletionRequest,
-    out: { retriesAttempted: number },
+    out: { retriesAttempted: number; contentStarted: boolean },
   ): AsyncGenerator<StreamEvent> {
     const { retries, retryDelay, retryBackoff, onRetry } = this._config;
-    const maxAttempts = retries + 1; // initial attempt + retries
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      let contentStarted = false;
-      let failureError: Error | null = null;
-
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      throwIfAborted(request.signal);
+      out.retriesAttempted = attempt;
       try {
         for await (const chunk of adapter.stream(request)) {
-          if (chunk.type === "error") {
-            if (!contentStarted) {
-              const msg =
-                (chunk as { type: "error"; message?: string }).message ??
-                "Unknown error";
-              failureError = new Error(msg);
-              break;
-            }
-            yield chunk;
-            return;
-          }
-
+          throwIfAborted(request.signal);
+          if (chunk.type === "error") throw errorFromEvent(chunk);
           if (chunk.type === "message:start") continue;
-
-          contentStarted = true;
+          out.contentStarted = true;
           yield chunk;
         }
+        throwIfAborted(request.signal);
+        return;
       } catch (error) {
-        if (contentStarted) throw error;
-        if (!this._isRetryable(error)) throw error;
-        failureError =
-          error instanceof Error ? error : new Error(String(error));
-      }
-
-      if (failureError === null) return; // success
-
-      // Non-retryable (4xx) — checked in catch above, but also check error-event path
-      if (!this._isRetryable(failureError)) throw failureError;
-
-      out.retriesAttempted = attempt - 1; // attempts so far beyond initial
-
-      // If we have more retries left, wait then retry the same model
-      if (attempt < maxAttempts) {
-        const delayMs = calcDelay(retryDelay, attempt, retryBackoff);
-        const retryInfo: RetryInfo = {
+        throwIfAborted(request.signal);
+        if (
+          out.contentStarted ||
+          !this._isRetryable(error) ||
+          attempt === retries
+        )
+          throw error;
+        const delayMs = calcDelay(retryDelay, attempt + 1, retryBackoff);
+        onRetry?.({
           model: adapter.model,
           provider: adapter.provider,
-          error: failureError,
-          retryAttempt: attempt,
+          error: error instanceof Error ? error : new Error(String(error)),
+          retryAttempt: attempt + 1,
           maxRetries: retries,
           delayMs,
-        };
-        onRetry?.(retryInfo);
-        await sleep(delayMs);
-        continue;
+        });
+        await sleep(delayMs, request.signal);
       }
-
-      // All retries for this model exhausted — throw so the outer loop can try next model
-      out.retriesAttempted = retries;
-      throw failureError;
     }
   }
 
   async *stream(request: ChatCompletionRequest): AsyncGenerator<StreamEvent> {
     const { models, onFallback } = this._config;
+    throwIfAborted(request.signal);
     const startIndex = await this._startIndex();
     const failures: FallbackFailure[] = [];
 
     for (let i = 0; i < models.length; i++) {
       const index = (startIndex + i) % models.length;
       const adapter = models[index];
-      const out = { retriesAttempted: 0 };
+      const out = { retriesAttempted: 0, contentStarted: false };
 
       try {
         yield* this._streamWithRetries(adapter, request, out);
@@ -283,8 +294,8 @@ class FallbackChain implements LLMAdapter {
         await this._advanceIndex(index);
         return;
       } catch (error) {
-        // Non-retryable (4xx) — rethrow immediately, don't try next model
-        if (!this._isRetryable(error)) throw error;
+        throwIfAborted(request.signal);
+        if (out.contentStarted || !this._canFallback(error)) throw error;
 
         const failure: FallbackFailure = {
           model: adapter.model,
@@ -314,6 +325,7 @@ class FallbackChain implements LLMAdapter {
   async complete(request: ChatCompletionRequest): Promise<CompletionResult> {
     const { models, onFallback, retries, retryDelay, retryBackoff, onRetry } =
       this._config;
+    throwIfAborted(request.signal);
     const startIndex = await this._startIndex();
     const failures: FallbackFailure[] = [];
 
@@ -339,15 +351,19 @@ class FallbackChain implements LLMAdapter {
       let retriesAttempted = 0;
 
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        throwIfAborted(request.signal);
         try {
           const result = await adapter.complete(request);
+          throwIfAborted(request.signal);
           await this._advanceIndex(index);
           return result;
         } catch (error) {
-          if (!this._isRetryable(error)) throw error;
+          throwIfAborted(request.signal);
+          if (!this._canFallback(error)) throw error;
 
           lastError = error instanceof Error ? error : new Error(String(error));
           retriesAttempted = attempt - 1;
+          if (!this._isRetryable(error)) break;
 
           if (attempt < maxAttempts) {
             const delayMs = calcDelay(retryDelay, attempt, retryBackoff);
@@ -359,7 +375,7 @@ class FallbackChain implements LLMAdapter {
               maxRetries: retries,
               delayMs,
             });
-            await sleep(delayMs);
+            await sleep(delayMs, request.signal);
           }
         }
       }

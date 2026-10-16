@@ -16,6 +16,7 @@ import type { TokenUsage } from "../core/types";
  */
 export interface RequestLLMConfig {
   model?: string;
+  reasoningEffort?: import("../core/openai-parameters").OpenAIReasoningEffort;
   temperature?: number;
   maxTokens?: number;
   responseFormat?: ResponseFormat;
@@ -312,30 +313,9 @@ export function normalizeObjectJsonSchema(
   return normalized;
 }
 
-/**
- * Newer OpenAI model families (o1/o3/o4 reasoning, gpt-5.x) require
- * `max_completion_tokens` instead of `max_tokens` and reject `temperature`
- * on the Chat Completions endpoint.
- */
-export function isOpenAIReasoningModel(modelId: string | undefined): boolean {
-  if (!modelId) return false;
-  return /^(o1|o3|o4|gpt-5)/i.test(modelId);
-}
-
-/**
- * Build the token-limit + temperature fields for a Chat Completions payload,
- * accounting for the o-series / gpt-5 parameter rename.
- */
-export function buildOpenAITokenParams(
-  modelId: string | undefined,
-  maxTokens: number | undefined,
-  temperature: number | undefined,
-): Record<string, number | undefined> {
-  if (isOpenAIReasoningModel(modelId)) {
-    return { max_completion_tokens: maxTokens };
-  }
-  return { max_tokens: maxTokens, temperature };
-}
+// Shared by the Runtime adapter and modern provider.
+export { isOpenAIReasoningModel } from "../core/openai-parameters";
+export { buildOpenAIParameters as buildOpenAITokenParams } from "../core/openai-parameters";
 
 /**
  * Recursively walk a JSON Schema and drop keys the provider rejects.

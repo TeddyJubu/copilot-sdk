@@ -35,6 +35,7 @@ import type {
   FinishReason,
 } from "./types";
 import { formatToolsForOpenAI, formatToolsForAnthropic } from "./tool";
+import { throwIfAborted } from "./provider-error";
 
 /**
  * Generate text using a language model
@@ -62,9 +63,7 @@ export async function generateText(
   // Agent loop - keep going until no more tool calls or max steps reached
   for (let step = 0; step < maxSteps; step++) {
     // Check for abort
-    if (signal?.aborted) {
-      throw new Error("Generation aborted");
-    }
+    throwIfAborted(signal);
 
     // Format tools for this model's provider
     const formattedTools = tools
@@ -76,10 +75,12 @@ export async function generateText(
       messages,
       tools: formattedTools,
       temperature: params.temperature,
+      reasoningEffort: params.reasoningEffort,
       maxTokens: params.maxTokens,
       responseFormat: params.responseFormat,
       signal,
     });
+    throwIfAborted(signal);
 
     // Record this step
     const stepToolResults: ToolResult[] = [];
@@ -90,6 +91,7 @@ export async function generateText(
 
       // Execute each tool
       for (const call of result.toolCalls) {
+        throwIfAborted(signal);
         const toolDef = tools[call.name];
         if (!toolDef) {
           const errorResult: ToolResult = {
@@ -109,6 +111,7 @@ export async function generateText(
             abortSignal: signal,
             messages,
           });
+          throwIfAborted(signal);
 
           const result: ToolResult = {
             toolCallId: call.id,
@@ -117,6 +120,7 @@ export async function generateText(
           stepToolResults.push(result);
           allToolResults.push(result);
         } catch (error) {
+          throwIfAborted(signal);
           const errorResult: ToolResult = {
             toolCallId: call.id,
             result: {

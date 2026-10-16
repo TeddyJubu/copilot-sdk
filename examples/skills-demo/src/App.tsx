@@ -435,14 +435,17 @@ function ChatInner() {
     handler: async () => {
       const now = new Date();
       return {
-        date: now.toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        }),
-        iso: now.toISOString().split("T")[0],
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        success: true,
+        data: {
+          date: now.toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          }),
+          iso: now.toISOString().split("T")[0],
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
       };
     },
   });

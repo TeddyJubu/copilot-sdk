@@ -38,6 +38,7 @@ import type {
   StreamChunk,
 } from "./types";
 import { formatToolsForOpenAI, formatToolsForAnthropic } from "./tool";
+import { throwIfAborted } from "./provider-error";
 
 /**
  * Stream text from a language model
@@ -95,10 +96,12 @@ export async function streamText(
           messages,
           tools: formattedTools,
           temperature: params.temperature,
+          reasoningEffort: params.reasoningEffort,
           maxTokens: params.maxTokens,
           responseFormat: params.responseFormat,
           signal,
         })) {
+          throwIfAborted(signal);
           switch (chunk.type) {
             case "text-delta":
               stepText += chunk.text;
@@ -158,6 +161,7 @@ export async function streamText(
 
       // Execute each tool
       for (const call of toolCalls) {
+        throwIfAborted(signal);
         const toolDef = tools[call.name];
         if (!toolDef) {
           const errorResult = { error: `Tool not found: ${call.name}` };
@@ -184,6 +188,7 @@ export async function streamText(
             abortSignal: signal,
             messages,
           });
+          throwIfAborted(signal);
 
           yield { type: "tool-result", toolCallId: call.id, result };
           messages = [
@@ -195,6 +200,7 @@ export async function streamText(
             },
           ];
         } catch (error) {
+          throwIfAborted(signal);
           const errorResult = {
             error:
               error instanceof Error ? error.message : "Tool execution failed",
@@ -224,50 +230,71 @@ export async function streamText(
     };
   }
 
-  // Create text-only stream
-  async function* createTextStream(): AsyncIterable<string> {
-    for await (const part of createFullStream()) {
-      if (part.type === "text-delta") {
-        yield part.text;
-      }
+  // All readers share one execution. Retain parts for later/concurrent readers;
+  // a result getter must never start another model request or run a tool again.
+  const source = createFullStream();
+  const parts: StreamPart[] = [];
+  let finished = false;
+  let failure: unknown;
+  let pending: Promise<void> | undefined;
+
+  async function advance(): Promise<void> {
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const next = await source.next();
+          if (next.done) finished = true;
+          else parts.push(next.value);
+        } catch (error) {
+          failure = error;
+          finished = true;
+        }
+      })();
+    }
+    const current = pending;
+    await current;
+    if (pending === current) pending = undefined;
+  }
+
+  async function* sharedStream(): AsyncGenerator<StreamPart> {
+    let index = 0;
+    while (true) {
+      if (index < parts.length) yield parts[index++];
+      else if (finished) {
+        if (failure) throw failure;
+        return;
+      } else await advance();
     }
   }
 
-  // Promises for lazy evaluation
-  let textPromise: Promise<string> | undefined;
-  let usagePromise: Promise<TokenUsage> | undefined;
-  let finishReasonPromise: Promise<FinishReason> | undefined;
-
-  // Consume stream to get final values
-  async function consumeStream(): Promise<void> {
-    for await (const _ of createFullStream()) {
-      // Just consume to completion
+  async function* createTextStream(): AsyncIterable<string> {
+    for await (const part of sharedStream()) {
+      if (part.type === "error") throw part.error;
+      if (part.type === "text-delta") yield part.text;
     }
+  }
+
+  let completion: Promise<void> | undefined;
+  function consumeStream(): Promise<void> {
+    return (completion ??= (async () => {
+      for await (const part of sharedStream()) {
+        if (part.type === "error") throw part.error;
+      }
+    })());
   }
 
   return {
     textStream: createTextStream(),
-    fullStream: createFullStream(),
+    fullStream: sharedStream(),
 
     get text(): Promise<string> {
-      if (!textPromise) {
-        textPromise = consumeStream().then(() => fullText);
-      }
-      return textPromise;
+      return consumeStream().then(() => fullText);
     },
-
     get usage(): Promise<TokenUsage> {
-      if (!usagePromise) {
-        usagePromise = consumeStream().then(() => finalUsage);
-      }
-      return usagePromise;
+      return consumeStream().then(() => finalUsage);
     },
-
     get finishReason(): Promise<FinishReason> {
-      if (!finishReasonPromise) {
-        finishReasonPromise = consumeStream().then(() => finalFinishReason);
-      }
-      return finishReasonPromise;
+      return consumeStream().then(() => finalFinishReason);
     },
 
     toTextStreamResponse(options?: ResponseOptions): Response {
@@ -284,7 +311,7 @@ export async function streamText(
     },
 
     toDataStreamResponse(options?: ResponseOptions): Response {
-      const stream = createDataStreamReadable(createFullStream());
+      const stream = createDataStreamReadable(sharedStream());
       return new Response(stream, {
         status: options?.status ?? 200,
         headers: {

@@ -203,6 +203,8 @@ export interface DoGenerateParams {
   messages: CoreMessage[];
   /** Tools available to the LLM (already formatted for provider) */
   tools?: unknown[];
+  /** OpenAI reasoning effort. Omit to preserve the model default. */
+  reasoningEffort?: import("./openai-parameters").OpenAIReasoningEffort;
   /** Temperature (0-2) */
   temperature?: number;
   /** Maximum tokens to generate */
@@ -310,6 +312,8 @@ export interface GenerateTextParams {
   tools?: Record<string, Tool>;
   /** Maximum agentic steps (tool call loops) */
   maxSteps?: number;
+  /** OpenAI reasoning effort. Omit to preserve the model default. */
+  reasoningEffort?: import("./openai-parameters").OpenAIReasoningEffort;
   /** Temperature (0-2) */
   temperature?: number;
   /** Maximum tokens to generate */

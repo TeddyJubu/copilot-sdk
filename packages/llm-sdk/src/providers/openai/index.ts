@@ -176,6 +176,9 @@ export function createOpenAI(config: OpenAIProviderConfig = {}): AIProvider {
       apiKey,
       model: modelId,
       baseUrl: config.baseUrl,
+      reasoningEffort: config.reasoningEffort,
+      parameterPolicy: config.parameterPolicy,
+      onWarning: config.onWarning,
     });
   };
 
@@ -212,3 +215,8 @@ export function createOpenAI(config: OpenAIProviderConfig = {}): AIProvider {
 
 // Alias for consistency
 export const createOpenAIProvider = createOpenAI;
+
+export type {
+  OpenAIReasoningEffort,
+  OpenAIParameterOptions,
+} from "../../core/openai-parameters";

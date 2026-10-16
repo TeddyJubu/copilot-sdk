@@ -224,6 +224,7 @@ export interface ChatRequest {
   botId?: string;
   /** LLM config overrides */
   config?: {
+    reasoningEffort?: import("../core/openai-parameters").OpenAIReasoningEffort;
     temperature?: number;
     maxTokens?: number;
     responseFormat?: ResponseFormat;
