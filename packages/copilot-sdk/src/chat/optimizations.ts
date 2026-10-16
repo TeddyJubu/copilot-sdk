@@ -1,3 +1,4 @@
+import { resultModelOutput } from "../core/types/tool-output";
 import type {
   ContextUsage,
   ContextSummarizationConfig,
@@ -171,7 +172,7 @@ function estimateMessageTokens(
     ? JSON.stringify(message.attachments)
     : "";
   return estimateTokens(
-    `${message.role}\n${content}\n${toolCalls}\n${attachments}\n${message.providerMetadata ? JSON.stringify(message.providerMetadata) : ""}`,
+    `${message.role}\n${content}\n${toolCalls}\n${attachments}\n${message.providerMetadata ? JSON.stringify(message.providerMetadata) : ""}\n${message.modelOutput ? JSON.stringify(message.modelOutput) : ""}`,
     charsPerToken,
   );
 }
@@ -620,7 +621,7 @@ function buildToolResultContent(
     typedResult?._aiResponseMode ?? tool?.aiResponseMode ?? "full";
 
   if (typedResult?._aiContent) {
-    return JSON.stringify(typedResult._aiContent);
+    return "[Tool returned content]";
   }
 
   let aiContext = typedResult?._aiContext;
@@ -1344,7 +1345,10 @@ export class ChatContextOptimizer {
         const replayedCalls = (response?.output ?? []).filter(
           (item) => item.type === "function_call",
         );
-        const callIds = new Set(replayedCalls.map((item) => item.call_id));
+        const callIds = new Set([
+          ...replayedCalls.map((item) => item.call_id),
+          ...(message.toolCalls ?? []).map((call) => call.id),
+        ]);
         if (replayedCalls.length) {
           // Keep ordinary tool links too, for context accounting and explicit
           // switches back to Chat. Responses itself replays the opaque output.
@@ -1367,6 +1371,8 @@ export class ChatContextOptimizer {
             results.push({
               role: "tool",
               tool_call_id: execution.id,
+              modelOutput:
+                execution.modelOutput ?? resultModelOutput(execution.result),
               content: buildToolResultContentForPrompt(
                 execution.result ?? { error: execution.error },
                 toolDefMap.get(execution.name),
@@ -1384,9 +1390,11 @@ export class ChatContextOptimizer {
         : undefined;
       const tool = toolCall ? toolDefMap.get(toolCall.toolName) : undefined;
       let content = message.content;
+      let modelOutput = message.modelOutput;
 
       try {
         const parsed = JSON.parse(message.content);
+        modelOutput ??= resultModelOutput(parsed);
         content = buildToolResultContentForPrompt(
           parsed,
           tool,
@@ -1406,6 +1414,7 @@ export class ChatContextOptimizer {
         {
           role: message.role,
           content,
+          ...(modelOutput ? { modelOutput } : {}),
           tool_call_id: message.toolCallId,
         },
       ];

@@ -240,3 +240,19 @@ export type {
   OpenAIResponseMetadata,
   ProviderMetadata,
 } from "./core/openai-responses";
+
+export type { ToolOutputPart, ToolModelOutput } from "./core/tool-output";
+
+export { generateSpeech, transcribe, AudioAPIError } from "./core/audio";
+export type {
+  SpeechModel,
+  TranscriptionModel,
+  SpeechOptions,
+  TranscriptionOptions,
+  GeneratedSpeech,
+  TranscriptionResult,
+  SpeechFormat,
+  TranscriptSegment,
+  AudioResponseMetadata,
+  AudioWarning,
+} from "./core/audio";

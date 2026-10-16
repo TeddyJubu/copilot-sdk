@@ -1,3 +1,4 @@
+import { toolOutputForProvider } from "../../core/tool-output";
 /**
  * Anthropic Provider - Modern Pattern
  *
@@ -509,7 +510,9 @@ function formatMessagesForAnthropic(messages: CoreMessage[]): {
 
       pendingToolResults.push({
         toolCallId,
-        content: msg.content,
+        content: msg.modelOutput
+          ? toolOutputForProvider(msg.modelOutput, "anthropic")
+          : msg.content,
       });
     }
   }

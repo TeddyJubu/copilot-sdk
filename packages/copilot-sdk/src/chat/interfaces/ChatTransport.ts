@@ -1,3 +1,4 @@
+import type { ToolModelOutput } from "../../core/types/tool-output";
 /**
  * ChatTransport Interface
  *
@@ -17,6 +18,7 @@ export interface ChatRequest {
     role: string;
     content: string | null;
     providerMetadata?: Record<string, unknown>;
+    modelOutput?: ToolModelOutput;
     tool_calls?: unknown[];
     tool_call_id?: string;
     attachments?: unknown[];
@@ -54,6 +56,7 @@ export interface ChatResponse {
     role: string;
     content: string | null;
     providerMetadata?: Record<string, unknown>;
+    modelOutput?: ToolModelOutput;
     tool_calls?: unknown[];
     /** Tool call ID for tool result messages */
     tool_call_id?: string;
@@ -121,6 +124,7 @@ export type StreamChunk =
         role: string;
         content: string | null;
         providerMetadata?: Record<string, unknown>;
+        modelOutput?: ToolModelOutput;
         tool_calls?: unknown[];
         tool_call_id?: string;
       }>;
@@ -133,12 +137,19 @@ export type StreamChunk =
   | { type: "action:args"; id: string; args: string }
   | {
       type: "action:end";
+      modelOutput?: ToolModelOutput;
       id: string;
       name: string;
       result?: ToolResultData;
       error?: string;
     }
-  | { type: "tool:result"; id: string; name: string; result: ToolResultData }
+  | {
+      type: "tool:result";
+      id: string;
+      name: string;
+      result: ToolResultData;
+      modelOutput?: ToolModelOutput;
+    }
   // Loop events
   | { type: "loop:iteration"; iteration: number; maxIterations: number }
   | {

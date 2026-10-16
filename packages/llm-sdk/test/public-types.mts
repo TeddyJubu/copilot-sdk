@@ -17,3 +17,22 @@ const config: FallbackChainConfig = {
 };
 void generateText(params);
 void createFallbackChain(config);
+
+import {
+  generateSpeech,
+  transcribe,
+  type SpeechModel,
+  type ToolModelOutput,
+} from "@yourgpt/llm-sdk";
+import { openaiSpeech, openaiTranscription } from "@yourgpt/llm-sdk/openai";
+const speechModel: SpeechModel = openaiSpeech();
+void generateSpeech({ model: speechModel, text: "Hello" });
+void transcribe({
+  model: openaiTranscription(),
+  audio: new Uint8Array([1]),
+  mediaType: "audio/wav",
+});
+const imageOutput: ToolModelOutput = {
+  type: "content",
+  content: [{ type: "image", url: "https://example.com/image.png" }],
+};

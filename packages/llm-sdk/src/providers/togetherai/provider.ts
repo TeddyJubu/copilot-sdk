@@ -1,3 +1,4 @@
+import { textToolOutput } from "../../core/tool-output";
 /**
  * Together AI Provider
  *
@@ -314,7 +315,7 @@ function formatMessages(messages: CoreMessage[]): any[] {
         return {
           role: "tool",
           tool_call_id: msg.toolCallId,
-          content: msg.content,
+          content: textToolOutput(msg.modelOutput, msg.content),
         };
 
       default:

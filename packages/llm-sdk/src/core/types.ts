@@ -1,3 +1,4 @@
+import type { ToolModelOutput } from "./tool-output";
 /**
  * Core Types for @yourgpt/llm-sdk
  *
@@ -109,6 +110,7 @@ export interface AssistantMessage {
 }
 
 export interface ToolMessage {
+  modelOutput?: ToolModelOutput;
   role: "tool";
   toolCallId: string;
   content: string;
@@ -155,6 +157,8 @@ export interface Tool<TParams = unknown, TResult = unknown> {
   parameters: z.ZodType<TParams>;
   /** Execute function */
   execute: (params: TParams, context: ToolContext) => Promise<TResult>;
+  /** Map the raw result to explicit text/image content for the model. */
+  toModelOutput?: (result: TResult) => ToolModelOutput | undefined;
   /**
    * Hide this tool's execution from the chat UI.
    * When true, tool calls and results won't be displayed to the user,
@@ -192,6 +196,7 @@ export interface ToolCall {
  * Tool execution result
  */
 export interface ToolResult {
+  modelOutput?: ToolModelOutput;
   /** Tool call ID this result corresponds to */
   toolCallId: string;
   /** Result data (will be JSON stringified for LLM) */
@@ -287,6 +292,7 @@ export interface ToolCallChunk {
 }
 
 export interface ToolResultChunk {
+  modelOutput?: ToolModelOutput;
   type: "tool-result";
   toolCallId: string;
   result: unknown;
@@ -324,7 +330,7 @@ export interface GenerateTextParams {
   /** Full message history */
   messages?: CoreMessage[];
   /** Tools available to the LLM */
-  tools?: Record<string, Tool>;
+  tools?: Record<string, Tool<any, any>>;
   /** Maximum agentic steps (tool call loops) */
   maxSteps?: number;
   /** OpenAI reasoning effort. Omit to preserve the model default. */
@@ -427,7 +433,12 @@ export type StreamPart =
   | { type: "tool-call-start"; toolCallId: string; toolName: string }
   | { type: "tool-call-delta"; toolCallId: string; argsText: string }
   | { type: "tool-call-complete"; toolCall: ToolCall }
-  | { type: "tool-result"; toolCallId: string; result: unknown }
+  | {
+      type: "tool-result";
+      toolCallId: string;
+      result: unknown;
+      modelOutput?: ToolModelOutput;
+    }
   | { type: "step-start"; step: number }
   | {
       type: "step-finish";

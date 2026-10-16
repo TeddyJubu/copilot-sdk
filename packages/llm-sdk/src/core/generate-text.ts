@@ -1,3 +1,4 @@
+import { resolveToolOutput } from "./tool-output";
 /**
  * generateText - Generate text using a language model
  *
@@ -119,6 +120,10 @@ export async function generateText(
           const result: ToolResult = {
             toolCallId: call.id,
             result: toolResult,
+            modelOutput: resolveToolOutput(
+              toolResult,
+              toolDef.toModelOutput?.(toolResult),
+            ),
           };
           stepToolResults.push(result);
           allToolResults.push(result);
@@ -166,7 +171,10 @@ export async function generateText(
       const toolMessage: ToolMessage = {
         role: "tool",
         toolCallId: tr.toolCallId,
-        content: JSON.stringify(tr.result),
+        content: tr.modelOutput
+          ? "[Tool returned content]"
+          : JSON.stringify(tr.result),
+        ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
       };
       messages = [...messages, toolMessage];
     }
@@ -221,7 +229,7 @@ function buildMessages(params: GenerateTextParams): CoreMessage[] {
  * Format tools based on provider
  */
 function formatToolsForProvider(
-  tools: Record<string, Tool>,
+  tools: Record<string, Tool<any, any>>,
   provider: string,
 ): unknown[] {
   switch (provider) {

@@ -60,6 +60,7 @@ function convertZodSchema(schema: unknown, _toolName: string): ToolInputSchema {
  * Configuration for registering a tool with Zod schema
  */
 export interface UseToolWithSchemaConfig<TSchema extends ZodObjectSchema> {
+  toModelOutput?: ToolDefinition["toModelOutput"];
   /** Unique tool name */
   name: string;
   /** Tool description for LLM */
@@ -134,6 +135,7 @@ export function useToolWithSchema<TSchema extends ZodObjectSchema>(
       name: config.name,
       description: config.description,
       location: "client",
+      toModelOutput: (result) => configRef.current.toModelOutput?.(result),
       inputSchema,
       handler: async (params, context) => {
         return configRef.current.handler(params as TSchema["_output"], context);
@@ -207,6 +209,10 @@ export function useToolsWithSchema<TSchema extends ZodObjectSchema>(
         name: config.name,
         description: config.description,
         location: "client",
+        toModelOutput: (result) =>
+          toolsRef.current
+            .find((tool) => tool.name === config.name)
+            ?.toModelOutput?.(result),
         inputSchema,
         handler: async (params, context) => {
           const currentConfig = toolsRef.current.find(

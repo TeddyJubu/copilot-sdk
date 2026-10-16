@@ -230,3 +230,9 @@ export type {
   OpenAIResponseMetadata,
   ProviderMetadata,
 } from "../../core/openai-responses";
+
+export { openaiSpeech, openaiTranscription } from "./audio";
+export type {
+  OpenAIAudioProviderOptions,
+  OpenAITranscriptionOptions,
+} from "./audio";

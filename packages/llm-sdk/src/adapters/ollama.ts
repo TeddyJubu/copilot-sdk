@@ -1,3 +1,4 @@
+import { textToolOutput } from "../core/tool-output";
 import type {
   StreamEvent,
   Message,
@@ -119,7 +120,10 @@ async function formatMessagesForOllama(
   for (const msg of messages) {
     const baseMessage: OllamaMessage = {
       role: msg.role as OllamaMessage["role"],
-      content: msg.content ?? "",
+      content:
+        msg.role === "tool"
+          ? textToolOutput(msg.modelOutput, msg.content ?? "")
+          : (msg.content ?? ""),
     };
 
     // Handle image attachments (vision support)
@@ -179,7 +183,10 @@ async function processRawMessagesForOllama(
   for (const msg of rawMessages) {
     const baseMessage: OllamaMessage = {
       role: msg.role as OllamaMessage["role"],
-      content: (msg.content as string) ?? "",
+      content:
+        msg.role === "tool"
+          ? textToolOutput(msg.modelOutput, String(msg.content ?? ""))
+          : ((msg.content as string) ?? ""),
     };
 
     // Handle attachments for vision

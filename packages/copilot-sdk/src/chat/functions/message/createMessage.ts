@@ -109,7 +109,7 @@ export function createSystemMessage(content: string): UIMessage {
  */
 export function streamStateToMessage(state: StreamingMessageState): UIMessage {
   // Convert simplified tool calls to ToolCall format
-  const toolCalls: ToolCall[] | undefined =
+  let toolCalls: ToolCall[] | undefined =
     state.toolCalls.length > 0
       ? state.toolCalls.map((tc) => ({
           id: tc.id,
@@ -121,6 +121,26 @@ export function streamStateToMessage(state: StreamingMessageState): UIMessage {
         }))
       : undefined;
 
+  // Native image results must retain their originating calls on providers that
+  // do not expose an opaque replay envelope (for example Anthropic).
+  if (
+    Array.from(state.toolResults.values()).some((result) => result.modelOutput)
+  ) {
+    const calls = new Map((toolCalls ?? []).map((call) => [call.id, call]));
+    for (const result of state.toolResults.values()) {
+      if (!calls.has(result.id))
+        calls.set(result.id, {
+          id: result.id,
+          type: "function",
+          function: {
+            name: result.name,
+            arguments: JSON.stringify(result.args ?? {}),
+          },
+        });
+    }
+    toolCalls = Array.from(calls.values());
+  }
+
   // Convert tool results to toolExecutions format for UI
   // This enables server-side tool results to be used by components like SourceGroup
   const toolExecutions =
@@ -131,6 +151,7 @@ export function streamStateToMessage(state: StreamingMessageState): UIMessage {
           args: tr.args ?? {},
           status: tr.status,
           result: tr.result,
+          ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
           error: tr.error,
           timestamp: Date.now(),
         }))

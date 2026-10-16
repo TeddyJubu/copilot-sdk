@@ -1,3 +1,4 @@
+import type { ToolModelOutput } from "./tool-output";
 /**
  * Tool Helper
  *
@@ -38,6 +39,8 @@ export interface ToolConfig<TParams extends z.ZodType, TResult = unknown> {
   /** Function to execute when the tool is called */
   execute: (params: z.infer<TParams>, context: ToolContext) => Promise<TResult>;
 
+  /** Map the raw result to explicit text/image content for the model. */
+  toModelOutput?: (result: TResult) => ToolModelOutput | undefined;
   /**
    * Hide this tool's execution from the chat UI.
    * When true, tool calls and results won't be displayed to the user,
@@ -81,6 +84,7 @@ export function tool<TParams extends z.ZodType, TResult = unknown>(
     parameters: config.parameters,
     execute: config.execute,
     hidden: config.hidden,
+    toModelOutput: config.toModelOutput,
   };
 }
 
@@ -88,7 +92,7 @@ export function tool<TParams extends z.ZodType, TResult = unknown>(
  * Convert a Tool's Zod schema to JSON Schema format
  * Used internally when sending tools to LLM providers
  */
-export function toolToJsonSchema(toolDef: Tool): {
+export function toolToJsonSchema(toolDef: Tool<any, any>): {
   type: "object";
   properties: Record<string, unknown>;
   required?: string[];
@@ -234,7 +238,9 @@ function zodToJsonSchema(schema: z.ZodType): {
 /**
  * Format tools for OpenAI API format
  */
-export function formatToolsForOpenAI(tools: Record<string, Tool>): Array<{
+export function formatToolsForOpenAI(
+  tools: Record<string, Tool<any, any>>,
+): Array<{
   type: "function";
   function: {
     name: string;
@@ -255,7 +261,9 @@ export function formatToolsForOpenAI(tools: Record<string, Tool>): Array<{
 /**
  * Format tools for Anthropic API format
  */
-export function formatToolsForAnthropic(tools: Record<string, Tool>): Array<{
+export function formatToolsForAnthropic(
+  tools: Record<string, Tool<any, any>>,
+): Array<{
   name: string;
   description: string;
   input_schema: object;
@@ -270,7 +278,9 @@ export function formatToolsForAnthropic(tools: Record<string, Tool>): Array<{
 /**
  * Format tools for Google Gemini API format
  */
-export function formatToolsForGoogle(tools: Record<string, Tool>): Array<{
+export function formatToolsForGoogle(
+  tools: Record<string, Tool<any, any>>,
+): Array<{
   functionDeclarations: Array<{
     name: string;
     description: string;

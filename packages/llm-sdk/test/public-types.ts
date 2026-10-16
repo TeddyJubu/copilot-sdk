@@ -70,3 +70,30 @@ void createRuntime({
   provider: createOpenAI({ api: "responses", responses }),
   model: "gpt-6-luna",
 }).chat({ messages: [], config: { openai: { api: "responses", responses } } });
+
+import { tool, type ToolModelOutput } from "@yourgpt/llm-sdk";
+import { z } from "zod";
+const imageTool = tool({
+  description: "Inspect an authorized image",
+  parameters: z.object({ imageId: z.string() }),
+  execute: async ({ imageId }) => ({ imageId, bytes: new Uint8Array([1, 2]) }),
+  toModelOutput: (result): ToolModelOutput => ({
+    type: "content",
+    content: [{ type: "image", data: result.bytes, mediaType: "image/png" }],
+  }),
+});
+void generateText({ model, prompt: "inspect", tools: { inspect: imageTool } });
+
+import { generateSpeech, transcribe, AudioAPIError } from "@yourgpt/llm-sdk";
+import { openaiSpeech, openaiTranscription } from "@yourgpt/llm-sdk/openai";
+void generateSpeech({
+  model: openaiSpeech(),
+  text: "Hello",
+  outputFormat: "wav",
+}).then((result) => result.audio.uint8Array);
+void transcribe({
+  model: openaiTranscription(),
+  audio: new Uint8Array([1]),
+  mediaType: "audio/wav",
+}).then((result) => result.text);
+const audioError: Error = new AudioAPIError("failed", "provider_error", 429);

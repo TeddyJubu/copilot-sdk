@@ -1,3 +1,4 @@
+import { resolveToolOutput } from "./tool-output";
 import type { ProviderMetadata } from "./openai-responses";
 /**
  * streamText - Stream text from a language model
@@ -199,13 +200,25 @@ export async function streamText(
           });
           throwIfAborted(signal);
 
-          yield { type: "tool-result", toolCallId: call.id, result };
+          const modelOutput = resolveToolOutput(
+            result,
+            toolDef.toModelOutput?.(result),
+          );
+          yield {
+            type: "tool-result",
+            toolCallId: call.id,
+            result,
+            modelOutput,
+          };
           messages = [
             ...messages,
             {
               role: "tool",
               toolCallId: call.id,
-              content: JSON.stringify(result),
+              content: modelOutput
+                ? "[Tool returned content]"
+                : JSON.stringify(result),
+              ...(modelOutput ? { modelOutput } : {}),
             },
           ];
         } catch (error) {
@@ -370,7 +383,7 @@ function buildMessages(params: StreamTextParams): CoreMessage[] {
  * Format tools based on provider
  */
 function formatToolsForProvider(
-  tools: Record<string, Tool>,
+  tools: Record<string, Tool<any, any>>,
   provider: string,
 ): unknown[] {
   switch (provider) {

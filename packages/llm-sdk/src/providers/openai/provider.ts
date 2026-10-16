@@ -1,3 +1,4 @@
+import { textToolOutput } from "../../core/tool-output";
 import {
   resolveOpenAITransport,
   useOpenAIResponses,
@@ -567,7 +568,12 @@ function formatMessagesForOpenAI(
         return {
           role: "tool",
           tool_call_id: msg.toolCallId,
-          content: msg.content,
+          content: responses
+            ? msg.content
+            : textToolOutput(msg.modelOutput, msg.content),
+          ...(responses && msg.modelOutput
+            ? { modelOutput: msg.modelOutput }
+            : {}),
         };
 
       default:

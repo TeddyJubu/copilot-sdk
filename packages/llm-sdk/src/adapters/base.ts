@@ -1,3 +1,4 @@
+import { toolOutputForProvider, textToolOutput } from "../core/tool-output";
 import type {
   Message,
   MessageAttachment,
@@ -824,7 +825,7 @@ export type AnthropicToolUseBlock = {
 export type AnthropicToolResultBlock = {
   type: "tool_result";
   tool_use_id: string;
-  content: string;
+  content: string | Array<Record<string, unknown>>;
 };
 
 export type AnthropicMessageContent =
@@ -896,7 +897,9 @@ export function formatMessagesForAnthropic(
         {
           type: "tool_result",
           tool_use_id: msg.tool_call_id,
-          content: msg.content ?? "",
+          content: msg.modelOutput
+            ? toolOutputForProvider(msg.modelOutput, "anthropic")
+            : (msg.content ?? ""),
         },
       ];
 
@@ -908,7 +911,9 @@ export function formatMessagesForAnthropic(
           toolResults.push({
             type: "tool_result",
             tool_use_id: nextTool.tool_call_id,
-            content: nextTool.content ?? "",
+            content: nextTool.modelOutput
+              ? toolOutputForProvider(nextTool.modelOutput, "anthropic")
+              : (nextTool.content ?? ""),
           });
         }
       }
@@ -947,7 +952,12 @@ export type OpenAIMessage =
         function: { name: string; arguments: string };
       }>;
     }
-  | { role: "tool"; content: string; tool_call_id: string };
+  | {
+      role: "tool";
+      content: string;
+      tool_call_id: string;
+      modelOutput?: import("../core/tool-output").ToolModelOutput;
+    };
 
 /**
  * Format messages for OpenAI with full tool support
@@ -991,7 +1001,12 @@ export function formatMessagesForOpenAI(
     } else if (msg.role === "tool" && msg.tool_call_id) {
       formatted.push({
         role: "tool",
-        content: msg.content ?? "",
+        content: preserveProviderMetadata
+          ? (msg.content ?? "")
+          : textToolOutput(msg.modelOutput, msg.content ?? ""),
+        ...(preserveProviderMetadata && msg.modelOutput
+          ? { modelOutput: msg.modelOutput }
+          : {}),
         tool_call_id: msg.tool_call_id,
       });
     }

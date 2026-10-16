@@ -288,3 +288,11 @@ Visit **[copilot-sdk.yourgpt.ai](https://copilot-sdk.yourgpt.ai)** for full docu
 ## License
 
 MIT
+
+### Image tool results and recorded audio
+
+Tools can return native image content using `toModelOutput` or the existing `_aiContent` field. Supported endpoints are OpenAI Responses and Anthropic. Raw application results remain available, and model-facing output survives tool continuation and serialized history. Unsupported endpoints reject image output explicitly.
+
+`generateSpeech` / `transcribe` are separate server audio helpers, with `openaiSpeech` / `openaiTranscription` factories from `@yourgpt/llm-sdk/openai`. They support cancellation, validated encoded audio, and response metadata. Copilot's `VoiceRecorder` and `transcribeRecording` provide recorded microphone input and a reviewable transcript.
+
+See [image and audio contracts, examples, and limitations](./docs/multimodal-and-audio.md). Realtime voice calls and image generation are separate follow-ups.

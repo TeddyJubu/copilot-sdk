@@ -1,3 +1,4 @@
+import { resolveToolOutput, type ToolModelOutput } from "../core/tool-output";
 import type {
   Message,
   ActionDefinition,
@@ -9,7 +10,6 @@ import type {
   DoneEventMessage,
   ToolResponse,
   AIResponseMode,
-  AIContent,
   ToolContext,
   WebSearchConfig,
 } from "../core/stream-events";
@@ -79,18 +79,13 @@ function buildToolResultForAI(
   tool: ToolDefinition | undefined,
   result: ToolResponse | unknown,
   args: Record<string, unknown>,
-): string | AIContent[] {
+): string {
   // Type guard for ToolResponse with AI response fields
   const typedResult = result as ToolResponse | undefined;
 
   // Determine response mode (result override > tool config > default 'full')
   const responseMode: AIResponseMode =
     typedResult?._aiResponseMode ?? tool?.aiResponseMode ?? "full";
-
-  // Check for multimodal content (images, etc.) - always include if present
-  if (typedResult?._aiContent && typedResult._aiContent.length > 0) {
-    return typedResult._aiContent;
-  }
 
   // Get AI context (result override > tool config > undefined)
   let aiContext: string | undefined;
@@ -122,35 +117,6 @@ function buildToolResultForAI(
       const fullData = JSON.stringify(result);
       return aiContext ? `${aiContext}\n\nFull data: ${fullData}` : fullData;
   }
-}
-
-/**
- * Serialize tool result content for API message.
- * Handles both string and multimodal (AIContent[]) results.
- */
-function serializeToolResultContent(
-  content: string | AIContent[],
-): string | Array<{ type: string; [key: string]: unknown }> {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  // Convert AIContent to API format (OpenAI multimodal format)
-  return content.map((item) => {
-    if (item.type === "image") {
-      return {
-        type: "image_url",
-        image_url: {
-          url: `data:${item.mediaType};base64,${item.data}`,
-        },
-      };
-    }
-    // Text content
-    return {
-      type: "text",
-      text: item.text,
-    };
-  });
 }
 
 /**
@@ -251,6 +217,7 @@ export class Runtime {
         role: m.role as Message["role"],
         content: m.content,
         providerMetadata: m.providerMetadata,
+        modelOutput: m.modelOutput,
         tool_calls: m.tool_calls as Message["tool_calls"],
         tool_call_id: m.tool_call_id,
       }),
@@ -1070,6 +1037,7 @@ export class Runtime {
       name: string;
       args: Record<string, unknown>;
       result: unknown;
+      modelOutput?: ToolModelOutput;
       tool: ToolDefinition;
     }> = [];
 
@@ -1208,11 +1176,16 @@ export class Runtime {
             );
             try {
               const result = await tool.handler(args, toolContext);
+              const modelOutput = resolveToolOutput(
+                result,
+                tool.toModelOutput?.(result),
+              );
               serverToolResults.push({
                 id: event.id,
                 name: toolName!,
                 args,
                 result,
+                modelOutput,
                 tool,
               });
               yield {
@@ -1220,6 +1193,7 @@ export class Runtime {
                 id: event.id,
                 name: toolName,
                 result,
+                modelOutput,
               } as StreamEvent;
             } catch (error) {
               const errorResult = {
@@ -1294,15 +1268,13 @@ export class Runtime {
       // and the server-only recurse path below).
       const serverToolResultMessages: DoneEventMessage[] =
         serverToolResults.map((tr) => {
-          const aiContent = buildToolResultForAI(tr.tool, tr.result, tr.args);
-          // Serialize content (handles both string and multimodal)
-          const content =
-            typeof aiContent === "string"
-              ? aiContent
-              : JSON.stringify(serializeToolResultContent(aiContent));
+          const content = tr.modelOutput
+            ? "[Tool returned content]"
+            : buildToolResultForAI(tr.tool, tr.result, tr.args);
           return {
             role: "tool" as const,
             content,
+            ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
             tool_call_id: tr.id,
           };
         });
@@ -1700,6 +1672,7 @@ export class Runtime {
             name: string;
             args: Record<string, unknown>;
             result: unknown;
+            modelOutput?: ToolModelOutput;
             tool: ToolDefinition;
           }> = [];
 
@@ -1725,11 +1698,16 @@ export class Runtime {
 
               try {
                 const toolResult = await tool.handler(tc.args, toolContext);
+                const modelOutput = resolveToolOutput(
+                  toolResult,
+                  tool.toModelOutput?.(toolResult),
+                );
                 serverToolResults.push({
                   id: tc.id,
                   name: tc.name,
                   args: tc.args,
                   result: toolResult,
+                  modelOutput,
                   tool,
                 });
                 yield {
@@ -1737,6 +1715,7 @@ export class Runtime {
                   id: tc.id,
                   name: tc.name,
                   result: toolResult,
+                  modelOutput,
                 } as StreamEvent;
               } catch (error) {
                 const errorResult = {
@@ -1770,18 +1749,13 @@ export class Runtime {
           // and the server-only recurse path below).
           const serverToolResultMessages: DoneEventMessage[] =
             serverToolResults.map((tr) => {
-              const aiContent = buildToolResultForAI(
-                tr.tool,
-                tr.result,
-                tr.args,
-              );
-              const content =
-                typeof aiContent === "string"
-                  ? aiContent
-                  : JSON.stringify(serializeToolResultContent(aiContent));
+              const content = tr.modelOutput
+                ? "[Tool returned content]"
+                : buildToolResultForAI(tr.tool, tr.result, tr.args);
               return {
                 role: "tool" as const,
                 content,
+                ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
                 tool_call_id: tr.id,
               };
             });

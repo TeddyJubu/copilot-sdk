@@ -1,3 +1,4 @@
+import { toolOutputForProvider, textToolOutput } from "../core/tool-output";
 import {
   resolveOpenAITransport,
   useOpenAIResponses,
@@ -242,8 +243,9 @@ export class OpenAIAdapter implements LLMAdapter {
         input.push({
           type: "function_call_output",
           call_id: message.tool_call_id,
-          output:
-            typeof message.content === "string"
+          output: message.modelOutput
+            ? toolOutputForProvider(message.modelOutput, "responses")
+            : typeof message.content === "string"
               ? message.content
               : JSON.stringify(message.content ?? null),
         });
@@ -267,8 +269,13 @@ export class OpenAIAdapter implements LLMAdapter {
     preserveProviderMetadata = false,
   ): Array<Record<string, unknown>> {
     return messages.map((message) => {
-      const { attachments, providerMetadata, ...rest } = message;
-      let content = message.content;
+      const { attachments, providerMetadata, modelOutput, ...rest } = message;
+      let content =
+        message.role === "tool" && !preserveProviderMetadata
+          ? textToolOutput(modelOutput, String(message.content ?? ""))
+          : message.content;
+      if (preserveProviderMetadata && modelOutput)
+        rest.modelOutput = modelOutput;
       if (
         message.role === "assistant" &&
         Array.isArray(message.tool_calls) &&

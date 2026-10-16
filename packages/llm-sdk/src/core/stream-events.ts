@@ -1,3 +1,4 @@
+import type { ToolModelOutput } from "./tool-output";
 /**
  * Stream event types for llm-sdk
  * These types are used internally by the SDK for streaming responses
@@ -104,6 +105,7 @@ export interface ActionArgsEvent extends BaseEvent {
  * Action execution completed
  */
 export interface ActionEndEvent extends BaseEvent {
+  modelOutput?: ToolModelOutput;
   type: "action:end";
   id: string;
   name?: string;
@@ -226,6 +228,7 @@ export interface CitationEvent extends BaseEvent {
  * Message format for done event (API format with snake_case)
  */
 export interface DoneEventMessage {
+  modelOutput?: ToolModelOutput;
   providerMetadata?: import("./openai-responses").ProviderMetadata;
   role: "assistant" | "tool";
   content: string | null;
@@ -368,6 +371,7 @@ export interface MessageMetadata {
  * Message type (simplified for llm-sdk)
  */
 export interface Message {
+  modelOutput?: ToolModelOutput;
   providerMetadata?: import("./openai-responses").ProviderMetadata;
   id: string;
   thread_id?: string;
@@ -451,7 +455,10 @@ export interface AIContent {
   type?: "text" | "image";
   text?: string;
   mediaType?: string;
-  data?: string;
+  data?: string | Uint8Array;
+  url?: string;
+  fileId?: string;
+  provider?: "openai";
   summary?: string;
   details?: string;
 }
@@ -478,6 +485,7 @@ export interface ToolAIContext {
  * Tool definition
  */
 export interface ToolDefinition<TParams = Record<string, unknown>> {
+  toModelOutput?: (result: unknown) => ToolModelOutput | undefined;
   name: string;
   description: string;
   location: ToolLocation;

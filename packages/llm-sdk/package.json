@@ -141,7 +141,8 @@
   "files": [
     "dist",
     "!dist/**/*.map",
-    "README.md"
+    "README.md",
+    "docs/multimodal-and-audio.md"
   ],
   "scripts": {
     "build": "tsup",

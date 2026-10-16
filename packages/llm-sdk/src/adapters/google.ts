@@ -1,3 +1,4 @@
+import { textToolOutput } from "../core/tool-output";
 /**
  * Google Gemini LLM Adapter
  *
@@ -156,6 +157,10 @@ function messageToGeminiContent(msg: Message): GeminiContent | null {
 
   // Handle tool messages - convert to function response
   if (msg.role === "tool" && msg.tool_call_id) {
+    msg = {
+      ...msg,
+      content: textToolOutput(msg.modelOutput, msg.content ?? ""),
+    };
     // Tool results need to be sent as functionResponse
     let responseData: Record<string, unknown>;
     try {

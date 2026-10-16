@@ -1,3 +1,7 @@
+import {
+  resultModelOutput,
+  serializeToolModelOutput,
+} from "../../core/types/tool-output";
 /**
  * AbstractChat - Framework-agnostic chat orchestration
  *
@@ -337,6 +341,20 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
       if (msg.role === "tool" && msg.toolCallId) {
         resolvedIds.add(msg.toolCallId);
       }
+      // Streaming server results live on the assistant until the optimizer
+      // reconstructs their model messages. They are completed, not interrupted.
+      if (
+        msg.role === "assistant" &&
+        Array.isArray(msg.metadata?.toolExecutions)
+      ) {
+        for (const execution of msg.metadata.toolExecutions) {
+          if (
+            execution?.id &&
+            (execution.result !== undefined || execution.error)
+          )
+            resolvedIds.add(execution.id);
+        }
+      }
     }
 
     // Find unresolved tool_calls
@@ -409,6 +427,16 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
           : undefined;
 
       for (const { toolCallId, result } of toolResults) {
+        const call = visibleMessages
+          .flatMap((message) => message.toolCalls ?? [])
+          .find((call) => call.id === toolCallId);
+        const tool = this.config.tools?.find(
+          (tool) => tool.name === call?.function.name,
+        );
+        const mapped = tool?.toModelOutput?.(result);
+        const modelOutput = mapped
+          ? serializeToolModelOutput(mapped)
+          : resultModelOutput(result);
         // Check if result wants to be added as user message (e.g., screenshot)
         const typedResult = result as {
           success?: boolean;
@@ -421,7 +449,11 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
 
         let messageContent: string;
 
-        if (typedResult?.addAsUserMessage && typedResult.data?.attachment) {
+        if (
+          !modelOutput &&
+          typedResult?.addAsUserMessage &&
+          typedResult.data?.attachment
+        ) {
           this.debug(
             "Tool result has attachment to add as user message",
             typedResult.data.attachment.type,
@@ -445,6 +477,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
           id: toolMessageId,
           role: "tool" as const,
           content: messageContent,
+          ...(modelOutput ? { modelOutput } : {}),
           toolCallId,
           createdAt: new Date(),
           ...(chainParentId !== undefined ? { parentId: chainParentId } : {}),
@@ -508,6 +541,16 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
         : undefined;
 
     for (const { toolCallId, result } of toolResults) {
+      const call = visibleMessages
+        .flatMap((message) => message.toolCalls ?? [])
+        .find((call) => call.id === toolCallId);
+      const tool = this.config.tools?.find(
+        (tool) => tool.name === call?.function.name,
+      );
+      const mapped = tool?.toModelOutput?.(result);
+      const modelOutput = mapped
+        ? serializeToolModelOutput(mapped)
+        : resultModelOutput(result);
       const messageContent =
         typeof result === "string" ? result : JSON.stringify(result);
 
@@ -516,6 +559,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
         id: toolMessageId,
         role: "tool" as const,
         content: messageContent,
+        ...(modelOutput ? { modelOutput } : {}),
         toolCallId,
         createdAt: new Date(),
         ...(chainParentId !== undefined ? { parentId: chainParentId } : {}),
@@ -1303,6 +1347,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
                   id: generateMessageId(),
                   role: "tool" as T["role"],
                   content: msg.content ?? "",
+                  ...(msg.modelOutput ? { modelOutput: msg.modelOutput } : {}),
                   toolCallId: msg.tool_call_id,
                   createdAt: new Date(),
                 } as T);
@@ -1318,6 +1363,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
                 id: generateMessageId(),
                 role: msg.role as T["role"],
                 content: msg.content ?? "",
+                ...(msg.modelOutput ? { modelOutput: msg.modelOutput } : {}),
                 toolCalls: msg.tool_calls as T["toolCalls"],
                 ...(msg.providerMetadata
                   ? { providerMetadata: msg.providerMetadata }
@@ -1679,6 +1725,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
                 id: generateMessageId(),
                 role: "tool" as T["role"],
                 content: msg.content ?? "",
+                ...(msg.modelOutput ? { modelOutput: msg.modelOutput } : {}),
                 toolCallId: msg.tool_call_id,
                 createdAt: new Date(),
               } as T);
@@ -1714,6 +1761,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
               id: generateMessageId(),
               role: msg.role as T["role"],
               content: msg.content ?? "",
+              ...(msg.modelOutput ? { modelOutput: msg.modelOutput } : {}),
               toolCalls: msg.tool_calls as T["toolCalls"],
               ...(msg.providerMetadata
                 ? { providerMetadata: msg.providerMetadata }
@@ -2000,6 +2048,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
         id: generateMessageId(),
         role: msg.role as T["role"],
         content: msg.content ?? "",
+        ...(msg.modelOutput ? { modelOutput: msg.modelOutput } : {}),
         toolCalls: msg.tool_calls as T["toolCalls"],
         ...(msg.providerMetadata
           ? { providerMetadata: msg.providerMetadata }

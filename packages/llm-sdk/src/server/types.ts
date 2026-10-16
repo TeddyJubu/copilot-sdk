@@ -205,6 +205,7 @@ export interface MessageAttachment {
 export interface ChatRequest {
   /** Conversation messages */
   messages: Array<{
+    modelOutput?: import("../core/tool-output").ToolModelOutput;
     providerMetadata?: import("../core/openai-responses").ProviderMetadata;
     role: string;
     content: string;

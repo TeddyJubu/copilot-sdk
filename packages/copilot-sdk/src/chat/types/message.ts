@@ -1,3 +1,4 @@
+import type { ToolModelOutput } from "../../core/types/tool-output";
 /**
  * Message Types
  *
@@ -22,6 +23,7 @@ export type MessageRole = "user" | "assistant" | "system" | "tool";
 export interface UIMessage {
   /** Opaque provider state, retained without interpreting encrypted reasoning. */
   providerMetadata?: Record<string, unknown>;
+  modelOutput?: ToolModelOutput;
   /** Unique message ID */
   id: string;
   /** Message role */
@@ -57,6 +59,7 @@ export interface UIMessage {
  * Tool result from streaming
  */
 export interface StreamToolResult {
+  modelOutput?: ToolModelOutput;
   id: string;
   name: string;
   status: "pending" | "executing" | "completed" | "failed";
@@ -73,6 +76,7 @@ export interface StreamToolResult {
 export interface StreamingMessageState {
   /** Opaque provider state, retained without interpreting encrypted reasoning. */
   providerMetadata?: Record<string, unknown>;
+  modelOutput?: ToolModelOutput;
   /** Message being built */
   messageId: string;
   /** Accumulated content */

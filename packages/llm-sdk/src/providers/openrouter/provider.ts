@@ -1,3 +1,4 @@
+import { textToolOutput } from "../../core/tool-output";
 /**
  * OpenRouter Provider - Modern Pattern
  *
@@ -400,7 +401,7 @@ function formatMessagesForOpenRouter(messages: CoreMessage[]): any[] {
         return {
           role: "tool",
           tool_call_id: msg.toolCallId,
-          content: msg.content,
+          content: textToolOutput(msg.modelOutput, msg.content),
         };
 
       default:

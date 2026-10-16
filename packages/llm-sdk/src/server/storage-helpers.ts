@@ -93,8 +93,15 @@ export function mapOutputMessages(
     content: m.content ?? "",
     toolCalls: m.tool_calls,
     toolCallId: m.tool_call_id,
-    ...(m.providerMetadata
-      ? { metadata: { providerMetadata: m.providerMetadata } }
+    ...(m.providerMetadata || m.modelOutput
+      ? {
+          metadata: {
+            ...(m.providerMetadata
+              ? { providerMetadata: m.providerMetadata }
+              : {}),
+            ...(m.modelOutput ? { modelOutput: m.modelOutput } : {}),
+          },
+        }
       : {}),
   }));
 }

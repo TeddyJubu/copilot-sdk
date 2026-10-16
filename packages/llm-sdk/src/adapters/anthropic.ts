@@ -1,3 +1,4 @@
+import { toolOutputForProvider } from "../core/tool-output";
 import type {
   LLMConfig,
   StreamEvent,
@@ -91,8 +92,10 @@ export class AnthropicAdapter implements LLMAdapter {
     rawMessages: Array<Record<string, unknown>>,
   ): Array<Record<string, unknown>> {
     const messages: Array<Record<string, unknown>> = [];
-    const pendingToolResults: Array<{ tool_use_id: string; content: string }> =
-      [];
+    const pendingToolResults: Array<{
+      tool_use_id: string;
+      content: string | Array<Record<string, unknown>>;
+    }> = [];
 
     // Track tool_use ids from assistant messages for inference
     let lastToolCallIds: string[] = [];
@@ -210,8 +213,9 @@ export class AnthropicAdapter implements LLMAdapter {
 
         pendingToolResults.push({
           tool_use_id: toolCallId,
-          content:
-            typeof msg.content === "string"
+          content: msg.modelOutput
+            ? toolOutputForProvider(msg.modelOutput, "anthropic")
+            : typeof msg.content === "string"
               ? msg.content
               : JSON.stringify(msg.content),
         });

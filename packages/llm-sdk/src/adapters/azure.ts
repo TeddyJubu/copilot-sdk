@@ -1,3 +1,4 @@
+import { textToolOutput } from "../core/tool-output";
 /**
  * Azure OpenAI LLM Adapter
  *
@@ -111,6 +112,15 @@ export class AzureAdapter implements LLMAdapter {
     if (request.rawMessages && request.rawMessages.length > 0) {
       // Process raw messages - convert any attachments to OpenAI vision format
       const processedMessages = request.rawMessages.map((msg) => {
+        const { modelOutput, ...rest } = msg;
+        msg = {
+          ...rest,
+          ...(msg.role === "tool"
+            ? {
+                content: textToolOutput(modelOutput, String(msg.content ?? "")),
+              }
+            : {}),
+        };
         // Check if message has attachments (images)
         const hasAttachments =
           msg.attachments &&
@@ -291,7 +301,12 @@ export class AzureAdapter implements LLMAdapter {
 
     let messages: Array<Record<string, unknown>>;
     if (request.rawMessages && request.rawMessages.length > 0) {
-      messages = request.rawMessages as Array<Record<string, unknown>>;
+      messages = request.rawMessages.map(({ modelOutput, ...msg }) => ({
+        ...msg,
+        ...(msg.role === "tool"
+          ? { content: textToolOutput(modelOutput, String(msg.content ?? "")) }
+          : {}),
+      }));
       if (request.systemPrompt) {
         const hasSystem = messages.some((m) => m.role === "system");
         if (!hasSystem) {

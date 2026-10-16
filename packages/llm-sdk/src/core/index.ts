@@ -66,3 +66,5 @@ export type {
 } from "./types";
 
 export { DEFAULT_CAPABILITIES } from "./types";
+
+export type { ToolOutputPart, ToolModelOutput } from "./tool-output";

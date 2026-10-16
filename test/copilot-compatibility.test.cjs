@@ -35,8 +35,12 @@ const definitions = ["lookup", "display"].map((name) => ({
   inputSchema: schema,
 }));
 
-async function* chunks(values) {
-  yield* values;
+function chunks(values) {
+  const stream = (async function* () {
+    yield* values;
+  })();
+  stream.controller = new AbortController();
+  return stream;
 }
 function providerReply(endpoint, { body }) {
   if (scenario === "error")
@@ -172,6 +176,17 @@ before(async () => {
   for (const Client of new Set([
     llmRequire("openai").default,
     (await import(esm)).default,
+    llmRequire("@anthropic-ai/sdk").default,
+    (
+      await import(
+        pathToFileURL(
+          path.join(
+            path.dirname(llmRequire.resolve("@anthropic-ai/sdk")),
+            "index.mjs",
+          ),
+        ).href
+      )
+    ).default,
   ])) {
     originalPosts.set(Client, Client.prototype.post);
     Client.prototype.post = function (endpoint, options) {
@@ -500,3 +515,370 @@ for (const streaming of [false, true])
         restored?.dispose();
       }
     });
+
+for (const streaming of [false, true])
+  for (const kind of ["server", "client", "mixed"])
+    test(`Image tool results ${streaming ? "SSE" : "JSON"}: ${kind} tools, persisted restore and next user turn`, async () => {
+      const originalReply = providerReply;
+      let executed = 0;
+      const calls = (
+        kind === "mixed" ? definitions : definitions.slice(0, 1)
+      ).map((tool, i) => ({
+        type: "function_call",
+        id: `fc_${i}`,
+        call_id: `call_${i}`,
+        name: tool.name,
+        arguments: '{"id":"check"}',
+        status: "completed",
+      }));
+      const reasoning = {
+        type: "reasoning",
+        id: "rs_turn1",
+        summary: [],
+        encrypted_content: "complete-encrypted-state",
+      };
+      providerReply = (endpoint, { body }) => {
+        assert.equal(endpoint, "/responses");
+        assert.equal(body.store, false);
+        if (requests.length > 1) {
+          assert.deepEqual(
+            body.input.find((item) => item.type === "reasoning"),
+            reasoning,
+          );
+          const replayedCalls = body.input.filter(
+            (item) => item.type === "function_call",
+          );
+          const replayedResults = body.input.filter(
+            (item) => item.type === "function_call_output",
+          );
+          assert.equal(replayedCalls.length, calls.length);
+          assert.equal(replayedResults.length, calls.length);
+          assert.deepEqual(
+            replayedResults.map((item) => item.call_id).sort(),
+            calls.map((item) => item.call_id).sort(),
+          );
+          for (const result of replayedResults) {
+            assert.deepEqual(result.output, [
+              { type: "input_text", text: "read image" },
+              {
+                type: "input_image",
+                image_url: `data:image/png;base64,${screenshot.data}`,
+                detail: "auto",
+              },
+            ]);
+            assert.ok(
+              body.input.findIndex(
+                (item) =>
+                  item.type === "function_call" &&
+                  item.call_id === result.call_id,
+              ) < body.input.indexOf(result),
+            );
+          }
+        }
+        const output =
+          requests.length === 1
+            ? [reasoning, ...calls]
+            : [
+                {
+                  type: "message",
+                  id: `msg_${requests.length}`,
+                  role: "assistant",
+                  status: "completed",
+                  content: [
+                    { type: "output_text", text: "done", annotations: [] },
+                  ],
+                },
+              ];
+        const result = {
+          id: `resp_${requests.length}`,
+          status: "completed",
+          output,
+          usage: responseUsage,
+          store: false,
+        };
+        if (!body.stream) return result;
+        return chunks([
+          ...output.flatMap((item, output_index) => [
+            { type: "response.output_item.added", output_index, item },
+            ...(item.type === "message"
+              ? [{ type: "response.output_text.delta", delta: "done" }]
+              : []),
+            { type: "response.output_item.done", output_index, item },
+          ]),
+          { type: "response.completed", response: result },
+        ]);
+      };
+      runtime = createRuntime({
+        provider: createOpenAI({
+          apiKey: "test-only",
+          api: "responses",
+          responses: { store: false },
+        }),
+        model: "gpt-4o",
+        maxIterations: 3,
+        tools:
+          kind === "client"
+            ? []
+            : [
+                {
+                  ...definitions[0],
+                  location: "server",
+                  handler: async () => {
+                    executed++;
+                    return {
+                      success: true,
+                      _aiContent: [
+                        { type: "text", text: "read image" },
+                        {
+                          type: "image",
+                          data: screenshot.data,
+                          mediaType: screenshot.mimeType,
+                        },
+                      ],
+                    };
+                  },
+                },
+              ],
+      });
+      const init = {
+        runtimeUrl: "https://copilot.test/api/chat",
+        streaming,
+        threadId: "existing-thread",
+      };
+      const chat = new ReactChat(init);
+      let restored;
+      const pending = [];
+      chat.onToolCalls((event) => pending.push(event));
+      if (kind !== "server")
+        chat.setTools([
+          { ...definitions[kind === "mixed" ? 1 : 0], location: "client" },
+        ]);
+      try {
+        assert.equal(await chat.sendMessage("Inspect"), true);
+        if (kind !== "server") {
+          assert.equal(pending.length, 1);
+          await chat.continueWithToolResults(
+            pending[0].toolCalls.map((call) => ({
+              toolCallId: call.id,
+              result: {
+                success: true,
+                _aiContent: [
+                  { type: "text", text: "read image" },
+                  {
+                    type: "image",
+                    data: screenshot.data,
+                    mediaType: screenshot.mimeType,
+                  },
+                ],
+              },
+            })),
+          );
+        }
+        assert.equal(chat.error, undefined);
+        assert.equal(chat.status, "ready");
+        assert.equal(requests.length, 2);
+        assert.equal(chat.messages.filter((m) => m.role === "user").length, 1);
+        assert.ok(
+          chat.messages.some((message) =>
+            message.providerMetadata?.openai?.response?.output?.some(
+              (item) => item.id === "rs_turn1",
+            ),
+          ),
+        );
+        restored = new ReactChat({
+          ...init,
+          initialMessages: JSON.parse(JSON.stringify(chat.messages)),
+        });
+        assert.equal(await restored.sendMessage("What was done?"), true);
+        assert.equal(restored.error, undefined);
+        assert.equal(restored.status, "ready");
+        assert.equal(requests.length, 3);
+        assert.equal(executed, kind === "client" ? 0 : 1);
+      } finally {
+        providerReply = originalReply;
+        chat.dispose();
+        restored?.dispose();
+      }
+    });
+
+for (const streaming of [false, true])
+  for (const kind of ["server", "client", "mixed"])
+    test(`Anthropic image ${streaming ? "SSE" : "JSON"} ${kind}: continued and restored history`, async () => {
+      const originalReply = providerReply;
+      let executed = 0;
+      const selected = kind === "mixed" ? definitions : definitions.slice(0, 1);
+      const imageResult = {
+        success: true,
+        _aiContent: [
+          { type: "text", text: "read image" },
+          {
+            type: "image",
+            data: screenshot.data,
+            mediaType: screenshot.mimeType,
+          },
+        ],
+      };
+      providerReply = (endpoint, { body }) => {
+        assert.equal(endpoint, "/v1/messages");
+        if (requests.length > 1) {
+          const results = body.messages
+            .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+            .filter((x) => x.type === "tool_result");
+          assert.equal(results.length, selected.length);
+          for (const result of results)
+            assert.deepEqual(result.content, [
+              { type: "text", text: "read image" },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/png",
+                  data: screenshot.data,
+                },
+              },
+            ]);
+        }
+        const content =
+          requests.length === 1
+            ? selected.map((d, i) => ({
+                type: "tool_use",
+                id: "ant-call-" + i,
+                name: d.name,
+                input: { id: "check" },
+              }))
+            : [{ type: "text", text: "done" }];
+        if (!body.stream)
+          return {
+            content,
+            stop_reason: requests.length === 1 ? "tool_use" : "end_turn",
+            usage: { input_tokens: 10, output_tokens: 5 },
+          };
+        return chunks([
+          {
+            type: "message_start",
+            message: {
+              id: "ant-message",
+              type: "message",
+              role: "assistant",
+              model: "claude-sonnet-4-5",
+              content: [],
+              stop_reason: null,
+              stop_sequence: null,
+              usage: { input_tokens: 10, output_tokens: 0 },
+            },
+          },
+          ...content.flatMap((part, index) => [
+            {
+              type: "content_block_start",
+              index,
+              content_block: {
+                ...part,
+                ...(part.type === "tool_use" ? { input: {} } : { text: "" }),
+              },
+            },
+            {
+              type: "content_block_delta",
+              index,
+              delta:
+                part.type === "tool_use"
+                  ? {
+                      type: "input_json_delta",
+                      partial_json: JSON.stringify(part.input),
+                    }
+                  : { type: "text_delta", text: part.text },
+            },
+            { type: "content_block_stop", index },
+          ]),
+          {
+            type: "message_delta",
+            delta: {
+              stop_reason: requests.length === 1 ? "tool_use" : "end_turn",
+            },
+            usage: { output_tokens: 5 },
+          },
+          { type: "message_stop" },
+        ]);
+      };
+      const { createAnthropic } = llmRequire(
+        "./dist/providers/anthropic/index.js",
+      );
+      runtime = createRuntime({
+        provider: createAnthropic({ apiKey: "fixture" }),
+        model: "claude-sonnet-4-5",
+        maxIterations: 3,
+        tools:
+          kind === "client"
+            ? []
+            : [
+                {
+                  ...definitions[0],
+                  location: "server",
+                  handler: async () => {
+                    executed++;
+                    return imageResult;
+                  },
+                },
+              ],
+      });
+      const init = {
+        runtimeUrl: "https://copilot.test/api/chat",
+        streaming,
+        threadId: "existing-thread",
+      };
+      const chat = new ReactChat(init);
+      let restored;
+      const pending = [];
+      chat.onToolCalls((e) => pending.push(e));
+      if (kind !== "server")
+        chat.setTools([
+          { ...definitions[kind === "mixed" ? 1 : 0], location: "client" },
+        ]);
+      try {
+        assert.equal(await chat.sendMessage("inspect"), true);
+        if (kind !== "server") {
+          assert.equal(pending.length, 1);
+          await chat.continueWithToolResults(
+            pending[0].toolCalls.map((call) => ({
+              toolCallId: call.id,
+              result: imageResult,
+            })),
+          );
+        }
+        assert.equal(chat.error, undefined);
+        assert.equal(requests.length, 2);
+        restored = new ReactChat({
+          ...init,
+          initialMessages: JSON.parse(JSON.stringify(chat.messages)),
+        });
+        assert.equal(
+          await restored.sendMessage("what was in the image?"),
+          true,
+        );
+        assert.equal(restored.error, undefined);
+        assert.equal(requests.length, 3);
+        assert.equal(executed, kind === "client" ? 0 : 1);
+      } finally {
+        providerReply = originalReply;
+        chat.dispose();
+        restored?.dispose();
+      }
+    });
+
+test("MCP image output keeps accompanying text in order", () => {
+  const {
+    MCPToolAdapter,
+  } = require("../packages/copilot-sdk/dist/mcp/index.cjs");
+  const result = new MCPToolAdapter("fixture").convertResult({
+    content: [
+      { type: "text", text: "before" },
+      { type: "image", data: screenshot.data, mimeType: "image/png" },
+      { type: "text", text: "after" },
+    ],
+  });
+  assert.deepEqual(result._aiContent, [
+    { type: "text", text: "before" },
+    { type: "image", data: screenshot.data, mediaType: "image/png" },
+    { type: "text", text: "after" },
+  ]);
+  assert.equal(result.message, "before\nafter");
+});
