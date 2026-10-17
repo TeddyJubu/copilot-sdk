@@ -18,6 +18,7 @@
     "dev:demo": "turbo dev --filter=@yourgpt/copilot-sdk --filter=@yourgpt/llm-sdk",
     "build:sdk": "turbo build --filter=@yourgpt/copilot-sdk --filter=@yourgpt/llm-sdk",
     "test:compatibility": "node --test test/*.test.cjs",
+    "test:package-install": "node scripts/check-package-install.mjs",
     "lint": "turbo lint",
     "clean": "turbo clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",

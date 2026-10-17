@@ -65,3 +65,6 @@ jobs:
 
       - name: Copilot integration regressions
         run: pnpm test:compatibility
+
+      - name: Published package compatibility (React 18 and 19)
+        run: pnpm test:package-install
