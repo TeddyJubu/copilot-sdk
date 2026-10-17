@@ -163,7 +163,8 @@
     "!dist/**/*.map",
     "README.md",
     "docs/multimodal-and-audio.md",
-    "docs/decisions.md"
+    "docs/decisions.md",
+    "docs/media.md"
   ],
   "scripts": {
     "build": "tsup",

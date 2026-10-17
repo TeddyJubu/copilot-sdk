@@ -6,6 +6,8 @@
     "stream-text",
     "structured-output",
     "tools",
-    "decisions"
+    "decisions",
+    "image-generation",
+    "realtime"
   ]
 }

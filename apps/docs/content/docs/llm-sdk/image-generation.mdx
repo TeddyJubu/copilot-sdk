@@ -1,0 +1,56 @@
+---
+title: Image generation
+description: Generate and edit images with the next beta's OpenAI image model.
+---
+
+This API is **unreleased on the next-beta branch**. Existing published versions do
+not yet export `generateImage` or `openaiImage`.
+
+```ts
+import { generateImage } from "@yourgpt/llm-sdk";
+import { openaiImage } from "@yourgpt/llm-sdk/openai";
+
+const result = await generateImage({
+  model: openaiImage("gpt-image-2.5-flare"),
+  prompt: "A blue circle on a white background",
+  size: "1024x1024",
+  providerOptions: { openai: { quality: "low", outputFormat: "png" } },
+});
+// result.image.uint8Array, .base64, .mediaType
+// result.images, result.usage, result.response.requestId
+```
+
+Run this on the server with `OPENAI_API_KEY`. The OpenAI client peer dependency
+does not need upgrading for this API. Use `signal` for cancellation and `timeoutMs`
+to override the 120-second timeout. Paid requests are not automatically retried.
+
+## Editing
+
+Supplying `images` selects the Images edits API:
+
+```ts
+const edited = await generateImage({
+  model: openaiImage(),
+  prompt: "Change the circle to green",
+  images: [{ data: result.image.uint8Array, mediaType: "image/png" }],
+  providerOptions: { openai: { outputFormat: "webp", outputCompression: 80 } },
+});
+```
+
+Inputs accept bytes, ArrayBuffer or Blob with PNG/JPEG/WebP media types. A PNG
+`mask` applies to the first image and must match its dimensions. URLs are not
+downloaded implicitly. The SDK allows 1–16 input images, each below 50 MB, with a
+100 MB total input limit. `n` requests 1–10 outputs.
+
+## Output controls
+
+`providerOptions.openai` accepts `quality`, `background`, `outputFormat`,
+`outputCompression`, `inputFidelity` (edits), `moderation` (generation), and
+`safetyIdentifier`. GPT Image 2.5 adds `xhigh` and `max` quality. Transparent output
+requires PNG or WebP; compression requires JPEG or WebP. Unsupported combinations
+fail before the request. Provider HTTP errors expose status/request ID through
+`MediaAPIError`, without logging the prompt or provider response body.
+
+This helper handles final image results. Streaming previews and Responses-hosted
+image generation are separate integrations. See the [OpenAI guide](https://developers.openai.com/api/docs/guides/image-generation)
+and the SDK's [complete media guide](https://github.com/YourGPT/copilot-sdk/blob/codex/next-beta-decisions/packages/llm-sdk/docs/media.md).

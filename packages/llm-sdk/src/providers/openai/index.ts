@@ -238,3 +238,7 @@ export type {
   OpenAIAudioProviderOptions,
   OpenAITranscriptionOptions,
 } from "./audio";
+export { openaiImage } from "./image";
+export type { OpenAIImageOptions } from "./image";
+export { openaiRealtime } from "./realtime";
+export type { OpenAIMediaProviderOptions } from "./media-http";

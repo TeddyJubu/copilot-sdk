@@ -436,6 +436,8 @@ export interface CopilotContextValue {
   registerTool: (tool: ToolDefinition) => void;
   unregisterTool: (name: string) => void;
   registeredTools: ToolDefinition[];
+  /** Read the active registry immediately, including registrations since the last chat render. */
+  getRegisteredTools?: () => ToolDefinition[];
   toolExecutions: ToolExecution[];
   pendingApprovals: ToolExecution[];
   approveToolExecution: (
@@ -851,6 +853,10 @@ export function CopilotProvider(props: CopilotProviderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [toolExecutions], // re-derive when tool executions change (tools change alongside)
   );
+  const getRegisteredTools = useCallback(
+    () => chatRef.current?.tools ?? [],
+    [],
+  );
   const pendingApprovals = useMemo(
     () => toolExecutions.filter((e) => e.approvalStatus === "required"),
     [toolExecutions],
@@ -1081,6 +1087,7 @@ export function CopilotProvider(props: CopilotProviderProps) {
       registerTool,
       unregisterTool,
       registeredTools,
+      getRegisteredTools,
       toolExecutions,
       pendingApprovals,
       approveToolExecution,
@@ -1135,6 +1142,7 @@ export function CopilotProvider(props: CopilotProviderProps) {
       registerTool,
       unregisterTool,
       registeredTools,
+      getRegisteredTools,
       toolExecutions,
       pendingApprovals,
       approveToolExecution,

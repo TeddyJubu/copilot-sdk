@@ -323,3 +323,10 @@ OpenAI, TypeSafe/Jev, OpenRouter, and Cloudflare adapters. It preserves named
 answers, distributions, refusals, provider confidence and usage. See the
 [Decisions guide](./docs/decisions.md) for supported inputs, provider-specific
 limits and the skills-demo example. This API is not in the published beta yet.
+
+### Images and realtime voice (unreleased beta)
+
+`generateImage` / `openaiImage` add image generation and editing.
+`openaiRealtime` creates server-side WebRTC sessions or short-lived credentials.
+Copilot supplies `RealtimeVoiceSession` and `useRealtimeVoice` for browser calls,
+transcripts, tool approval and cleanup. See [the media guide](docs/media.md).

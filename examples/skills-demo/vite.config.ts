@@ -15,7 +15,16 @@ export default defineConfig({
   server: {
     port: 3033,
     proxy: {
+      "/media-api": "http://127.0.0.1:3034",
       "/api": "http://localhost:3032",
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, "index.html"),
+        media: path.resolve(__dirname, "media.html"),
+      },
     },
   },
 });

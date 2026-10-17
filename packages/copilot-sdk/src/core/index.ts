@@ -315,3 +315,11 @@ export type {
   VoiceRecordingState,
   VoiceTranscript,
 } from "./voice-input";
+export { RealtimeVoiceSession, realtimeToolDefinitions } from "./realtime";
+export type {
+  RealtimeVoiceOptions,
+  RealtimeVoiceState,
+  RealtimeTranscript,
+  RealtimeToolCall,
+  RealtimeApproval,
+} from "./realtime";

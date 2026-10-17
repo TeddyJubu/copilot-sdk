@@ -148,9 +148,36 @@ void experimental_decide({
   // @ts-expect-error Unknown question IDs are rejected.
   result.answers.unknown;
 });
-// @ts-expect-error A chat model is not a native decision model.
 void experimental_decide({
+  // @ts-expect-error A chat model is not a native decision model.
   model,
   state: "test",
   questions: decisionQuestions,
 });
+
+import {
+  generateImage,
+  type ImageModel,
+  type RealtimeModel,
+} from "@yourgpt/llm-sdk";
+import {
+  openaiImage,
+  openaiRealtime,
+  type OpenAIImageOptions,
+} from "@yourgpt/llm-sdk/openai";
+const imageModel: ImageModel = openaiImage();
+const imageSettings: OpenAIImageOptions = {
+  quality: "xhigh",
+  background: "transparent",
+};
+void generateImage({
+  model: imageModel,
+  prompt: "blue circle",
+  providerOptions: { openai: { ...imageSettings } },
+});
+const realtimeModel: RealtimeModel = openaiRealtime();
+void realtimeModel.createCall({
+  sdp: "v=0",
+  turnDetection: { type: "semantic_vad", eagerness: "medium" },
+});
+void realtimeModel.createClientSecret({ expiresAfterSeconds: 60 });

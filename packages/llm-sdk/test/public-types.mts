@@ -37,12 +37,51 @@ const imageOutput: ToolModelOutput = {
   content: [{ type: "image", url: "https://example.com/image.png" }],
 };
 
-import { experimental_decide, type DecisionModel } from '@yourgpt/llm-sdk';
-import { openaiDecision } from '@yourgpt/llm-sdk/openai';
-import { openrouterDecision } from '@yourgpt/llm-sdk/openrouter';
-import { typesafeDecision } from '@yourgpt/llm-sdk/typesafe';
-import { cloudflareDecision } from '@yourgpt/llm-sdk/cloudflare';
-const decisions: DecisionModel[] = [openaiDecision(), openrouterDecision(), typesafeDecision(), cloudflareDecision(undefined, { accountId: 'a'.repeat(32) })];
-void experimental_decide({ model: decisions[0], state: 'test', questions: { flag: { type: 'boolean', instructions: 'Test?' } } }).then(result => {
-  if (result.answers.flag.type === 'boolean') { const p: number = result.answers.flag.probability; void p; }
+import { experimental_decide, type DecisionModel } from "@yourgpt/llm-sdk";
+import { openaiDecision } from "@yourgpt/llm-sdk/openai";
+import { openrouterDecision } from "@yourgpt/llm-sdk/openrouter";
+import { typesafeDecision } from "@yourgpt/llm-sdk/typesafe";
+import { cloudflareDecision } from "@yourgpt/llm-sdk/cloudflare";
+const decisions: DecisionModel[] = [
+  openaiDecision(),
+  openrouterDecision(),
+  typesafeDecision(),
+  cloudflareDecision(undefined, { accountId: "a".repeat(32) }),
+];
+void experimental_decide({
+  model: decisions[0],
+  state: "test",
+  questions: { flag: { type: "boolean", instructions: "Test?" } },
+}).then((result) => {
+  if (result.answers.flag.type === "boolean") {
+    const p: number = result.answers.flag.probability;
+    void p;
+  }
 });
+
+import {
+  generateImage,
+  type ImageModel,
+  type RealtimeModel,
+} from "@yourgpt/llm-sdk";
+import {
+  openaiImage,
+  openaiRealtime,
+  type OpenAIImageOptions,
+} from "@yourgpt/llm-sdk/openai";
+const imageModel: ImageModel = openaiImage();
+const imageSettings: OpenAIImageOptions = {
+  quality: "xhigh",
+  background: "transparent",
+};
+void generateImage({
+  model: imageModel,
+  prompt: "blue circle",
+  providerOptions: { openai: { ...imageSettings } },
+});
+const realtimeModel: RealtimeModel = openaiRealtime();
+void realtimeModel.createCall({
+  sdp: "v=0",
+  turnDetection: { type: "semantic_vad", eagerness: "medium" },
+});
+void realtimeModel.createClientSecret({ expiresAfterSeconds: 60 });

@@ -1,0 +1,85 @@
+---
+title: Realtime voice
+description: Experimental browser voice calls with OpenAI Realtime and Copilot tools.
+---
+
+**Unreleased, experimental.** This next-beta API connects a browser to OpenAI GA
+Realtime using WebRTC. It is distinct from recorded voice input and TTS/STT, and
+from the separate GPT-Live protocol.
+
+## Server
+
+Use your authenticated, rate-limited server endpoint to exchange an SDP offer:
+
+```ts
+import { openaiRealtime } from "@yourgpt/llm-sdk/openai";
+
+const answer = await openaiRealtime("gpt-realtime-2.1").createCall({
+  sdp: requestBody.sdp,
+  instructions: "Be helpful and brief. Disclose that this is an AI voice.",
+  voice: "marin",
+  transcriptionModel: "gpt-transcribe",
+  signal: requestSignal,
+});
+// Return answer as JSON with Cache-Control: no-store.
+```
+
+The API key stays on the server. Configure tools and instructions there. An
+alternative `createClientSecret` method supplies short-lived credentials for direct
+browser setup; those credentials are not a tool authorization boundary.
+
+## React
+
+Inside `CopilotProvider`, `useRealtimeVoice` reads the registered tools and their
+`needsApproval` policy:
+
+```tsx
+import { useRealtimeVoice } from "@yourgpt/copilot-sdk/react";
+
+const voice = useRealtimeVoice({
+  createCall: async ({ sdp, signal }) => {
+    const response = await fetch("/api/voice", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sdp }), signal,
+    });
+    if (!response.ok) throw new Error("Voice setup failed");
+    return response.json();
+  },
+});
+// Call voice.connect() from a Start button and handle its rejected promise.
+// voice.disconnect(), setMuted(true), interrupt(), sendText("Hello"), resumeAudio()
+```
+
+Show `voice.state`, `voice.error`, `voice.transcripts` and
+`voice.pendingApprovals`. Each pending approval has `name`, `args`, `approve(data?)`
+and `reject()`. Approval-required tools never execute before approval unless the
+application-supplied `getToolPermission` resolver explicitly permits them; supplied
+denials are respected. Without that resolver, each required approval is requested.
+Business handlers must still validate inputs and authorize server operations.
+
+The framework-independent `RealtimeVoiceSession` and `realtimeToolDefinitions`
+are exported from `@yourgpt/copilot-sdk/core`. Duplicate tool call IDs execute at
+most once per connection. Disconnect cancels pending approvals, signals running
+tools, stops microphone tracks and closes the connection. There is no automatic
+reconnect or replay; reconnect starts a new conversation.
+
+## Voice behavior
+
+Server VAD handles automatic replies and barge-in. `interrupt()` cancels active
+output and clears the server's playback buffer. Optional semantic VAD and manual
+`commitAudio()` are supported. Audio uses negotiated WebRTC media tracks.
+`onUsage`, `onTranscript`, `onEvent`, and `onToolResult` expose observations.
+
+HTTPS or localhost and browser microphone permission are required. Defaults are a
+30-second setup timeout, 60-second tool timeout and 30-minute call limit. If the
+browser blocks autoplay, call `resumeAudio()` from a user gesture. Unmounting the
+React hook cleans up the session.
+
+Run `pnpm demo:media` in `examples/skills-demo`, then open
+`http://localhost:3033/media.html` for voice, approvals and image generation.
+Physical microphone quality and latency across browsers/devices still need manual
+evaluation. GPT-Live, telephony/SIP and other realtime providers are outside this
+first provider implementation.
+
+See [OpenAI WebRTC](https://developers.openai.com/api/docs/guides/voice-webrtc?api=realtime)
+and the [complete SDK media guide](https://github.com/YourGPT/copilot-sdk/blob/codex/next-beta-decisions/packages/llm-sdk/docs/media.md).

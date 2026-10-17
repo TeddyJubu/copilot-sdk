@@ -24,6 +24,20 @@
 // ============================================
 
 export { generateText } from "./core/generate-text";
+export { generateImage, MediaAPIError } from "./core/image";
+export type {
+  ImageFile,
+  ImageOptions,
+  GeneratedImage,
+  ImageResult,
+  ImageModel,
+} from "./core/image";
+export type {
+  RealtimeToolDefinition,
+  RealtimeSessionOptions,
+  RealtimeClientSecret,
+  RealtimeModel,
+} from "./core/realtime";
 export { experimental_decide, DecisionAPIError } from "./core/decisions";
 export type {
   DecisionJSON,
