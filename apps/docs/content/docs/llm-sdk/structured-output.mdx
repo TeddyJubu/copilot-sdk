@@ -1,43 +1,44 @@
 ---
 title: Structured Output
-description: Get JSON-schema-validated responses from any provider
+description: Request native JSON Schema output and understand provider-specific limits
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-Pass `responseFormat` to `generateText()` or `streamText()` to get
-JSON-schema-validated responses. The SDK translates the unified shape to
-each provider's native API — works the same whether you're on OpenAI,
-Anthropic, Google, Azure, xAI, Together, Fireworks, OpenRouter, or Ollama.
+Pass `responseFormat` to `generateText()` or `streamText()` to request structured
+responses. The SDK translates the unified shape to the provider's API. Support
+and schema constraints depend on the chosen model and endpoint. Validate the
+completed output before using it; refusals and token-limit truncation can still
+produce a response that does not match your schema.
 
 ```ts
-import { generateText } from '@yourgpt/llm-sdk';
-import { openai } from '@yourgpt/llm-sdk/openai';
+import { generateText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
 
 const result = await generateText({
-  model: openai('gpt-4o'),
-  prompt: 'List the top 3 fastest land animals.',
+  model: openai("gpt-4o"),
+  prompt: "List the top 3 fastest land animals.",
   responseFormat: {
-    type: 'json_schema',
+    type: "json_schema",
     json_schema: {
-      name: 'animals_response',
+      name: "animals_response",
       schema: {
-        type: 'object',
+        type: "object",
         properties: {
           animals: {
-            type: 'array',
+            type: "array",
             items: {
-              type: 'object',
+              type: "object",
               properties: {
-                name: { type: 'string' },
-                top_speed_kmh: { type: 'number' },
+                name: { type: "string" },
+                top_speed_kmh: { type: "number" },
               },
-              required: ['name', 'top_speed_kmh'],
+              required: ["name", "top_speed_kmh"],
             },
           },
         },
-        required: ['animals'],
+        required: ["animals"],
       },
       strict: true,
     },
@@ -57,13 +58,13 @@ write `response_format` for OpenAI can pass it through unchanged.
 
 ```ts
 type ResponseFormat =
-  | { type: 'json_object' }
+  | { type: "json_object" }
   | {
-      type: 'json_schema';
+      type: "json_schema";
       json_schema: {
         name: string;
         schema: Record<string, unknown>; // JSON Schema
-        strict?: boolean;                // default: true
+        strict?: boolean; // default: true
       };
     };
 ```
@@ -79,13 +80,13 @@ type ResponseFormat =
 
 Each adapter translates `responseFormat` to its provider's native field:
 
-| Provider | Native field |
-|---|---|
-| OpenAI Chat / Azure / xAI / Together / Fireworks / OpenRouter | `response_format` |
-| OpenAI Responses API | `text.format` (different shape) |
-| Anthropic Claude 3.5+ | `output_config.format` |
-| Google Gemini | `responseJsonSchema` |
-| Ollama 0.5+ | `format` |
+| Provider                                                      | Native field                    |
+| ------------------------------------------------------------- | ------------------------------- |
+| OpenAI Chat / Azure / xAI / Together / Fireworks / OpenRouter | `response_format`               |
+| OpenAI Responses API                                          | `text.format` (different shape) |
+| Anthropic models with structured-output support               | `output_config.format`          |
+| Google Gemini                                                 | `responseJsonSchema`            |
+| Ollama 0.5+                                                   | `format`                        |
 
 You don't need to think about this — the SDK handles it. The notes below
 matter only if you hit edge cases.
@@ -109,11 +110,22 @@ If you rely on numeric or length constraints for validation, do that
 client-side after `JSON.parse()` rather than encoding it in the schema.
 
 <Callout type="warn">
-  Anthropic's `output_config.format` is GA on Claude API and AWS Bedrock for
-  Claude 3.5 / 3.7 / 4 series. It is NOT available on Google Vertex AI. Older
-  Claude 3 base models (`claude-3-opus-20240229` etc.) are not supported either.
-  Tracking: [issue #96](https://github.com/YourGPT/copilot-sdk/issues/96).
+  Claude's schema-less `json_object` mode uses prompting and is not guaranteed
+  to produce parseable JSON. Use `json_schema` when your application requires a
+  fixed shape. Check [Anthropic's current model and platform
+  support](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
+  before using native structured outputs on older models or cloud gateways.
 </Callout>
+
+Schema property names are data: a field named `minimum`, `pattern`, or `oneOf`
+is preserved even when a schema keyword of the same name is removed or translated.
+The SDK does not mutate your original schema.
+
+When streaming a multi-step tool workflow, accumulated text may include progress
+text from earlier steps. Parse the final assistant message in `result.response`
+after completion, rather than concatenated text from every step. The
+[provider compatibility checks](/docs/llm-sdk/provider-compatibility) cover tool
+continuation followed by a schema response.
 
 ### Google Gemini — OpenAPI subset
 

@@ -77,6 +77,11 @@ The examples use `claude-sonnet-4-5`, which was used for the Anthropic prompt-de
 
 ## Configuration Options
 
+Newer Claude models reject custom temperature values. The SDK omits temperature
+for those models, and when thinking is enabled, while retaining it for models
+that support sampling. See [Testing provider compatibility](/docs/llm-sdk/provider-compatibility)
+for live checks covering both SDK interfaces.
+
 ```ts
 import { anthropic } from "@yourgpt/llm-sdk/anthropic";
 
@@ -93,6 +98,34 @@ const result = await generateText({
   maxTokens: 4096, // Max response length
 });
 ```
+
+---
+
+## Thinking and tool continuation
+
+Use adaptive thinking on current Claude models:
+
+```ts
+const model = anthropic("claude-haiku-5-5", {
+  thinking: { type: "adaptive", display: "summarized" },
+  effort: "low",
+});
+
+const result = await generateText({
+  model,
+  prompt: "Explain your recommendation briefly.",
+});
+console.log(result.text);
+```
+
+For Runtime, configure `createAnthropic({ thinking: { type: "adaptive" }, effort: "low" })`.
+The legacy `thinkingBudget` and `{ enabled: true, budgetTokens }` forms remain
+accepted. On newer models they select adaptive thinking; a token budget is not
+an effort setting. On older models, make `maxTokens` larger than the thinking budget.
+
+Keep returned assistant messages and their provider metadata when continuing a
+conversation. The SDK retains signed thinking content for tool continuation,
+including streamed signatures, without copying raw usage or request diagnostics.
 
 ---
 
@@ -190,7 +223,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 ## Pricing
 
-Check [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) for current rates. The SDK does not yet provide unified Anthropic cache controls or normalized cache-read/write accounting.
+Check [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) for current rates. Set `cacheControl: true` on `anthropic()` or `createAnthropic()` for automatic prompt caching. Input token totals include uncached input, cache writes, and cache reads. These are token counts, not a price calculation; the rates differ. Custom TTLs and block-level cache breakpoints are not exposed by this option.
 
 ---
 

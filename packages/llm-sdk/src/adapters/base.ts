@@ -1,4 +1,5 @@
 import { toolOutputForProvider, textToolOutput } from "../core/tool-output";
+import { anthropicReplayContent } from "../core/anthropic-replay";
 import type {
   Message,
   MessageAttachment,
@@ -342,7 +343,28 @@ function stripSchemaKeys(
   )) {
     if (keysToDrop.has(key)) continue;
     const renamed = options.renameKeys?.[key] ?? key;
-    out[renamed] = stripSchemaKeys(value, keysToDrop, options);
+    // Names inside schema maps are user data, even when named "minimum" or "oneOf".
+    if (
+      [
+        "properties",
+        "$defs",
+        "definitions",
+        "patternProperties",
+        "dependentSchemas",
+      ].includes(key) &&
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) {
+      out[renamed] = Object.fromEntries(
+        Object.entries(value).map(([name, child]) => [
+          name,
+          stripSchemaKeys(child, keysToDrop, options),
+        ]),
+      );
+    } else if (["enum", "const", "default", "examples"].includes(key)) {
+      out[renamed] = value;
+    } else out[renamed] = stripSchemaKeys(value, keysToDrop, options);
   }
 
   if (options.forceAdditionalPropertiesFalse && out.type === "object") {
@@ -375,6 +397,7 @@ export function toOpenAIResponseFormat(
 export function toOpenAIResponsesTextFormat(
   rf: ResponseFormat | undefined,
 ): Record<string, unknown> | undefined {
+  if (rf?.type === "json_object") return { type: "json_object" };
   if (!rf || rf.type !== "json_schema") return undefined;
   return {
     type: "json_schema",
@@ -531,6 +554,8 @@ export function formatTools(actions: ActionDefinition[]): Array<{
  */
 export type AnthropicContentBlock =
   | { type: "text"; text: string }
+  | { type: "thinking"; thinking: string; signature: string }
+  | { type: "redacted_thinking"; data: string }
   | {
       type: "image";
       source:
@@ -897,6 +922,14 @@ export function formatMessagesForAnthropic(
     if (msg.role === "system") continue; // Extracted into `system` above
 
     if (msg.role === "assistant") {
+      const replay = anthropicReplayContent(msg.providerMetadata);
+      if (replay) {
+        formatted.push({
+          role: "assistant",
+          content: replay as AnthropicMessageContent,
+        });
+        continue;
+      }
       // Build content array for assistant
       const content: Array<AnthropicContentBlock | AnthropicToolUseBlock> = [];
 

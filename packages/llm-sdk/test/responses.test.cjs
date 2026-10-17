@@ -166,6 +166,49 @@ const metadataOf = (result) =>
         .providerMetadata
     : result.providerMetadata;
 
+for (const mode of modes) {
+  test(`${mode}: Responses schema-less JSON mode is forwarded`, async () => {
+    await run(
+      mode,
+      { api: "responses" },
+      [{ role: "user", content: "Return JSON" }],
+      {},
+    );
+    // Exercise the public request setting, not only the schema conversion helper.
+    requests = [];
+    if (mode.startsWith("modern")) {
+      const model = openai("gpt-6-luna", {
+        apiKey: "fixture",
+        api: "responses",
+      });
+      const params = {
+        messages: [{ role: "user", content: "Return JSON" }],
+        responseFormat: { type: "json_object" },
+      };
+      if (mode.endsWith("complete")) await model.doGenerate(params);
+      else
+        for await (const _ of model.doStream(params)) {
+        }
+    } else {
+      const adapter = new OpenAIAdapter({
+        apiKey: "fixture",
+        model: "gpt-6-luna",
+        api: "responses",
+      });
+      const request = {
+        messages: [],
+        rawMessages: [{ role: "user", content: "Return JSON" }],
+        config: { responseFormat: { type: "json_object" } },
+      };
+      if (mode.endsWith("complete")) await adapter.complete(request);
+      else
+        for await (const _ of adapter.stream(request)) {
+        }
+    }
+    assert.deepEqual(requests[0].body.text.format, { type: "json_object" });
+  });
+}
+
 test("native replay retains tool schemas with diagnostic-like property names", async () => {
   const item = {
     type: "tool_search_output",

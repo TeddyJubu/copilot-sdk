@@ -47,6 +47,8 @@ import {
 export interface OpenAIAdapterConfig
   extends OpenAIParameterOptions, OpenAITransportOptions {
   organization?: string;
+  project?: string;
+  timeout?: number;
   headers?: Record<string, string>;
   apiKey: string;
   model?: string;
@@ -95,6 +97,8 @@ export class OpenAIAdapter implements LLMAdapter {
         apiKey: this.config.apiKey,
         baseURL: this.config.baseUrl,
         organization: this.config.organization,
+        project: this.config.project,
+        timeout: this.config.timeout,
         defaultHeaders: this.config.headers,
       });
     }

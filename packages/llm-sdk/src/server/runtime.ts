@@ -1405,7 +1405,27 @@ export class Runtime {
           nextToolSearchState,
           _iteration + 1,
         )) {
-          yield event;
+          if (event.type === "done" && adapterUsage) {
+            const promptTokens =
+              adapterUsage.prompt_tokens + (event.usage?.prompt_tokens ?? 0);
+            const completionTokens =
+              adapterUsage.completion_tokens +
+              (event.usage?.completion_tokens ?? 0);
+            yield {
+              ...event,
+              usage: {
+                prompt_tokens: promptTokens,
+                completion_tokens: completionTokens,
+                total_tokens:
+                  (adapterUsage.total_tokens ??
+                    adapterUsage.prompt_tokens +
+                      adapterUsage.completion_tokens) +
+                  (event.usage?.total_tokens ??
+                    (event.usage?.prompt_tokens ?? 0) +
+                      (event.usage?.completion_tokens ?? 0)),
+              },
+            };
+          } else yield event;
         }
         return;
       }

@@ -6,6 +6,25 @@ import {
 } from "@yourgpt/llm-sdk/openai";
 import { createFallbackChain } from "@yourgpt/llm-sdk/fallback";
 import { OpenAIAdapter } from "@yourgpt/llm-sdk/adapters";
+import { anthropic, createAnthropic } from "@yourgpt/llm-sdk/anthropic";
+void generateText({
+  model: anthropic("claude-haiku-5-5", {
+    thinking: { type: "adaptive", display: "summarized" },
+    effort: "low",
+  }),
+  prompt: "test",
+});
+void createRuntime({
+  provider: createAnthropic({ thinking: { type: "adaptive" }, effort: "low" }),
+  model: "claude-haiku-5-5",
+});
+void generateText({
+  model: anthropic("claude-haiku-4-5", {
+    thinking: { enabled: true, budgetTokens: 1024 },
+  }),
+  prompt: "test",
+  maxTokens: 2048,
+});
 
 const effort: OpenAIReasoningEffort = "none";
 const model = openai("gpt-6-luna", {

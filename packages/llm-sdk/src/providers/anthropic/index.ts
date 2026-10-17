@@ -10,6 +10,7 @@ export { anthropic, createAnthropic as createAnthropicModel } from "./provider";
 export type { AnthropicProviderOptions } from "./provider";
 
 import { createAnthropicAdapter } from "../../adapters/anthropic";
+import { anthropicModelRules } from "../../core/anthropic-parameters";
 import {
   createCallableProvider,
   type AIProvider,
@@ -131,9 +132,15 @@ export function createAnthropic(
       apiKey,
       model: modelId,
       baseUrl: config.baseUrl,
-      thinking: config.thinkingBudget
-        ? { type: "enabled", budgetTokens: config.thinkingBudget }
-        : undefined,
+      timeout: config.timeout,
+      headers: config.headers,
+      cacheControl: config.cacheControl,
+      thinking:
+        config.thinking ??
+        (config.thinkingBudget
+          ? { type: "enabled", budgetTokens: config.thinkingBudget }
+          : undefined),
+      effort: config.effort,
     });
   };
 
@@ -145,7 +152,7 @@ export function createAnthropic(
     return {
       supportsVision: model.vision,
       supportsTools: model.tools,
-      supportsThinking: model.thinking,
+      supportsThinking: anthropicModelRules(modelId).thinking,
       supportsStreaming: true,
       supportsPDF: true,
       supportsAudio: false,
@@ -157,8 +164,7 @@ export function createAnthropic(
         "image/gif",
         "image/webp",
       ],
-      // Native `output_config.format` — GA on Claude 3.5 and newer.
-      supportsJsonMode: true,
+      supportsJsonMode: anthropicModelRules(modelId).structured,
       supportsSystemMessages: true,
     };
   };

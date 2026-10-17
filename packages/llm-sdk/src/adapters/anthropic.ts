@@ -1,4 +1,18 @@
 import { toolOutputForProvider } from "../core/tool-output";
+import {
+  anthropicTemperature,
+  anthropicThinking,
+  anthropicInputTokens,
+  anthropicMaxTokens,
+  type AnthropicThinking,
+} from "../core/anthropic-parameters";
+import {
+  anthropicReplay,
+  anthropicReplayContent,
+  collectAnthropicContent,
+} from "../core/anthropic-replay";
+import type { ProviderMetadata } from "../core/openai-responses";
+import { providerErrorEvent } from "../core/provider-error";
 import type {
   LLMConfig,
   StreamEvent,
@@ -27,7 +41,6 @@ import {
  */
 export interface ThinkingConfig {
   type: "enabled";
-  /** Budget for thinking tokens (minimum 1024) */
   budgetTokens?: number;
 }
 
@@ -39,8 +52,12 @@ export interface AnthropicAdapterConfig {
   model?: string;
   /** Base URL for API endpoint */
   baseUrl?: string;
+  timeout?: number;
+  headers?: Record<string, string>;
+  cacheControl?: boolean;
   /** Enable extended thinking (for Claude 3.7 Sonnet, Claude 4) */
-  thinking?: ThinkingConfig;
+  thinking?: AnthropicThinking;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   temperature?: number;
   maxTokens?: number;
   /**
@@ -73,6 +90,9 @@ export class AnthropicAdapter implements LLMAdapter {
       const { default: Anthropic } = await import("@anthropic-ai/sdk");
       this.client = new Anthropic({
         apiKey: this.config.apiKey,
+        baseURL: this.config.baseUrl,
+        timeout: this.config.timeout,
+        defaultHeaders: this.config.headers,
       });
     }
     return this.client;
@@ -128,6 +148,17 @@ export class AnthropicAdapter implements LLMAdapter {
           toolResultIndex = 0;
         }
 
+        const replay = anthropicReplayContent(
+          msg.providerMetadata as ProviderMetadata | undefined,
+        );
+        if (replay) {
+          messages.push({ role: "assistant", content: replay });
+          lastToolCallIds = replay
+            .filter((b) => b.type === "tool_use")
+            .map((b) => b.id as string);
+          toolResultIndex = 0;
+          continue;
+        }
         // Convert assistant message with potential tool_calls
         const content: Array<Record<string, unknown>> = [];
 
@@ -389,7 +420,7 @@ export class AnthropicAdapter implements LLMAdapter {
     const responseFormat = request.config?.responseFormat;
     const jsonObjectSuffix =
       responseFormat?.type === "json_object"
-        ? "\n\nRespond with a single JSON object and no other text."
+        ? "\n\nRespond with a single JSON object and no other text. Do not include Markdown code fences."
         : "";
     let systemMessage: string;
 
@@ -484,13 +515,28 @@ export class AnthropicAdapter implements LLMAdapter {
       }
     }
 
+    const thinking = anthropicThinking(
+      request.config?.model || this.model,
+      this.config.thinking,
+    );
     // Build request options
     const options: Record<string, unknown> = {
       model: request.config?.model || this.model,
-      max_tokens: request.config?.maxTokens || this.config.maxTokens || 4096,
+      max_tokens: anthropicMaxTokens(
+        request.config?.maxTokens ?? this.config.maxTokens,
+        thinking,
+      ),
       system: systemMessage,
       messages,
       tools: tools.length ? tools : undefined,
+      ...(this.config.cacheControl
+        ? { cache_control: { type: "ephemeral" } }
+        : {}),
+      ...anthropicTemperature(
+        request.config?.model || this.model,
+        request.config?.temperature ?? this.config.temperature,
+        !!this.config.thinking && this.config.thinking.type !== "disabled",
+      ),
     };
 
     const anthropicToolOptions = request.providerToolOptions?.anthropic;
@@ -523,21 +569,17 @@ export class AnthropicAdapter implements LLMAdapter {
       options.server_tool_configuration = serverToolConfiguration;
     }
 
-    // Anthropic structured output (`output_config.format`) — GA on Claude API
-    // and Bedrock as of late 2025. Vertex AI does not support it; users on
-    // Vertex should use a forced-tool pattern via `actions` + `toolChoice`.
+    // Native structured output. Support varies by model and deployment platform.
     const outputConfig = toAnthropicOutputConfig(responseFormat);
-    if (outputConfig) {
-      options.output_config = outputConfig;
+    if (outputConfig || this.config.effort) {
+      options.output_config = {
+        ...outputConfig,
+        ...(this.config.effort ? { effort: this.config.effort } : {}),
+      };
     }
 
     // Add thinking configuration if enabled
-    if (this.config.thinking?.type === "enabled") {
-      options.thinking = {
-        type: "enabled",
-        budget_tokens: this.config.thinking.budgetTokens || 10000,
-      };
-    }
+    if (thinking) options.thinking = thinking;
 
     return { options, messages };
   }
@@ -562,7 +604,9 @@ export class AnthropicAdapter implements LLMAdapter {
         nonStreamingOptions,
         request.debug,
       );
-      const response = await client.messages.create(nonStreamingOptions);
+      const response = await client.messages.create(nonStreamingOptions, {
+        signal: request.signal,
+      });
       logProviderPayload(
         "anthropic",
         "response payload",
@@ -599,14 +643,15 @@ export class AnthropicAdapter implements LLMAdapter {
       // skipped entirely for Anthropic models. Anthropic has no total_tokens, so sum it.
       return {
         content,
+        providerMetadata: anthropicReplay(response.content),
         toolCalls,
         thinking: thinking || undefined,
         usage: response.usage
           ? {
-              promptTokens: response.usage.input_tokens ?? 0,
+              promptTokens: anthropicInputTokens(response.usage),
               completionTokens: response.usage.output_tokens ?? 0,
               totalTokens:
-                (response.usage.input_tokens ?? 0) +
+                anthropicInputTokens(response.usage) +
                 (response.usage.output_tokens ?? 0),
             }
           : undefined,
@@ -633,7 +678,9 @@ export class AnthropicAdapter implements LLMAdapter {
         options,
         request.debug,
       );
-      const stream = await client.messages.stream(options);
+      const stream = await client.messages.stream(options, {
+        signal: request.signal,
+      });
 
       let currentToolUse: {
         id: string;
@@ -642,6 +689,7 @@ export class AnthropicAdapter implements LLMAdapter {
       } | null = null;
 
       let isInThinkingBlock = false;
+      const content: any[] = [];
 
       // Track citations from web search
       const collectedCitations: Citation[] = [];
@@ -657,6 +705,7 @@ export class AnthropicAdapter implements LLMAdapter {
         | undefined;
 
       for await (const event of stream) {
+        collectAnthropicContent(content, event);
         logProviderPayload("anthropic", "stream event", event, request.debug);
         // Check for abort
         if (request.signal?.aborted) {
@@ -668,9 +717,9 @@ export class AnthropicAdapter implements LLMAdapter {
             // Capture input tokens from message_start
             if (event.message?.usage) {
               usage = {
-                prompt_tokens: event.message.usage.input_tokens,
+                prompt_tokens: anthropicInputTokens(event.message.usage),
                 completion_tokens: 0,
-                total_tokens: event.message.usage.input_tokens,
+                total_tokens: anthropicInputTokens(event.message.usage),
               };
             }
             break;
@@ -818,13 +867,9 @@ export class AnthropicAdapter implements LLMAdapter {
 
       // Emit message end
       yield { type: "message:end" };
-      yield { type: "done", usage };
+      yield { type: "done", usage, providerMetadata: anthropicReplay(content) };
     } catch (error) {
-      yield {
-        type: "error",
-        message: error instanceof Error ? error.message : "Unknown error",
-        code: "ANTHROPIC_ERROR",
-      };
+      yield providerErrorEvent(error, "ANTHROPIC_ERROR");
     }
   }
 }

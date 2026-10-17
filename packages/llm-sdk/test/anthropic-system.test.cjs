@@ -172,7 +172,7 @@ for (const method of ["complete", "stream"]) {
       assert.equal(
         requests[0].system,
         instruction +
-          "\n\nRespond with a single JSON object and no other text.",
+          "\n\nRespond with a single JSON object and no other text. Do not include Markdown code fences.",
       );
       assert.deepEqual(requests[0].messages, [user]);
     });
