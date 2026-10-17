@@ -135,6 +135,26 @@
         "types": "./dist/fallback/index.d.ts",
         "default": "./dist/fallback/index.js"
       }
+    },
+    "./typesafe": {
+      "import": {
+        "types": "./dist/providers/typesafe/index.d.mts",
+        "default": "./dist/providers/typesafe/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/typesafe/index.d.ts",
+        "default": "./dist/providers/typesafe/index.js"
+      }
+    },
+    "./cloudflare": {
+      "import": {
+        "types": "./dist/providers/cloudflare/index.d.mts",
+        "default": "./dist/providers/cloudflare/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/cloudflare/index.d.ts",
+        "default": "./dist/providers/cloudflare/index.js"
+      }
     }
   },
   "homepage": "https://copilot-sdk.yourgpt.ai",
@@ -142,7 +162,8 @@
     "dist",
     "!dist/**/*.map",
     "README.md",
-    "docs/multimodal-and-audio.md"
+    "docs/multimodal-and-audio.md",
+    "docs/decisions.md"
   ],
   "scripts": {
     "build": "tsup",

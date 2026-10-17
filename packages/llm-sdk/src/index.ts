@@ -24,6 +24,19 @@
 // ============================================
 
 export { generateText } from "./core/generate-text";
+export { experimental_decide, DecisionAPIError } from "./core/decisions";
+export type {
+  DecisionJSON,
+  DecisionInput,
+  DecisionQuestion,
+  DecisionQuestions,
+  DecisionImage,
+  DecisionOptions,
+  DecisionAnswer,
+  DecisionResult,
+  DecisionModel,
+  DecisionErrorCode,
+} from "./core/decisions";
 export { streamText } from "./core/stream-text";
 export {
   tool,

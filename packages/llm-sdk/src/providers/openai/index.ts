@@ -7,6 +7,8 @@
 
 // NEW: Modern pattern - openai() function
 export { openai, createOpenAI as createOpenAIModel } from "./provider";
+export { openaiDecision } from "./decisions";
+export type { OpenAIDecisionProviderOptions } from "./decisions";
 export type { OpenAIProviderOptions } from "./provider";
 
 import { createOpenAIAdapter } from "../../adapters/openai";

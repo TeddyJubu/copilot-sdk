@@ -97,3 +97,60 @@ void transcribe({
   mediaType: "audio/wav",
 }).then((result) => result.text);
 const audioError: Error = new AudioAPIError("failed", "provider_error", 429);
+
+import {
+  experimental_decide,
+  type DecisionQuestions,
+  type DecisionModel,
+} from "@yourgpt/llm-sdk";
+import { openaiDecision } from "@yourgpt/llm-sdk/openai";
+import { openrouterDecision } from "@yourgpt/llm-sdk/openrouter";
+import { typesafeDecision } from "@yourgpt/llm-sdk/typesafe";
+import { cloudflareDecision } from "@yourgpt/llm-sdk/cloudflare";
+const decisionModels: DecisionModel[] = [
+  openaiDecision(),
+  openrouterDecision(),
+  typesafeDecision(),
+  cloudflareDecision(undefined, { accountId: "a".repeat(32) }),
+];
+const decisionQuestions = {
+  urgent: { type: "boolean", instructions: "Urgent?" },
+  team: {
+    type: "choice",
+    instructions: "Which team?",
+    criteria: { billing: "Invoices", engineering: "Outages" },
+  },
+  severity: {
+    type: "score",
+    instructions: "Impact?",
+    criteria: ["None", "Some", "Major"],
+  },
+} as const satisfies DecisionQuestions;
+void experimental_decide({
+  model: decisionModels[0],
+  state: { ticket: "Test" },
+  questions: decisionQuestions,
+}).then((result) => {
+  if (result.answers.team.type === "choice") {
+    const selected: "billing" | "engineering" = result.answers.team.choice;
+    const probability: number | undefined =
+      result.answers.team.probabilities?.billing;
+    // @ts-expect-error Unknown choices must not appear in the inferred answer.
+    const impossible: "sales" = result.answers.team.choice;
+    // @ts-expect-error Boolean probability is not a choice-answer field.
+    result.answers.team.probability;
+    void [selected, probability, impossible];
+  }
+  if (result.answers.urgent.type === "boolean") {
+    const probability: number = result.answers.urgent.probability;
+    void probability;
+  }
+  // @ts-expect-error Unknown question IDs are rejected.
+  result.answers.unknown;
+});
+// @ts-expect-error A chat model is not a native decision model.
+void experimental_decide({
+  model,
+  state: "test",
+  questions: decisionQuestions,
+});

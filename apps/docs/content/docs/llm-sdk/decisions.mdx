@@ -1,0 +1,85 @@
+---
+title: Native Decisions (next beta)
+description: Classify and score shared state with native OpenAI, Jev, OpenRouter, and Cloudflare decision models.
+---
+
+This feature is **unreleased**, on `codex/next-beta-decisions`. It is not included
+in `@yourgpt/llm-sdk@2.6.0-beta.2` or the separate production release candidate.
+
+Decisions return typed answers without generating a chat reply. Use them for
+ticket routing, classification, or rubric-based scoring.
+
+```ts
+import { experimental_decide } from "@yourgpt/llm-sdk";
+import { openaiDecision } from "@yourgpt/llm-sdk/openai";
+
+const result = await experimental_decide({
+  model: openaiDecision("gpt-6-luna"),
+  state: { ticket: "I was charged twice. Please refund the extra charge." },
+  questions: {
+    team: {
+      type: "choice",
+      instructions: "Which team should handle this ticket?",
+      criteria: {
+        billing: "Payments and refunds",
+        engineering: "Errors and outages",
+      },
+    },
+    outage: {
+      type: "boolean",
+      instructions: "Does the ticket report a service outage?",
+    },
+    impact: {
+      type: "score",
+      instructions: "How much of the service is unavailable?",
+      criteria: ["None", "Some features", "All users blocked"],
+    },
+  },
+});
+
+if (result.answers.team.type === "choice") {
+  console.log(result.answers.team.choice, result.answers.team.probabilities);
+} else {
+  // Handle a refusal using your application's review path.
+}
+```
+
+All keys stay server-side. Boolean answers contain P(true); score answers contain
+a probability-weighted position between zero and the last criterion index.
+Provider confidence is preserved separately when available. Set and evaluate your
+own thresholds before using a result to trigger an action.
+
+| Import                        | Factory                | Credentials                                      |
+| ----------------------------- | ---------------------- | ------------------------------------------------ |
+| `@yourgpt/llm-sdk/openai`     | `openaiDecision()`     | `OPENAI_API_KEY`                                 |
+| `@yourgpt/llm-sdk/typesafe`   | `typesafeDecision()`   | `TYPESAFE_AI_API_KEY`                            |
+| `@yourgpt/llm-sdk/openrouter` | `openrouterDecision()` | `OPENROUTER_API_KEY`                             |
+| `@yourgpt/llm-sdk/cloudflare` | `cloudflareDecision()` | `CLOUDFLARE_AUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
+
+The OpenRouter factory uses its native `/api/alpha/decisions` route. A Jev request
+through OpenRouter does not need a direct TypeSafe key. Cloudflare uses its Workers
+AI REST endpoint and requires an account ID. Anthropic chat and structured output
+remain separate APIs.
+
+`state` accepts text, JSON objects, or arrays. Question instructions and criteria
+can also contain structured JSON. Choices use 2–255 string keys; System One score
+questions use 2–10 ordered levels. OpenAI supports up to 200 questions, Cloudflare
+up to 64 with restricted IDs. Unsupported options fail explicitly.
+
+Pass `images` alongside state for OpenAI, Jev, or Cloudflare. OpenAI accepts bytes
+or public HTTP(S) URL objects. Jev and Cloudflare require bytes; OpenRouter image
+state is unsupported. Jev image support is experimental, with PNG/JPEG dimensions
+between 280 and 1568 pixels; providers validate decoding and dimensions.
+
+Pass `signal` and `timeoutMs` to control cancellation. The default timeout is 60
+seconds, including reading the response. There are no automatic retries, chat
+fallbacks, or changes to existing guardrails. Named refusals stay in their question
+slot; malformed responses and unnamed refusals throw an error.
+
+Run the standalone example with `pnpm demo:decisions openai` in
+`examples/skills-demo` after configuring the provider key in your environment.
+The example does not load `.env` automatically.
+
+See the [complete Decisions guide](https://github.com/YourGPT/copilot-sdk/blob/codex/next-beta-decisions/packages/llm-sdk/docs/decisions.md)
+for provider options, image limits, errors, and opt-in live tests. That branch link
+will become available after the next-beta branch is pushed.

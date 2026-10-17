@@ -127,3 +127,5 @@ export function createOpenRouter(
 
 // Alias for consistency
 export const createOpenRouterProvider = createOpenRouter;
+export { openrouterDecision } from "./decisions";
+export type { OpenRouterDecisionProviderOptions } from "./decisions";

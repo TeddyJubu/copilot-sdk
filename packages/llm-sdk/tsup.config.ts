@@ -13,6 +13,8 @@ export default defineConfig({
     "providers/xai/index": "src/providers/xai/index.ts",
     "providers/azure/index": "src/providers/azure/index.ts",
     "providers/openrouter/index": "src/providers/openrouter/index.ts",
+    "providers/typesafe/index": "src/providers/typesafe/index.ts",
+    "providers/cloudflare/index": "src/providers/cloudflare/index.ts",
     "providers/fireworks/index": "src/providers/fireworks/index.ts",
     "providers/togetherai/index": "src/providers/togetherai/index.ts",
 

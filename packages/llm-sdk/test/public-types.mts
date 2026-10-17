@@ -36,3 +36,13 @@ const imageOutput: ToolModelOutput = {
   type: "content",
   content: [{ type: "image", url: "https://example.com/image.png" }],
 };
+
+import { experimental_decide, type DecisionModel } from '@yourgpt/llm-sdk';
+import { openaiDecision } from '@yourgpt/llm-sdk/openai';
+import { openrouterDecision } from '@yourgpt/llm-sdk/openrouter';
+import { typesafeDecision } from '@yourgpt/llm-sdk/typesafe';
+import { cloudflareDecision } from '@yourgpt/llm-sdk/cloudflare';
+const decisions: DecisionModel[] = [openaiDecision(), openrouterDecision(), typesafeDecision(), cloudflareDecision(undefined, { accountId: 'a'.repeat(32) })];
+void experimental_decide({ model: decisions[0], state: 'test', questions: { flag: { type: 'boolean', instructions: 'Test?' } } }).then(result => {
+  if (result.answers.flag.type === 'boolean') { const p: number = result.answers.flag.probability; void p; }
+});

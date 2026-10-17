@@ -315,3 +315,11 @@ Tools can return native image content using `toModelOutput` or the existing `_ai
 `generateSpeech` / `transcribe` are separate server audio helpers, with `openaiSpeech` / `openaiTranscription` factories from `@yourgpt/llm-sdk/openai`. They support cancellation, validated encoded audio, and response metadata. Copilot's `VoiceRecorder` and `transcribeRecording` provide recorded microphone input and a reviewable transcript.
 
 See [image and audio contracts, examples, and limitations](./docs/multimodal-and-audio.md). Realtime voice calls and image generation are separate follow-ups.
+
+### Native Decisions (next beta, unreleased)
+
+`experimental_decide` provides native boolean, choice, and score questions with
+OpenAI, TypeSafe/Jev, OpenRouter, and Cloudflare adapters. It preserves named
+answers, distributions, refusals, provider confidence and usage. See the
+[Decisions guide](./docs/decisions.md) for supported inputs, provider-specific
+limits and the skills-demo example. This API is not in the published beta yet.
