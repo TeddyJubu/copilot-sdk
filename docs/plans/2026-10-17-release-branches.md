@@ -1,7 +1,9 @@
 # Release branches and UI handoff
 
-Snapshot verified on 17 October 2026. This is the preparation plan; integration,
-pushes, PR creation and publication have not been performed by this checkpoint.
+Snapshot verified on 17 October 2026. The next-beta checkpoints were consolidated
+locally in merge commit `e9b58ce`. That commit is a shared source baseline for UI
+work. The merged tree exactly matches the conflict-free preview. No push, PR
+creation, production merge or publication was performed.
 
 ## Current release
 
@@ -29,10 +31,10 @@ next-beta provider/media features, examples and Feature Lab. This checkpoint
 records its documentation work separately from the compatibility implementation.
 
 `codex/ankush-pr-compatibility` started at the same next-beta commit, `40fc00d`.
-Its checkpoint contains the adapted PR fixes, regression tests, provider evidence
-and review report. Integrate that checkpoint into `codex/next-beta-decisions`
-before creating the common UI-agent starting point. The standalone GenUI sandbox
-patch is a review artifact, not an installed GenUI feature.
+Its checkpoint `cb1cb36` contains the adapted PR fixes, regression tests, provider
+evidence and review report. It is now integrated with documentation checkpoint
+`73a504a` on `codex/next-beta-decisions`. The standalone GenUI sandbox patch is a
+review artifact, not an installed GenUI feature.
 
 These preparation branches are local at this check. Their LLM package version
 still reads `2.6.0-beta.2`; do not publish that stale version. Select and confirm
@@ -40,9 +42,11 @@ new versions and dist-tags only after integration and release testing.
 
 ## UI-agent starting point
 
-1. Wait for the documentation and compatibility checkpoints to be consolidated.
+1. Use the consolidated local integration baseline `e9b58ce`, or a later reviewed
+   checkpoint on `codex/next-beta-decisions`.
 2. Create each UI work branch, using the `codex/` prefix, from that exact
-   integration commit in a separate worktree. Record the starting commit.
+   integration commit in a separate worktree. Record the starting commit. Agents
+   on other machines cannot use the local-only branches until they are pushed.
 3. Keep sanitized HTML rendering as the default, literal rendering opt-in,
    consumer theme variables intact, and canonical tool call/result history
    unchanged. Include the cancellation and tool-hook regressions when touching
@@ -57,8 +61,17 @@ presentation, full GenUI integration, hosted MCP and the separate #94 shared-too
 counting defect. Direct Jev/Cloudflare live calls and physical realtime voice
 across devices remain unverified.
 
-The existing verification evidence belongs to the reviewed source snapshots.
-It is not a claim that a future combination, UI change or release is tested.
+## Consolidation verification
+
+On merge commit `e9b58ce`, both SDK production builds, both full TypeScript
+checks, public CJS/ESM declaration-consumer checks, all 550 automated tests on
+Node 26.7.0, and the documentation production build pass. The merged runtime and
+test sources are identical to compatibility checkpoint `cb1cb36`.
+
+Logs are `/tmp/copilot-next-beta-merge-{build,tests,public-types,types,docs}.log`.
+The earlier browser and live-provider evidence remains in the PR review report;
+those calls were not repeated for this consolidation. A future UI change or
+release still requires its own validation.
 
 ## Operation boundaries
 
