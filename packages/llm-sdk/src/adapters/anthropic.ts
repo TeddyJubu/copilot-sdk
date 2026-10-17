@@ -13,6 +13,7 @@ import type {
   CompletionResult,
 } from "./base";
 import {
+  extractAnthropicSystemPrompt,
   formatMessagesForAnthropic,
   messageToAnthropicContent,
   logProviderPayload,
@@ -390,18 +391,27 @@ export class AnthropicAdapter implements LLMAdapter {
       responseFormat?.type === "json_object"
         ? "\n\nRespond with a single JSON object and no other text."
         : "";
-    const systemMessage = (request.systemPrompt || "") + jsonObjectSuffix;
+    let systemMessage: string;
 
     // Use raw messages if provided (for agent loop with tool calls)
     let messages: Array<Record<string, unknown>>;
     if (request.rawMessages && request.rawMessages.length > 0) {
       // Convert OpenAI-style messages to Anthropic format
+      systemMessage = extractAnthropicSystemPrompt(
+        request.rawMessages,
+        request.systemPrompt,
+      );
       messages = this.convertToAnthropicMessages(request.rawMessages);
     } else {
       // Format from Message[] with multimodal support (images, attachments)
-      const formatted = formatMessagesForAnthropic(request.messages, undefined);
+      const formatted = formatMessagesForAnthropic(
+        request.messages,
+        request.systemPrompt,
+      );
+      systemMessage = formatted.system;
       messages = formatted.messages as Array<Record<string, unknown>>;
     }
+    systemMessage += jsonObjectSuffix;
 
     const anthropicNativeSearch =
       request.providerToolOptions?.anthropic?.nativeToolSearch;

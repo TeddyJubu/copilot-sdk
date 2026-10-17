@@ -217,6 +217,25 @@ export async function POST(req: Request) {
 }
 ```
 
+For Anthropic, Runtime accepts system instructions through either `systemPrompt`
+or `{ role: "system", content: "..." }` messages. It combines them into
+Anthropic's top-level `system` field: the request's nonempty `systemPrompt` (or
+the runtime default) first, followed by system messages in order. System messages
+are removed from the conversation sent to Anthropic. This applies to `chat`,
+`generate`, `stream`, and `processChat`.
+
+```ts
+const decision = await runtime.chat({
+  systemPrompt: "Classify the email. Do not answer it.",
+  messages: [{ role: "user", content: emailContext }],
+});
+```
+
+The published `2.6.0-beta.1` Runtime adapter silently dropped system-role
+messages; use the explicit `systemPrompt` form above until you upgrade to a release
+containing this fix. The separate `generateText`/`streamText` Anthropic provider
+already handles system-role messages.
+
 ## Selective Tool Loading
 
 `llm-sdk` can now narrow tools before they reach the provider. This is opt-in and works with both local ranking and provider-native hints.

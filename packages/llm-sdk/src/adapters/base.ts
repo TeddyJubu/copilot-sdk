@@ -835,6 +835,33 @@ export type AnthropicMessageContent =
     >;
 
 /**
+ * Anthropic expects system instructions outside the conversation messages.
+ * Keep the explicit prompt first, then system messages in their original order.
+ */
+export function extractAnthropicSystemPrompt(
+  messages: ReadonlyArray<{ role?: unknown; content?: unknown }>,
+  systemPrompt?: string,
+): string {
+  const parts: string[] = systemPrompt ? [systemPrompt] : [];
+  for (const message of messages) {
+    if (message.role !== "system") continue;
+    if (typeof message.content === "string") {
+      if (message.content) parts.push(message.content);
+    } else if (Array.isArray(message.content)) {
+      for (const block of message.content) {
+        if (block?.type !== "text" || typeof block.text !== "string") {
+          throw new TypeError("Anthropic system messages must contain text.");
+        }
+        if (block.text) parts.push(block.text);
+      }
+    } else {
+      throw new TypeError("Anthropic system messages must contain text.");
+    }
+  }
+  return parts.join("\n");
+}
+
+/**
  * Format messages for Anthropic with full tool support
  * Handles: text, images, tool_use, and tool_result
  *
@@ -852,6 +879,7 @@ export function formatMessagesForAnthropic(
     content: AnthropicMessageContent;
   }>;
 } {
+  const system = extractAnthropicSystemPrompt(messages, systemPrompt);
   const formatted: Array<{
     role: "user" | "assistant";
     content: AnthropicMessageContent;
@@ -860,7 +888,7 @@ export function formatMessagesForAnthropic(
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
 
-    if (msg.role === "system") continue; // System handled separately
+    if (msg.role === "system") continue; // Extracted into `system` above
 
     if (msg.role === "assistant") {
       // Build content array for assistant
@@ -931,7 +959,7 @@ export function formatMessagesForAnthropic(
   }
 
   return {
-    system: systemPrompt || "",
+    system,
     messages: formatted,
   };
 }
