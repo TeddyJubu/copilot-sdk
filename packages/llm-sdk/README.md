@@ -246,7 +246,7 @@ const decision = await runtime.chat({
 ```
 
 Fixed in published **`2.6.0-beta.2`**: the `2.6.0-beta.1` Runtime adapter silently
-dropped system-role messages. Upgrade to beta.2 to preserve them. Existing
+dropped system-role messages. Stable `2.6.0` includes this fix. Existing
 explicit `systemPrompt` calls retain their behavior; supplying both forms applies
 both, without deduplication. The separate `generateText`/`streamText` Anthropic
 provider already handles system-role messages. See the

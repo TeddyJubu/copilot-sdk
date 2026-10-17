@@ -1,8 +1,9 @@
 # Production release candidate: both SDKs 2.6.0
 
-Status: prepared locally; not pushed, merged, or published. Exact versions and
-publication require user confirmation. Main requires a PR approval from a reviewer
-other than the author/last pusher before merging.
+Preparation snapshot: this candidate was prepared locally on 17 October 2026.
+This document is not a publication receipt. Exact versions and publication require
+user confirmation. Main requires a PR approval from a reviewer other than the
+author/last pusher before merging.
 
 ## Package targets
 
