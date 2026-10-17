@@ -22,7 +22,7 @@ The LLM sidebar and overview expose all guides. Provider, server, generation,
 tool and playground pages cross-link the relevant contracts. Package docs no
 longer describe implemented realtime/image work as unimplemented. The hotfix
 release record now reflects the separately published artifact and its isolated
-validation counts, rather than the larger next-beta suite.
+validation counts, rather than the broader feature suite.
 
 In `yourgpt-docs`, `content/chatbot/developer-guide/getting-started/sdks.mdx`
 links to the dedicated SDK site and explains release availability.
@@ -52,6 +52,6 @@ and Vercel research pins remain in the existing feature plans/package guides.
 ## Still pending
 
 These changes are local. The docs sites and Feature Lab require deployment and
-public-URL verification. Next-beta package versions, publication and production
+public-URL verification. Package versions for the added features, publication and production
 rollout remain separate. Direct Jev/Cloudflare live access and physical voice
 quality across browsers/devices remain unverified and are labeled accordingly.

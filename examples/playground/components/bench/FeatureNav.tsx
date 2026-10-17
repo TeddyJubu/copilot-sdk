@@ -32,7 +32,7 @@ export const featureIcons: Record<FeatureId, typeof Brain> = {
 };
 
 /**
- * The beta feature list. On the lab page items are buttons that switch the
+ * The feature list. On the lab page items are buttons that switch the
  * bench in place; elsewhere they are links into the lab.
  */
 export function FeatureNav({
@@ -63,11 +63,11 @@ export function FeatureNav({
   return (
     <nav
       ref={navRef}
-      aria-label={mode === "buttons" ? "Feature examples" : "Beta features"}
+      aria-label={mode === "buttons" ? "Feature examples" : "SDK features"}
       className="scroll-fade-x relative flex gap-1 overflow-x-auto px-3 pb-1 lg:block lg:overflow-visible lg:pb-0 lg:[mask-image:none]"
     >
       <p className="eyebrow hidden px-2 pb-1.5 lg:flex lg:items-center lg:justify-between">
-        Beta
+        Features
         <span className="num normal-case tracking-normal">
           {listedFeatures.length}
         </span>

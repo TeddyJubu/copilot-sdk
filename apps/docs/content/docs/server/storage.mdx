@@ -338,7 +338,7 @@ See [Attachments](/docs/chat/attachments) for more on file attachments.
 
 ## Responses and image-result persistence
 
-In the beta, saving only role/text is insufficient for [Responses continuation](/docs/llm-sdk/responses) or [native image tool results](/docs/tools/image-results). Runtime writes provider state into `StorageMessage.metadata.providerMetadata` and native tool output into `StorageMessage.metadata.modelOutput`.
+Saving only role/text is insufficient for [Responses continuation](/docs/llm-sdk/responses) or [native image tool results](/docs/tools/image-results). Runtime writes provider state into `StorageMessage.metadata.providerMetadata` and native tool output into `StorageMessage.metadata.modelOutput`.
 
 A custom storage adapter must preserve the complete metadata object alongside tool calls and matching `toolCallId` values. Its application-owned loader must restore `providerMetadata` and `modelOutput` to the Runtime message fields when reconstructing history. Keep native item IDs, encrypted reasoning content, tool-result ordering, and media content intact. Do not replace these records with UI display text or a summary.
 

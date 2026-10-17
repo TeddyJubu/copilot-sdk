@@ -1,9 +1,9 @@
-# Next-beta examples and playground verification
+# SDK examples and playground verification
 
 Work remains on `codex/next-beta-decisions`. This completes interactive examples
 for the SDK features already implemented on that branch. The compatibility hotfix
 was released separately as `@yourgpt/llm-sdk@2.6.0-beta.3`; this playground and the
-other next-beta features are not included in that published package.
+other added features are not included in that published package.
 
 The hosted integration follow-up below replaces the initial local-only credential
 flow with the existing playground's API-key settings.
@@ -67,7 +67,7 @@ Safari/Firefox/mobile-device behavior and direct Jev/Cloudflare account access
 remain unverified. These are functional smoke checks, not production accuracy or
 latency guarantees.
 
-No next-beta version bump, push, PR or publication is included in this work.
+No version bump, push, PR or publication is included in this work.
 
 ## Hosted playground integration follow-up
 

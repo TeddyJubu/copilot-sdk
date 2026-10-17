@@ -12,14 +12,14 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
   description="Chat, Responses, reasoning and media"
 />
 
-Use OpenAI with the generation helpers or the Copilot Runtime. For the current
-beta, see [reasoning parameters and fallback](/docs/llm-sdk/parameters-and-fallback),
+Use OpenAI with the generation helpers or the Copilot Runtime. See
+[reasoning parameters and fallback](/docs/llm-sdk/parameters-and-fallback),
 [Responses and caching](/docs/llm-sdk/responses),
 [image tool results](/docs/llm-sdk/tool-images), and
 [speech/transcription](/docs/llm-sdk/audio).
 
 [Decisions](/docs/llm-sdk/decisions), [realtime voice](/docs/llm-sdk/realtime) and
-[image generation](/docs/llm-sdk/image-generation) are next-beta additions. Check
+[image generation](/docs/llm-sdk/image-generation) have dedicated APIs. Check
 [release availability](/docs/llm-sdk/beta-upgrade) before using those exports.
 
 ---
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
 
 ## Model selection
 
-The examples use specific model IDs; they are not a ranking of current models. Choose a model available to your account from the [OpenAI model catalog](https://developers.openai.com/api/docs/models), and verify its supported parameters and transport. See the [beta upgrade guide](/docs/beta) for the released SDK versions and tested scope.
+The examples use specific model IDs; they are not a ranking of current models. Choose a model available to your account from the [OpenAI model catalog](https://developers.openai.com/api/docs/models), and verify its supported parameters and transport. See the [versions and compatibility](/docs/llm-sdk/beta-upgrade) for the released SDK versions and tested scope.
 
 ---
 
@@ -179,7 +179,7 @@ Use [OpenAI API pricing](https://openai.com/api/pricing/) for current rates. Pro
 
 ## Reasoning model parameters
 
-The beta recognizes GPT-5/GPT-6 and o-series reasoning families. When reasoning is active, it omits unsupported `temperature` values and emits a warning. A request such as `temperature: 0` no longer relies on treating GPT-6 Luna as a legacy sampling model.
+The SDK recognizes GPT-5/GPT-6 and o-series reasoning families. When reasoning is active, it omits unsupported `temperature` values and emits a warning. A request such as `temperature: 0` no longer relies on treating GPT-6 Luna as a legacy sampling model.
 
 The SDK does not disable reasoning automatically to preserve temperature. If your model supports non-reasoning mode and you explicitly want it:
 
@@ -206,9 +206,9 @@ OpenAI-compatible servers with different parameter semantics can opt out with pr
 
 ## Responses, image tools, and audio
 
-Use `api: 'responses'` to select Responses explicitly. The default `api: 'auto'` preserves compatibility routing, including Chat defaults for custom endpoints. See the [Responses guide](/docs/llm-sdk/responses) for stored/stateless continuation and the [cache options](/docs/advanced/prompt-caching) supported by this beta.
+Use `api: 'responses'` to select Responses explicitly. The default `api: 'auto'` preserves compatibility routing, including Chat defaults for custom endpoints. See the [Responses guide](/docs/llm-sdk/responses) for stored/stateless continuation and the [cache options](/docs/advanced/prompt-caching) supported by the SDK.
 
-Native [image tool results](/docs/tools/image-results) require Responses on OpenAI; ordinary image inputs in user messages are a separate feature. [Speech generation](/docs/llm-sdk/speech) and [transcription](/docs/llm-sdk/transcription) use separate audio model factories. Native Decisions and realtime calls remain [pending](/docs/beta#still-pending).
+Native [image tool results](/docs/tools/image-results) require Responses on OpenAI; ordinary image inputs in user messages are a separate feature. [Speech generation](/docs/llm-sdk/speech) and [transcription](/docs/llm-sdk/transcription) use separate audio model factories. See the dedicated [Decisions](/docs/llm-sdk/decisions) and [realtime voice](/docs/llm-sdk/realtime) guides for those APIs.
 
 ---
 

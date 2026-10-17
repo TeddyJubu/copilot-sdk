@@ -4,17 +4,10 @@ Multi-provider LLM SDK with streaming. One API, any provider.
 
 ## Release availability
 
-As of 17 October 2026, the published npm `beta` is `2.6.0-beta.3`; the
-`latest` tag is `2.5.1-beta.1`. The beta.3 compatibility hotfix includes structured
-tool-message preservation, tolerant Anthropic system content, reduced Responses
-replay metadata, recoverable malformed tool calls and optional-tool-call handling.
-Responses, image tool output and TTS/STT are already included in that beta.
-
-This checkout also contains **unreleased** native Decisions, realtime voice and
-image generation/editing. Installing `@yourgpt/llm-sdk@beta` does not include those
-additions yet. See the [upgrade guide](../../apps/docs/content/docs/llm-sdk/beta-upgrade.mdx)
-in this repository and the shipped guides below. The
-[Feature Lab](../../examples/playground/README.md) runs the workspace source.
+The examples below describe the SDK source on `main`. See
+[versions and compatibility](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/beta-upgrade)
+for published npm versions and feature availability. The
+[Feature Lab](https://copilot-sdk.yourgpt.ai/playground/features) runs the workspace source.
 
 ## Installation
 
@@ -362,25 +355,24 @@ Tools can return native image content using `toModelOutput` or the existing `_ai
 `generateSpeech` / `transcribe` are separate server audio helpers, with `openaiSpeech` / `openaiTranscription` factories from `@yourgpt/llm-sdk/openai`. They support cancellation, validated encoded audio, and response metadata. Copilot's `VoiceRecorder` and `transcribeRecording` provide recorded microphone input and a reviewable transcript.
 
 See [image and audio contracts, examples, and limitations](./docs/multimodal-and-audio.md).
-Realtime voice calls and image generation are implemented separately on the
-unreleased next-beta branch; see [the media guide](./docs/media.md).
+For realtime voice calls and image generation, see [the media guide](./docs/media.md).
 
-### Native Decisions (next beta, unreleased)
+### Native Decisions
 
 `experimental_decide` provides native boolean, choice, and score questions with
 OpenAI, TypeSafe/Jev, OpenRouter, and Cloudflare adapters. It preserves named
 answers, distributions, refusals, provider confidence and usage. See the
 [Decisions guide](./docs/decisions.md) for supported inputs, provider-specific
-limits and the skills-demo example. This API is not in the published beta yet.
+limits and the skills-demo example.
 
-### Images and realtime voice (unreleased beta)
+### Images and realtime voice
 
 `generateImage` / `openaiImage` add image generation and editing.
 `openaiRealtime` creates server-side WebRTC sessions or short-lived credentials.
 Copilot supplies `RealtimeVoiceSession` and `useRealtimeVoice` for browser calls,
 transcripts, tool approval and cleanup. See [the media guide](docs/media.md).
 
-### Beta compatibility fixes
+### Compatibility fixes
 
 OpenAI-compatible Chat transports preserve raw structured tool-message content
 instead of coercing arrays or objects to `[object Object]`. The SDK's explicit

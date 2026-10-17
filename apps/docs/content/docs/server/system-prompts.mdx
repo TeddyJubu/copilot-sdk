@@ -60,7 +60,7 @@ The effective explicit/default prompt is first, then distinct system-role instru
 
 The fix extracts instructions before removing system messages from Anthropic's conversation array. Typed messages, raw tool histories, streaming, non-streaming, and tool continuations use the same behavior. Caller messages are not mutated. Since `2.6.0-beta.3`, null and unsupported non-text system content are ignored while valid text is retained, restoring tolerance for existing proxy inputs.
 
-### Upgrading from the previous beta
+### Compatibility with earlier versions
 
 In `2.6.0-beta.1`, Anthropic Runtime silently dropped `role: 'system'` messages. Explicit `systemPrompt` worked. Applications using only the explicit field retain their behavior; applications using system-role messages now apply those instructions. This can change an answer that previously ignored the application's rules.
 

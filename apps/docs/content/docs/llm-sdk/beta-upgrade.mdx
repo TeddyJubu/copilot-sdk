@@ -1,9 +1,9 @@
 ---
-title: Beta upgrades and compatibility
-description: Published fixes, next-beta availability, system prompts, and safe response serialization.
+title: Versions and compatibility
+description: Package availability, upgrade guidance, system prompts, and safe response serialization.
 ---
 
-## Published beta and next-beta source
+## Package availability
 
 Registry status checked on **17 October 2026**:
 
@@ -28,13 +28,15 @@ a later upgrade; an unqualified install follows `latest`, not `beta`.
 | OpenAI Responses and conversation replay                                     | Included in the published beta                      |
 | Images returned by tools; TTS and recorded-file STT                          | Included in the published beta                      |
 | Structured tool content, Anthropic system content and response privacy fixes | LLM SDK `2.6.0-beta.3`                              |
-| Native Decisions                                                             | Available in workspace source; not published on npm |
-| Realtime voice; image generation and editing                                 | Available in workspace source; not published on npm |
+| Native Decisions                                                             | Available on `main`; not in the published versions above |
+| Realtime voice; image generation and editing                                 | Available on `main`; not in the published versions above |
+| Modern OpenRouter reasoning controls                                        | Available on `main`; not in the published versions above |
 | Playground Feature Lab                                                       | Runs workspace source; see the Feature Lab guide    |
 
-The next-beta version has not been assigned. Its workspace package version is
-not evidence of npm publication. The website and playground deploy separately from npm. The earlier production
-promotion is documented in the [2.6.0 baseline guide](/docs/release-2-6).
+The workspace packages are versioned `2.6.0`, but that version has not been
+published to npm as of the check above. The documentation and playground deploy
+from `main` separately from npm. See the [2.6.0 upgrade guide](/docs/release-2-6)
+for the combined feature set and compatibility changes.
 
 ## Compatibility fixes in 2.6.0-beta.3
 
@@ -131,10 +133,10 @@ The isolated published hotfix passed 371 automated tests on Node 18 and Node 26,
 entry-point imports. The downloaded npm archive matched the tested archive.
 Google, xAI and Fireworks shared transport paths used fixtures, not live keys.
 
-The next-beta branch has separate evidence: 532 automated tests and local
-production-build browser/API checks. [Feature Lab testing](/docs/feature-lab)
-lists the exact live coverage and skips. Direct Jev/Cloudflare account access,
-physical audio quality and the public deployment remain unverified.
+The combined source merged in [PR #131](https://github.com/YourGPT/copilot-sdk/pull/131)
+passed 550 automated tests, both application builds and public deployment checks.
+[Feature Lab testing](/docs/feature-lab) lists live coverage and skips. Direct
+Jev/Cloudflare calls and physical audio quality still require validation.
 
 For an existing app, pin the intended package versions, retain conversation
 metadata in custom storage, apply the public-response boundary, and test its

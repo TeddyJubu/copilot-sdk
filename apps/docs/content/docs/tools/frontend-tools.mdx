@@ -52,7 +52,7 @@ function MyTools() {
 | `description` | Yes | What the tool does (AI reads this) |
 | `parameters` | Yes | Zod schema for inputs |
 | `handler` | Yes | Async function that runs |
-| `toModelOutput` | No | Beta: synchronous mapping of the raw result to native model content |
+| `toModelOutput` | No | Synchronous mapping of the raw result to native model content |
 | `requiresApproval` | No | Ask user before running |
 | `hidden` | No | Hide tool from chat UI (still executes) |
 
@@ -270,7 +270,7 @@ Always include a descriptive `error` string alongside `success: false`. The AI u
 
 ## Returning images
 
-The beta supports native image tool results on OpenAI Responses and Anthropic. Keep the raw application result and supply `toModelOutput`, or return the supported `_aiContent` envelope for Runtime/Copilot tools. See [image tool results](/docs/tools/image-results) for exact shapes, execution semantics, media limits, and persistence requirements.
+The SDK supports native image tool results on OpenAI Responses and Anthropic. Keep the raw application result and supply `toModelOutput`, or return the supported `_aiContent` envelope for Runtime/Copilot tools. See [image tool results](/docs/tools/image-results) for exact shapes, execution semantics, media limits, and persistence requirements.
 
 ---
 

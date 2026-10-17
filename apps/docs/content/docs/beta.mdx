@@ -1,6 +1,6 @@
 ---
-title: Beta release and upgrade guide
-description: Released features, compatibility changes, and remaining work for the October 2026 beta
+title: Release history
+description: Published versions, compatibility changes, and validation records
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
@@ -46,7 +46,7 @@ Beta.3 also restores raw structured tool results instead of coercing them to `[o
 
 | Work                                                              | Status                                                                                                                                                                                                                                         |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, Cloudflare | Implemented in next-beta workspace source, not in this published package; [#116](https://github.com/YourGPT/copilot-sdk/issues/116). Direct Jev/Cloudflare live validation remains pending.                                                    |
+| Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, Cloudflare | Implemented on `main`, outside these published versions; [#116](https://github.com/YourGPT/copilot-sdk/issues/116). Direct Jev/Cloudflare live validation remains pending.                                                    |
 | Cross-provider prompt caching                                     | Partial: OpenAI Responses option forwarding exists. Broader controls, cache accounting, and cold/warm validation remain; [#114](https://github.com/YourGPT/copilot-sdk/issues/114), [#104](https://github.com/YourGPT/copilot-sdk/issues/104). |
 | Hosted YourGPT Responses replay                                   | Full opaque metadata restoration is not yet supported by the hosted adapter; [storage limits](/docs/server/storage#responses-and-image-result-persistence).                                                                                    |
 | Native MCP/background lifecycle and broader reasoning contracts   | Follow-ups in [#119](https://github.com/YourGPT/copilot-sdk/issues/119) and [#118](https://github.com/YourGPT/copilot-sdk/issues/118).                                                                                                         |
@@ -54,9 +54,12 @@ Beta.3 also restores raw structured tool results instead of coercing them to `[o
 | Audio providers beyond OpenAI                                     | No built-in implementation in this release. Custom providers can implement `SpeechModel` / `TranscriptionModel`.                                                                                                                               |
 | Physical microphone/browser testing                               | Automated lifecycle coverage exists; physical device verification remains.                                                                                                                                                                     |
 | Backend `TRAINING_CONFLICT` adoption                              | SDK parameter/fallback mechanisms shipped; application schema, fallback policy, and deployment remain application work ([#122](https://github.com/YourGPT/copilot-sdk/issues/122)).                                                            |
-| Realtime voice calls and image generation                         | Implemented experimentally in next-beta workspace source, not in this release. Realtime is tracked in [#126](https://github.com/YourGPT/copilot-sdk/issues/126).                                                                               |
+| Realtime voice calls and image generation                         | Implemented on `main`, outside these published versions. Realtime is experimental and tracked in [#126](https://github.com/YourGPT/copilot-sdk/issues/126).                                                                               |
 
-Open beta PRs #110, #99, #98, and #94 still need reconciliation/review. Selected adaptations are on the next-beta branch; their entire feature scope is not in this release. PRs #127 and #129 are merged into beta.
+Selected compatibility and UI adaptations were consolidated into `main` in
+[PR #131](https://github.com/YourGPT/copilot-sdk/pull/131). Hosted MCP, concurrent
+threads and single-stream work remain separate follow-ups; see the
+[roadmap](https://github.com/YourGPT/copilot-sdk/issues/111).
 
 ## Validation and production preparation
 

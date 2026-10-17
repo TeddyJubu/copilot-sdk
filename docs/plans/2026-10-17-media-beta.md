@@ -1,4 +1,4 @@
-# Next beta: realtime voice and image generation
+# realtime voice and image generation
 
 Requested after the native Decisions milestone. Work stays on
 `codex/next-beta-decisions`; the production candidate is unchanged.

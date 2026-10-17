@@ -190,7 +190,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 ## Pricing
 
-Check [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) for current rates. The beta does not yet add unified Anthropic cache controls or normalized cache-read/write accounting.
+Check [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) for current rates. The SDK does not yet provide unified Anthropic cache controls or normalized cache-read/write accounting.
 
 ---
 
@@ -220,7 +220,7 @@ See [system prompts](/docs/server/system-prompts) for precedence, streaming, mig
 
 ## Images returned by tools
 
-The beta maps typed [image tool results](/docs/tools/image-results) to native Anthropic `tool_result` content, preserving accompanying text and the original application result. User image inputs and tool-output images have different shapes. This support does not add image generation or speech/transcription to the Anthropic adapter.
+The SDK maps typed [image tool results](/docs/tools/image-results) to native Anthropic `tool_result` content, preserving accompanying text and the original application result. User image inputs and tool-output images have different shapes. This support does not add image generation or speech/transcription to the Anthropic adapter.
 
 ---
 

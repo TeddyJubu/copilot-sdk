@@ -92,7 +92,7 @@ tool({
 | `description` | Yes | What the tool does (AI reads this) |
 | `parameters` | Yes | Zod schema for inputs |
 | `execute` | Yes | Async function that runs on server |
-| `toModelOutput` | No | Beta: synchronous mapping of the raw result to native model content |
+| `toModelOutput` | No | Synchronous mapping of the raw result to native model content |
 
 ---
 
@@ -316,7 +316,7 @@ execute: async ({ query }) => {
 
 ## Returning images
 
-The beta supports native image tool results on OpenAI Responses and Anthropic. Keep the raw application result and supply `toModelOutput`, or return the supported `_aiContent` envelope for Runtime/Copilot tools. See [image tool results](/docs/tools/image-results) for exact shapes, execution semantics, media limits, and persistence requirements.
+The SDK supports native image tool results on OpenAI Responses and Anthropic. Keep the raw application result and supply `toModelOutput`, or return the supported `_aiContent` envelope for Runtime/Copilot tools. See [image tool results](/docs/tools/image-results) for exact shapes, execution semantics, media limits, and persistence requirements.
 
 ---
 

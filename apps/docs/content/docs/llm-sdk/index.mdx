@@ -7,10 +7,9 @@ import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 Use a common generation API with OpenAI, Anthropic, Google, and other supported providers. Model parameters, native tools, caching, and audio support vary by provider. See the [2.6.0 upgrade guide](/docs/release-2-6) for new APIs and compatibility limits.
 
-For the current beta, start with [release availability and compatibility](/docs/llm-sdk/beta-upgrade).
-Decisions, realtime voice and image generation pages describe the unreleased
-next-beta branch. The [Feature Lab guide](/docs/feature-lab) explains how to test
-each feature locally and what has been verified with real provider calls.
+Check [package versions and compatibility](/docs/llm-sdk/beta-upgrade) when
+installing the SDK. The [Feature Lab guide](/docs/feature-lab) explains how to
+try each feature and what has been verified with real provider calls.
 
 ```ts
 import { streamText } from "@yourgpt/llm-sdk";
@@ -172,9 +171,9 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
 | [Responses](/docs/llm-sdk/responses)                             | Preserve OpenAI conversation and tool state                   |
 | [Image tool results](/docs/llm-sdk/tool-images)                  | Return native images to supported models                      |
 | [`generateSpeech()` / `transcribe()`](/docs/llm-sdk/audio)       | Generate speech and transcribe recorded audio                 |
-| [`experimental_decide()`](/docs/llm-sdk/decisions)               | Native decisions; next beta, unreleased                       |
-| [`generateImage()`](/docs/llm-sdk/image-generation)              | Image generation and editing; next beta, unreleased           |
-| [Realtime voice](/docs/llm-sdk/realtime)                         | Browser voice calls; next beta, experimental                  |
+| [`experimental_decide()`](/docs/llm-sdk/decisions)               | Classify and score state with native decision models          |
+| [`generateImage()`](/docs/llm-sdk/image-generation)              | Generate and edit images                                      |
+| [Realtime voice](/docs/llm-sdk/realtime)                         | Experimental browser voice calls over WebRTC                  |
 
 ---
 

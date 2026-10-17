@@ -1,6 +1,6 @@
 # Release branches and UI handoff
 
-Snapshot verified on 17 October 2026. The next-beta checkpoints were consolidated
+Snapshot verified on 17 October 2026. The feature checkpoints were consolidated
 locally in merge commit `e9b58ce`. That commit is a shared source baseline for UI
 work. The merged tree exactly matches the conflict-free preview. No push, PR
 creation, production merge or publication was performed.
@@ -22,15 +22,15 @@ The candidate's 2.6.0 package versions are preparation, not publication approval
 
 First integrate the isolated hotfix into the current beta/release path, verify
 the reconciled production candidate, and promote that candidate to `main` when
-approved. Keep next-beta feature work out of that candidate.
+approved. Keep feature work out of that candidate.
 
-## Next beta
+## Feature integration
 
 Use `codex/next-beta-decisions` as the shared integration branch. It contains the
-next-beta provider/media features, examples and Feature Lab. This checkpoint
+provider and media features, examples and Feature Lab. This checkpoint
 records its documentation work separately from the compatibility implementation.
 
-`codex/ankush-pr-compatibility` started at the same next-beta commit, `40fc00d`.
+`codex/ankush-pr-compatibility` started at the same feature commit, `40fc00d`.
 Its checkpoint `cb1cb36` contains the adapted PR fixes, regression tests, provider
 evidence and review report. It is now integrated with documentation checkpoint
 `73a504a` on `codex/next-beta-decisions`. The standalone GenUI sandbox patch is a

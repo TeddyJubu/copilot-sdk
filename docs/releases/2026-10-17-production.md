@@ -31,7 +31,7 @@ Anthropic tolerance/deduplication, Responses continuation-privacy,
 malformed-tool-call fallback and optional-tool-call fixes.
 
 Native Decisions, experimental realtime voice, image generation/editing, Feature
-Lab, and the later Ankush/UI adaptations remain on the separate next-beta branch.
+Lab, and the later Ankush/UI adaptations remain on the separate feature integration branch.
 They are not included in this production promotion.
 
 The upgrade, beta, system-prompt, provider and server-response guides now describe

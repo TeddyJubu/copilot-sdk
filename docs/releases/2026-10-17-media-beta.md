@@ -1,4 +1,4 @@
-# Next beta: images and realtime voice
+# images and realtime voice
 
 Implemented on `codex/next-beta-decisions` after the native Decisions commit.
 No version bump, npm release, push or PR is included. The production candidate

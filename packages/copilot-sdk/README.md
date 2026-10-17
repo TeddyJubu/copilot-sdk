@@ -20,33 +20,22 @@ Production-ready AI Copilots for any product. Connect any LLM, deploy on your in
 npm install @yourgpt/copilot-sdk @yourgpt/llm-sdk
 ```
 
-## Version 2.6.0
+## Features and versions
 
-The isolated production baseline is prepared as 2.6.0; npm publication is a separate step.
-This combined checkout also contains unreleased next-beta APIs and playground work.
-The package version is a preparation value, not confirmation of an npm release.
-Until it is published, use Copilot SDK `2.5.1-beta.3` and LLM SDK `2.6.0-beta.3`.
+Copilot supports tool execution, Responses conversation state, native image tool
+results, microphone recording, and experimental realtime voice with
+`RealtimeVoiceSession` and `useRealtimeVoice`. See the
+[2.6.0 upgrade guide](https://copilot-sdk.yourgpt.ai/docs/release-2-6),
+[image tools](https://copilot-sdk.yourgpt.ai/docs/tools/image-results),
+[voice input](https://copilot-sdk.yourgpt.ai/docs/chat/voice-input), and
+[realtime voice](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/realtime) for examples
+and support limits.
 
-```bash
-npm install @yourgpt/copilot-sdk@2.5.1-beta.3 @yourgpt/llm-sdk@2.6.0-beta.3
-```
-
-The isolated production baseline promotes the runtime implementation tested in Copilot SDK
-`2.5.1-beta.3` and LLM SDK `2.6.0-beta.3`, including Responses provider-state
-preservation, native image tool results, microphone helpers, and the Anthropic
-system-prompt fix. See the [2.6.0 upgrade guide](https://copilot-sdk.yourgpt.ai/docs/release-2-6),
-[image tools](https://copilot-sdk.yourgpt.ai/docs/tools/image-results), and
-[voice input](https://copilot-sdk.yourgpt.ai/docs/chat/voice-input) for examples and
-support limits. Realtime voice and image generation are separate, unreleased next-beta work.
+This README describes source on `main`. Check
+[versions and compatibility](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/beta-upgrade)
+for the features exported by each published npm version.
 
 ## Quick Start
-
-For beta integrations, see the [compatibility and release guide](../../apps/docs/content/docs/llm-sdk/beta-upgrade.mdx).
-The published Copilot beta remains `2.5.1-beta.3`; the LLM compatibility hotfix is
-`2.6.0-beta.3`. Image tool output and recorded microphone helpers are available
-in those packages. `RealtimeVoiceSession` and `useRealtimeVoice` are implemented
-on the next-beta branch and are **not published yet**. Their setup and lifecycle
-are documented in the [media guide](../llm-sdk/docs/media.md).
 
 ```tsx
 import { CopilotProvider } from "@yourgpt/copilot-sdk/react";
