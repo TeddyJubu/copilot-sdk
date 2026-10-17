@@ -4,7 +4,9 @@ The documentation site lives here: Next.js, Fumadocs, and MDX in `content/docs`.
 
 ## Run locally
 
-From the repository root, after installing workspace dependencies:
+Use Node.js 22 or newer and the workspace's pinned pnpm 11.5.1. This is the
+repository toolchain requirement; the published SDK packages retain Node.js 18+
+support. From the repository root, after installing workspace dependencies:
 
 ```bash
 pnpm --filter @yourgpt/copilot-sdk-docs dev

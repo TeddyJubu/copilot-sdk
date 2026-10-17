@@ -3,15 +3,19 @@ title: 2.6.0 upgrade guide
 description: Promote the tested beta features to stable SDK versions and understand the compatibility changes
 ---
 
-The **2.6.0** release for both SDKs carries the feature set tested in LLM SDK `2.6.0-beta.2` and Copilot SDK `2.5.1-beta.3`. This promotion changes release versions and documentation; it adds no new runtime implementation beyond those betas.
+The **2.6.0 production candidate** for both SDKs carries the feature set tested in LLM SDK `2.6.0-beta.3` and Copilot SDK `2.5.1-beta.3`, including the compatibility hotfix. Its runtime source matches those betas. npm publication is a separate step; merging the production PR does not publish packages.
 
 ## Installation
+
+After the stable versions are published:
 
 ```bash
 npm install @yourgpt/llm-sdk@2.6.0 @yourgpt/copilot-sdk@2.6.0
 ```
 
 Use matching stable versions when validating the upgrade. The `beta` tag is a separate release channel for subsequent work. Provider clients such as `openai` and `@anthropic-ai/sdk` remain optional dependencies for the corresponding chat adapters.
+
+Until stable publication, use the verified versions `@yourgpt/llm-sdk@2.6.0-beta.3` and `@yourgpt/copilot-sdk@2.5.1-beta.3`.
 
 ## Included in this release
 
@@ -29,10 +33,10 @@ The release also retains the tested fixes for mixed server/client tool turns, to
 
 ## Compatibility checks
 
-- **Anthropic instructions:** Runtime uses `systemPrompt`; modern generation uses `system`. System-role messages now reach Anthropic. When both forms are supplied, the effective explicit/default prompt comes first and system messages follow in order. There is no deduplication; remove duplicate instructions in your application. Unsupported non-text system content fails explicitly.
+- **Anthropic instructions:** Runtime uses `systemPrompt`; modern generation uses `system`. System-role messages reach Anthropic. The effective explicit/default prompt comes first, followed by distinct system instructions in order. Text repeated between that prompt and a system message is sent once. Unsupported non-text system content is ignored; valid text is retained.
 - **OpenAI parameters:** reasoning requests omit unsupported temperature values with a warning. Use supported `reasoningEffort: 'none'` explicitly when sampling is needed. Custom compatible servers can select passthrough behavior.
-- **Continuation:** preserve provider metadata, native tool output, and matching tool-call IDs in saved history. A transcript containing only visible text cannot restore every Responses conversation.
-- **Tools:** ordinary string/JSON results retain their behavior. Native image tool output requires a supported provider/endpoint. A screenshot with native output does not add a duplicate user-image turn.
+- **Continuation:** preserve reduced continuation metadata, native tool output, and matching tool-call IDs in saved history. Raw provider diagnostics are not replay state. At application response boundaries, remove top-level Runtime billing `usage` and debug `events` after accounting. A transcript containing only visible text cannot restore every Responses conversation.
+- **Tools:** raw array/object tool results are preserved rather than converted to `[object Object]`; provider content schemas still apply. Malformed Responses calls can trigger configured fallback before output or tool execution begins. Native image tool output requires a supported provider/endpoint. A screenshot with native output does not add a duplicate user-image turn.
 - **Audio:** speech and transcription are separate APIs from chat generation. Browser recording returns a transcript for review; it does not submit a chat message automatically.
 
 ## Known limits
@@ -45,6 +49,6 @@ Prompt delivery checks do not establish strict JSON output or application guardr
 
 ## Next beta
 
-Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, and Cloudflare will be developed separately from this promotion. Remaining provider/caching and persistence work also stays on the [roadmap](https://github.com/YourGPT/copilot-sdk/issues/111). Realtime voice is lower priority; image generation is deferred. Neither is part of 2.6.0.
+Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, and Cloudflare, experimental realtime voice, and image generation/editing are implemented on the separate next-beta branch. Those features, the new Feature Lab and the later UI/PR adaptations are outside this production candidate. Remaining provider/caching and persistence work stays on the [roadmap](https://github.com/YourGPT/copilot-sdk/issues/111).
 
 For historical beta versions and validation evidence, see the [beta release record](/docs/beta).

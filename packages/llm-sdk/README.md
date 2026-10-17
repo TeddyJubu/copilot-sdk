@@ -4,12 +4,15 @@ Multi-provider LLM SDK with streaming. One API, any provider.
 
 ## Version 2.6.0
 
+This version is prepared for production; npm publication is a separate step.
+Until it is published, the verified beta is `2.6.0-beta.3`.
+
 ```bash
 npm install @yourgpt/llm-sdk@2.6.0
 ```
 
 Use Copilot SDK `2.6.0` for matching UI history and recorder integration.
-This release promotes the runtime implementation tested in LLM SDK `2.6.0-beta.2`
+This release promotes the runtime implementation tested in LLM SDK `2.6.0-beta.3`
 and Copilot SDK `2.5.1-beta.3`. See the
 [2.6.0 upgrade guide](https://copilot-sdk.yourgpt.ai/docs/release-2-6) for parameter
 and Anthropic system-prompt fixes, Responses, native image tool results, OpenAI

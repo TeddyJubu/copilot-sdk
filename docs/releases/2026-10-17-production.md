@@ -1,58 +1,97 @@
-# Production release candidate: both SDKs 2.6.0
+# Production candidate: both SDKs 2.6.0, npm publication deferred
 
-Preparation snapshot: this candidate was prepared locally on 17 October 2026.
-This document is not a publication receipt. Exact versions and publication require
-user confirmation. Main requires a PR approval from a reviewer other than the
-author/last pusher before merging.
+Prepared on 17 October 2026 on `codex/production-release`. This is a source and
+package-validation record, not a publication receipt. The user requested a
+production PR now and npm releases later. No production merge, workflow dispatch
+or npm publish is included in this preparation.
 
 ## Package targets
 
-| Package                | Tested beta    | Proposed stable version | Target npm tag |
-| ---------------------- | -------------- | ----------------------- | -------------- |
-| `@yourgpt/llm-sdk`     | `2.6.0-beta.2` | `2.6.0`                 | `latest`       |
-| `@yourgpt/copilot-sdk` | `2.5.1-beta.3` | `2.6.0`                 | `latest`       |
+| Package                | Verified published beta | Prepared stable version | Proposed future tag |
+| ---------------------- | ----------------------- | ----------------------- | ------------------- |
+| `@yourgpt/llm-sdk`     | `2.6.0-beta.3`          | `2.6.0`                 | `latest`            |
+| `@yourgpt/copilot-sdk` | `2.5.1-beta.3`          | `2.6.0`                 | `latest`            |
 
-Both receive a minor stable version because this release adds public APIs. Existing
-`beta` and `alpha` tags are retained. No scaffolder or unrelated package version is
-changed. Native Decisions, realtime voice, and image generation are outside this
-promotion and remain next-beta/deferred work.
+These are the existing candidate versions, not a new authorization to publish.
+Confirm the exact versions and tags again at the later publication step. No
+scaffolder or unrelated package version changes. SDK consumer engines remain
+Node.js 18 or newer.
 
-## Source and behavior
+## Source and included fixes
 
-The candidate starts at tested/published beta commit
-`321bef0be10df9bf2b9fdbf102ebbaf9c94301ef`. SDK runtime source is unchanged from that
-commit. Only package versions, release notes, and documentation change on this
-release branch. The full main-to-beta diff also includes the earlier beta fixes
-for structured output, token usage, mixed tool turns, and tool-loop cancellation.
+Both SDK runtime source trees match `origin/beta` at `bde8e04`, the merged PR #129
+source. The hotfix was carried into the existing candidate while retaining its
+prepared stable versions. The original hotfix and publication-record commits are
+referenced in the new commits for traceability.
 
-The [upgrade guide](../../apps/docs/content/docs/release-2-6.mdx) documents the
-included features and compatibility changes. The [beta release record](2026-10-17-beta.md)
-contains the existing live validation evidence. Physical microphone verification,
-hosted lossless metadata replay, and application guardrail evaluation remain known
-limits, not completed production certifications.
+The candidate includes reasoning parameters/fallback, Anthropic system-message
+preservation, Responses continuation, image tool results, buffered OpenAI TTS/STT,
+and recorded voice input. It also includes the beta.3 structured-tool-content,
+Anthropic tolerance/deduplication, Responses continuation-privacy,
+malformed-tool-call fallback and optional-tool-call fixes.
 
-## Candidate validation
+Native Decisions, experimental realtime voice, image generation/editing, Feature
+Lab, and the later Ankush/UI adaptations remain on the separate next-beta branch.
+They are not included in this production promotion.
 
-- 314 automated regression tests passed; no failures or skips.
-- 21/21 workspace builds passed, including the documentation site.
-- Both SDK typechecks and public CJS/ESM declaration checks passed.
-- 21 new documentation examples typechecked; 149 local documentation links resolved.
-- Packed output is byte-identical to the tested beta for all 303 distributed build
-  files (62 LLM SDK + 241 Copilot SDK). Only versions, documentation, and the
-  unchanged repository MIT license differ. `pnpm pack` includes that license.
-- Package contents passed a redacted secret scan. Npm authentication works; neither
-  proposed 2.6.0 version existed when the candidate was prepared.
+The upgrade, beta, system-prompt, provider and server-response guides now describe
+the beta.3 behavior. Until stable publication, their upgrade instructions identify
+the available beta versions rather than claiming 2.6.0 is already on npm.
 
-These are candidate checks, not a statement that main has merged or npm has published.
+## Toolchain and release workflow
+
+The candidate retains main's seven-day dependency cooldown and dependency-age
+check. Its existing pnpm 11.5.1 upgrade required two corrections found during a
+fresh frozen install: the old build-script allowlist was ignored, and CI selected
+Node 20. The same six approved build packages now use `allowBuilds`, and the
+private workspace/CI use Node 22+. Package consumer requirements do not change.
+The CI bootstrap uses pnpm's standalone distribution before setting up Node 22
+and its pnpm cache. No dependency versions or lockfile entries were changed.
+
+The Release workflow is now manual-only (`workflow_dispatch`), guarded to `main`
+and an explicit Boolean `publish` input whose default is false. Merging this PR
+will run CI/deployments but will not dispatch npm publishing. The workflow is not
+run as a test: its publish action remains deferred.
+
+References: [pnpm 11 migration](https://pnpm.io/blog/releases/11.0),
+[pnpm action bootstrap](https://github.com/pnpm/action-setup/tree/v4), and
+[GitHub manual workflow inputs](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_dispatch).
+
+## Fresh validation
+
+- Frozen installation succeeds with pnpm 11.5.1 and the corrected allowlist.
+- 371 automated tests pass on Node 22.23.3, with no failures or skips.
+- All 21 workspace builds pass on both Node 26.7.0 and Node 22.23.3, including docs
+  and examples. The Node 22 run bypassed the build cache.
+- Both SDK full TypeScript checks and public CJS/ESM declaration checks pass.
+- `actionlint` passes for the workflows. No workflow was dispatched.
+- The dependency-age gate reports no new dependency versions in the lockfile.
+- Both locally packed candidates contain their license and every public export
+  target, and contain no `.env` or `.npmrc` files.
+- Fresh npm downloads of the two published betas were compared to the candidates:
+  all 303 distributed runtime files match byte-for-byte (62 LLM + 241 Copilot).
+  Each package manifest differs only in `version`.
+
+Logs: `/tmp/copilot-production-{install-fixed,build,node22-build,node22-tests,public-types,types,dependency-age}.log`.
+Candidate archives and downloaded comparisons: `/tmp/copilot-production-packages/`.
+
+The isolated beta.3 release's earlier Node 18/26 tests, 22 live provider checks,
+41 packed-consumer regressions and 13 public entry-point imports remain recorded
+in [the hotfix report](2026-10-17-beta-compatibility-hotfix.md). Those live calls were
+not repeated for this promotion because its runtime files are identical. Physical
+microphone coverage, hosted lossless replay, application guardrail evaluation and
+the separate Core API response-filter deployment retain their existing limits.
 
 ## Delivery path
 
-1. Validate the exact candidate and inspect package contents against the published beta.
-2. Obtain fresh confirmation to push `codex/production-release` and create its PR to `main`.
-3. Wait for PR CI and the required external review, then obtain explicit merge confirmation.
-4. The main release workflow can publish unpublished stable package versions through
-   Changesets. Confirm both exact 2.6.0 versions for `latest` before merging, or publishing manually.
-5. Verify npm archive integrity and tags after publication, and verify documentation deployment.
-6. Continue remaining features on beta after the production release is verified.
+1. Review the exact candidate and confirm the production-branch push. PR creation
+   is requested by the user; the push still requires its own confirmation.
+2. Open the PR to `main` and wait for CI, deployment checks and external review.
+   Main requires one approving review and approval from someone other than the
+   last pusher. Do not bypass those rules.
+3. Obtain a separate confirmation before merging the production PR. npm remains
+   deferred even after that merge because publication no longer runs on push.
+4. At the later release step, recheck npm tags and package contents, confirm exact
+   package versions/tags, then publish the approved packages and verify archives.
 
-No production merge or publication is implied by preparing this document.
+Preparing or merging the code is not approval to publish npm packages.

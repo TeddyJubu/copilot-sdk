@@ -5,14 +5,14 @@ description: Released features, compatibility changes, and remaining work for th
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-The 17 October 2026 beta is published as **`@yourgpt/llm-sdk@2.6.0-beta.2`** and **`@yourgpt/copilot-sdk@2.5.1-beta.3`**. These versions use npm's `beta` tag. The beta publication left the `latest` tags unchanged. For the subsequent stable promotion, see the [2.6.0 upgrade guide](/docs/release-2-6).
+The 17 October 2026 beta is published as **`@yourgpt/llm-sdk@2.6.0-beta.3`** and **`@yourgpt/copilot-sdk@2.5.1-beta.3`**. These versions use npm's `beta` tag. The beta publication left the `latest` tags unchanged. For the prepared stable promotion, whose npm publication is separate, see the [2.6.0 upgrade guide](/docs/release-2-6).
 
 ## Install the beta
 
 Pin both packages when validating an upgrade:
 
 ```bash
-npm install @yourgpt/llm-sdk@2.6.0-beta.2 @yourgpt/copilot-sdk@2.5.1-beta.3
+npm install @yourgpt/llm-sdk@2.6.0-beta.3 @yourgpt/copilot-sdk@2.5.1-beta.3
 ```
 
 Alternatively, use `@beta` on both package names to follow the beta channel. Install the optional client for your chat provider, such as `openai` or `@anthropic-ai/sdk`. The OpenAI speech/transcription helpers use their own HTTP transport.
@@ -34,17 +34,19 @@ The preceding beta also fixed duplicate generation across stream readers, interl
 
 ## Upgrade behavior to review
 
-- **Anthropic:** a system-role message that was previously ignored by Runtime now takes effect. If you supply both forms, the effective `systemPrompt` comes first and the message instructions follow. Use one place for the same instruction; there is no automatic deduplication. Non-text system content fails explicitly.
+- **Anthropic:** a system-role message that was previously ignored by Runtime now takes effect. The effective `systemPrompt` comes first, followed by distinct system instructions. Beta.3 deduplicates text shared by that prompt and a system message, and tolerates null/unsupported non-text system content while preserving valid text.
 - **Reasoning models:** the SDK does not silently disable reasoning to honor `temperature`. Use supported `reasoningEffort: 'none'` explicitly when sampling is required. Custom compatible endpoints can opt into passthrough rules.
-- **Transport/storage:** `api: 'auto'` keeps compatibility routing. Select Responses explicitly when needed, and choose `store` deliberately. Persist provider metadata and native tool output when replaying conversations; display text alone is insufficient.
+- **Transport/storage:** `api: 'auto'` keeps compatibility routing. Select Responses explicitly when needed, and choose `store` deliberately. Persist reduced continuation metadata and native tool output when replaying conversations; display text alone is insufficient. Remove top-level Runtime billing `usage` and debug `events` at your application's public response boundary after accounting.
 - **Image tools:** ordinary JSON results and the screenshot attachment path retain their behavior. Native image results require a compatible endpoint. Image input to a model and image output from a tool use different content shapes.
 - **Audio:** TTS/STT are separate from chat streaming. The recorder does not automatically send a chat message. Keep the transcript editable before submission.
 
 ## Still pending
 
+Beta.3 also restores raw structured tool results instead of coercing them to `[object Object]`, classifies malformed Responses tool calls for configured fallback before output/tool execution, and handles models that omit `toolCalls`.
+
 | Work                                                              | Status                                                                                                                                                                                                                                         |
 | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, Cloudflare | Not implemented; [#116](https://github.com/YourGPT/copilot-sdk/issues/116). Structured chat output is not the native Decisions API.                                                                                                            |
+| Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, Cloudflare | Implemented on the separate next-beta branch, not in this published package; [#116](https://github.com/YourGPT/copilot-sdk/issues/116). Direct Jev/Cloudflare live validation remains pending.                                                 |
 | Cross-provider prompt caching                                     | Partial: OpenAI Responses option forwarding exists. Broader controls, cache accounting, and cold/warm validation remain; [#114](https://github.com/YourGPT/copilot-sdk/issues/114), [#104](https://github.com/YourGPT/copilot-sdk/issues/104). |
 | Hosted YourGPT Responses replay                                   | Full opaque metadata restoration is not yet supported by the hosted adapter; [storage limits](/docs/server/storage#responses-and-image-result-persistence).                                                                                    |
 | Native MCP/background lifecycle and broader reasoning contracts   | Follow-ups in [#119](https://github.com/YourGPT/copilot-sdk/issues/119) and [#118](https://github.com/YourGPT/copilot-sdk/issues/118).                                                                                                         |
@@ -52,13 +54,13 @@ The preceding beta also fixed duplicate generation across stream readers, interl
 | Audio providers beyond OpenAI                                     | No built-in implementation in this release. Custom providers can implement `SpeechModel` / `TranscriptionModel`.                                                                                                                               |
 | Physical microphone/browser testing                               | Automated lifecycle coverage exists; physical device verification remains.                                                                                                                                                                     |
 | Backend `TRAINING_CONFLICT` adoption                              | SDK parameter/fallback mechanisms shipped; application schema, fallback policy, and deployment remain application work ([#122](https://github.com/YourGPT/copilot-sdk/issues/122)).                                                            |
-| Realtime voice calls and image generation                         | Deferred. Realtime is tracked in [#126](https://github.com/YourGPT/copilot-sdk/issues/126).                                                                                                                                                    |
+| Realtime voice calls and image generation                         | Implemented experimentally on the separate next-beta branch, not in this release. Realtime is tracked in [#126](https://github.com/YourGPT/copilot-sdk/issues/126).                                                                            |
 
-Open beta PRs #110, #99, #98, and #94 still need reconciliation/review. Their existence is not evidence that their entire feature scope is in this release. PR #127 is merged.
+Open beta PRs #110, #99, #98, and #94 still need reconciliation/review. Selected adaptations are on the next-beta branch; their entire feature scope is not in this release. PRs #127 and #129 are merged into beta.
 
 ## Validation and production preparation
 
-The release passed **314 automated tests**, **21 workspace builds**, source/public declaration checks, and [GitHub CI](https://github.com/YourGPT/copilot-sdk/actions/runs/39009633446). The 34 new Anthropic checks also passed on Node 18 and 20. Live evidence includes 12 Responses scenarios, 18 image/audio scenarios, and four Anthropic system-prompt scenarios. Published npm archives were downloaded and matched to the tested archives.
+The isolated beta.3 hotfix passed **371 automated tests on Node 18 and Node 26**, SDK builds/type checks, 22 live OpenAI/Anthropic/OpenRouter checks, 41 packed-consumer regressions and all 13 public entry-point imports. The downloaded npm archive matched the tested release archive. [Post-merge GitHub CI](https://github.com/YourGPT/copilot-sdk/actions/runs/39041171884) and the docs/playground deployments passed. The previous image/audio beta validation remains recorded separately; Google, xAI and Fireworks compatibility paths used transport fixtures rather than live credentials.
 
 Live media checks covered inline images and WAV/MP3 audio; other supported media representations have fixture coverage. Prompt delivery checks do not guarantee strict JSON formatting or application-level guardrail accuracy.
 

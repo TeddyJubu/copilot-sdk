@@ -56,9 +56,9 @@ The effective Anthropic request has:
 }
 ```
 
-The effective explicit/default prompt is first, then system-role messages in their original order. Both are instructions; the first does not erase or override the second. Repeated instructions are not deduplicated. Prefer the explicit field for new application code and avoid copying the same prompt into both places.
+The effective explicit/default prompt is first, then distinct system-role instructions in their original order. Both are instructions; the first does not erase or override the second. Since `2.6.0-beta.3`, text repeated between the explicit/default prompt and a system message is sent once. Intentionally repeated instructions appearing only in system messages retain their order. Prefer the explicit field for new application code.
 
-The fix extracts instructions before removing system messages from Anthropic's conversation array. Typed messages, raw tool histories, streaming, non-streaming, and tool continuations use the same behavior. Caller messages are not mutated. Unsupported non-text system content fails instead of disappearing.
+The fix extracts instructions before removing system messages from Anthropic's conversation array. Typed messages, raw tool histories, streaming, non-streaming, and tool continuations use the same behavior. Caller messages are not mutated. Since `2.6.0-beta.3`, null and unsupported non-text system content are ignored while valid text is retained, restoring tolerance for existing proxy inputs.
 
 ### Upgrading from the previous beta
 

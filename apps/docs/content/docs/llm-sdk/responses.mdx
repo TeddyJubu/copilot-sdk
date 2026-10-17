@@ -141,4 +141,8 @@ Responses supports [native image tool results](/docs/tools/image-results). Keep 
 
 Copilot JSON/SSE and full serialized UI history preserve the supported replay state. Runtime storage records place it in `metadata.providerMetadata` and `metadata.modelOutput`; custom loaders must restore these fields to their message locations. The hosted YourGPT adapter is not yet a lossless store for this state. See [storage limitations](/docs/server/storage#responses-and-image-result-persistence).
 
+Since `2.6.0-beta.3`, saved messages and Runtime events carry reduced continuation state rather than the raw provider response and token-usage diagnostics. Modern generation results can still contain server-side diagnostics. At an application's public response boundary, remove top-level Runtime `usage` and debug `events` after billing; retain message-level state needed for continuation. Default SSE output omits top-level usage unless explicitly requested.
+
+Malformed Responses function calls fail with `INVALID_PROVIDER_RESPONSE` / HTTP `502`, allowing configured fallback before any tools execute or stream output starts. An already-started stream is not automatically replayed.
+
 Native Decisions, full native MCP/background job lifecycle, and generalized provider compaction remain separate work. See the [beta status](/docs/beta#still-pending).

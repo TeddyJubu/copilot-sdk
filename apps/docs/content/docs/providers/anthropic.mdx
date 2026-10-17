@@ -209,7 +209,7 @@ const result = await runtime.chat({
 });
 ```
 
-Use Runtime's `systemPrompt` or modern `generateText` / `streamText`'s `system` for new application-owned instructions. If you also supply system-role messages, both apply: explicit/default instructions first, then system messages in their original order. They are not deduplicated or treated as overrides. Text-only system content is accepted; unsupported non-text content throws instead of disappearing.
+Use Runtime's `systemPrompt` or modern `generateText` / `streamText`'s `system` for new application-owned instructions. If you also supply system-role messages, both apply: explicit/default instructions first, then distinct system instructions in their original order. Since `2.6.0-beta.3`, text duplicated between the explicit/default prompt and a system message is sent once. Null and unsupported non-text content are ignored; valid text is retained.
 
 See [system prompts](/docs/server/system-prompts) for precedence, streaming, migration examples, and guardrail validation limits.
 

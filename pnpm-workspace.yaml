@@ -22,13 +22,14 @@ minimumReleaseAgeExclude:
 # Dependency lifecycle (install/postinstall) scripts are blocked by default in
 # pnpm >= 10. These are the trusted native/build packages that legitimately need
 # to run a build step; everything else stays blocked. Review additions carefully.
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
-  - "@parcel/watcher"
-  - workerd
-  - unrs-resolver
-  - msw
+# pnpm 11 uses allowBuilds; the former onlyBuiltDependencies list is ignored.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  "@parcel/watcher": true
+  workerd: true
+  unrs-resolver: true
+  msw: true
 
 # Migrated from package.json "pnpm.overrides" — pnpm >= 10 no longer reads the
 # "pnpm" field in package.json; overrides now live here.
