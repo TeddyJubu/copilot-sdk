@@ -115,5 +115,5 @@ Live runners are in `packages/llm-sdk/test/live/`: `parameters.cjs`,
 `responses.cjs`, `decisions.cjs`, and `tool-images.cjs`. Supply only the relevant
 provider credential privately and use each runner's explicit opt-in flag.
 `IMAGE_TEST_MODEL=gpt-6-luna` exercises the new OpenAI model. The live Responses
-runner deletes the synthetic stored responses it creates. Local detailed logs
-for this audit are under `/tmp/copilot-critical-audit/`.
+runner deletes the synthetic stored responses it creates. Detailed logs
+for this audit are retained locally, outside the repository.

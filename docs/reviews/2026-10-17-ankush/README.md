@@ -138,7 +138,7 @@ not treated as the latest implementation.
 
 Reproduction commands live in `test/pr-compatibility.test.cjs`,
 `test/browser/pr-compatibility.cjs`, `test/review/`, and the two new LLM test files.
-Detailed local logs and exact-head snapshots are under
-`/tmp/copilot-ankush-verification/`. This review establishes concrete fixes and
+Detailed logs and exact-head snapshots are retained locally, outside the
+repository. This review establishes concrete fixes and
 merge blockers; it does not certify all historical feature-branch code or all
 provider/model/browser combinations.

@@ -68,7 +68,7 @@ checks, public CJS/ESM declaration-consumer checks, all 550 automated tests on
 Node 26.7.0, and the documentation production build pass. The merged runtime and
 test sources are identical to compatibility checkpoint `cb1cb36`.
 
-Logs are `/tmp/copilot-next-beta-merge-{build,tests,public-types,types,docs}.log`.
+Build, test, public-type, typecheck and documentation logs are retained locally.
 The earlier browser and live-provider evidence remains in the PR review report;
 those calls were not repeated for this consolidation. A future UI change or
 release still requires its own validation.

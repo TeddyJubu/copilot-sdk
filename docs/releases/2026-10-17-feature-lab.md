@@ -60,7 +60,7 @@ an unnecessary media-preview render; blob URLs now attach to media/download refs
 and are revoked on replacement/unmount. Playback and image checks were rerun after
 that change.
 
-Synthetic-only evidence is under `/tmp/copilot-feature-lab-resumed/`, including
+Synthetic-only evidence is retained locally, outside the repository, including
 `core-results.json`, `browser-results.json`, `integration-results.json`, screenshots,
 and build/test logs. No physical microphone was recorded. Physical audio quality,
 Safari/Firefox/mobile-device behavior and direct Jev/Cloudflare account access
@@ -98,6 +98,6 @@ Fresh verification on a local **production build** passed:
   exposed no configured server credentials.
 - Production build, TypeScript and scoped ESLint passed.
 
-Evidence: `/tmp/copilot-feature-lab-hosted/`. This confirms the production-mode
+Evidence is retained locally, outside the repository. This confirms the production-mode
 code locally; the deployed site has **not** been changed. Deployment of the
 existing playground project and verification at its public URL remain pending.

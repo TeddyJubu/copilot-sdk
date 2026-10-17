@@ -72,8 +72,8 @@ References: [pnpm 11 migration](https://pnpm.io/blog/releases/11.0),
   all 303 distributed runtime files match byte-for-byte (62 LLM + 241 Copilot).
   Each package manifest differs only in `version`.
 
-Logs: `/tmp/copilot-production-{install-fixed,build,node22-build,node22-tests,public-types,types,dependency-age}.log`.
-Candidate archives and downloaded comparisons: `/tmp/copilot-production-packages/`.
+Install, build, test, typecheck and dependency-age logs are retained locally.
+Candidate archives and downloaded comparisons are retained outside the repository.
 
 The isolated beta.3 release's earlier Node 18/26 tests, 22 live provider checks,
 41 packed-consumer regressions and 13 public entry-point imports remain recorded

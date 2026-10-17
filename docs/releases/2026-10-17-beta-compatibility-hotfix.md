@@ -12,11 +12,9 @@ Decisions, realtime voice, image generation/editing and the new playground remai
 - **Malformed Responses function calls:** retain strict validation, but report an upstream failure (`502`, `INVALID_PROVIDER_RESPONSE`) so the configured fallback policy can recover before any tools execute. Once a stream has emitted content, existing no-replay behavior remains.
 - **Optional tool calls:** `generateText` no longer dereferences `.length` when a custom model omits `toolCalls`.
 
-## Application follow-through
+## Application compatibility
 
-The Core checkout's `app/Controllers/Api/Users/Product/Chatbot/ExtensionController.js` returned `chatResult` directly after billing. A separate local patch now omits top-level `usage` and debug `events` from its client response, retaining the conversation payload. Billing still reads the original result. Core currently pins `@yourgpt/llm-sdk` to `2.5.1-beta.3`; adopting this SDK fix requires a separately approved release and dependency update. No Core dependency version was guessed or changed.
-
-The two ChatbotController proxy methods were inspected and do forward message content as supplied by API customers. The SDK regression cases use that same runtime shape. No changes to those proxy request contracts are needed.
+Proxy-shaped regression tests cover structured tool results supplied by API customers. Applications that return SDK results to clients should expose only their intended public fields and handle usage and debug diagnostics separately. No proxy request contract changes are required for this SDK fix.
 
 ## Verification
 
@@ -27,8 +25,8 @@ The two ChatbotController proxy methods were inspected and do forward message co
 - SDK build and type checks pass. The Core controller passes `node --check`; the complete Core service was not booted or integration-tested.
 - No live Google, xAI or Fireworks credentials were used. Their shared adapter paths were verified with transport fixtures.
 
-Release-candidate logs and synthetic-only reports: `/tmp/copilot-beta-hotfix-release/`. Tests are reproducible via `packages/llm-sdk/test/beta-compatibility-regressions.test.cjs`, `anthropic-system.test.cjs`, `responses.test.cjs` and the opt-in `test/live/beta-compatibility.cjs` / `test/live/responses.cjs` scripts.
+Release-candidate logs and synthetic-only reports are retained locally. Tests are reproducible via `packages/llm-sdk/test/beta-compatibility-regressions.test.cjs`, `anthropic-system.test.cjs`, `responses.test.cjs` and the opt-in `test/live/beta-compatibility.cjs` / `test/live/responses.cjs` scripts.
 
 ## Reference checks
 
-OpenAI documents the need to retain encrypted reasoning for stateless continuation: [reasoning guide](https://developers.openai.com/api/docs/guides/reasoning). The local Vercel AI SDK reference (`/tmp/copilot-next-beta-research/vercel-ai/packages/openai/src/responses/openai-responses-language-model.ts`) also attaches specific continuation fields such as item IDs and encrypted reasoning, rather than copying a full response envelope onto each message. These informed the separation between server diagnostics and conversation state.
+OpenAI documents the need to retain encrypted reasoning for stateless continuation: [reasoning guide](https://developers.openai.com/api/docs/guides/reasoning). The Vercel AI SDK reference (`packages/openai/src/responses/openai-responses-language-model.ts` in `vercel/ai`) also attaches specific continuation fields such as item IDs and encrypted reasoning, rather than copying a full response envelope onto each message. These informed the separation between server diagnostics and conversation state.

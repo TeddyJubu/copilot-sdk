@@ -44,8 +44,7 @@ standalone Copilot SDK.
   [Feature Lab verification](2026-10-17-feature-lab.md); documentation changes
   did not rerun or claim new live API tests.
 
-Build logs: `/tmp/copilot-docs-beta-build.log` and
-`/tmp/yourgpt-docs-sdk-build.log`. Registry values are a dated snapshot, not an
+Build logs are retained locally, outside the repository. Registry values are a dated snapshot, not an
 automatic guarantee about future tags. OpenAI conversation-state and speech
 references were rechecked against the official documentation; implementation
 and Vercel research pins remain in the existing feature plans/package guides.

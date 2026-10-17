@@ -148,7 +148,7 @@ This turn did not build or run every PR head and does not claim merge readiness.
 
 No issue or PR was closed, edited, commented on, approved or merged. No branch
 was pushed. Existing documentation edits were preserved. Detailed snapshots and
-the fresh cache-accounting fixture are in `/tmp/copilot-pending-audit-2026-10-17/`.
+the fresh cache-accounting fixture are retained locally, outside the repository.
 
 ## Recommended sequence
 
