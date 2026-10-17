@@ -906,11 +906,11 @@ importers:
         specifier: ^0.5.19
         version: 0.5.19(tailwindcss@4.1.18)
       '@yourgpt/copilot-sdk':
-        specifier: ^2.1.8
-        version: 2.1.8(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: workspace:*
+        version: link:../../packages/copilot-sdk
       '@yourgpt/llm-sdk':
-        specifier: ^2.1.8
-        version: 2.1.8(@anthropic-ai/sdk@0.71.2(zod@3.25.76))(@google/generative-ai@0.24.1)(openai@6.16.0(ws@8.18.0)(zod@3.25.76))
+        specifier: workspace:*
+        version: link:../../packages/llm-sdk
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1

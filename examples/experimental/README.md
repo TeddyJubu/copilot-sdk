@@ -6,6 +6,8 @@
 
 This directory contains experimental and raw examples for testing various SDK features. These are primarily used for development and testing purposes.
 
+For next-beta provider features, use the [Playground Feature Lab](../playground/README.md): parameters, native Decisions, Responses replay, image tools, system prompts, TTS/STT, realtime voice and image generation/editing. It uses local workspace packages and records real-provider results.
+
 ## Available Demos
 
 | Demo                    | Path               | Description                                           |

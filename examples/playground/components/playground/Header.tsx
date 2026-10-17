@@ -1,6 +1,7 @@
 "use client";
 
 import { memo } from "react";
+import Link from "next/link";
 import { Moon, Sun, Check, AlertCircle, BookOpen, Github } from "lucide-react";
 import { useTheme } from "next-themes";
 import CopilotSDKLogo from "@/components/CopilotSDKLogo";
@@ -30,6 +31,12 @@ function HeaderComponent({ hasApiKey, onOpenApiKeyModal }: HeaderProps) {
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <Link
+          href="/features"
+          className="px-3 py-1.5 rounded-lg text-xs font-medium text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950"
+        >
+          Feature lab
+        </Link>
         {/* Docs Link */}
         <a
           href={DOCS_URL}
