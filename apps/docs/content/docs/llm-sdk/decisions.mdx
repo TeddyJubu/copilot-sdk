@@ -4,7 +4,8 @@ description: Classify and score shared state with native OpenAI, Jev, OpenRouter
 ---
 
 This feature is **unreleased**, on `codex/next-beta-decisions`. It is not included
-in `@yourgpt/llm-sdk@2.6.0-beta.2` or the separate production release candidate.
+in the published `@yourgpt/llm-sdk@2.6.0-beta.3` hotfix or the separate production
+release candidate. See [release availability](/docs/llm-sdk/beta-upgrade).
 
 Decisions return typed answers without generating a chat reply. Use them for
 ticket routing, classification, or rubric-based scoring.
@@ -79,6 +80,11 @@ slot; malformed responses and unnamed refusals throw an error.
 Run the standalone example with `pnpm demo:decisions openai` in
 `examples/skills-demo` after configuring the provider key in your environment.
 The example does not load `.env` automatically.
+
+The [Feature Lab](/docs/feature-lab) provides the same provider choices, image
+upload and a result inspector. OpenAI and Jev through OpenRouter passed live
+checks. Direct Jev and Cloudflare have transport fixtures but remain unverified
+with real accounts because their credentials were unavailable.
 
 See the [complete Decisions guide](https://github.com/YourGPT/copilot-sdk/blob/codex/next-beta-decisions/packages/llm-sdk/docs/decisions.md)
 for provider options, image limits, errors, and opt-in live tests. That branch link

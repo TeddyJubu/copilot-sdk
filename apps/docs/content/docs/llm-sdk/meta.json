@@ -2,11 +2,17 @@
   "title": "LLM SDK",
   "icon": "AiChip1",
   "pages": [
+    "index",
+    "beta-upgrade",
     "generate-text",
     "stream-text",
+    "parameters-and-fallback",
+    "responses",
     "structured-output",
     "tools",
+    "tool-images",
     "decisions",
+    "audio",
     "image-generation",
     "realtime"
   ]

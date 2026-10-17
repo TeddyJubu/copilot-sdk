@@ -1,6 +1,8 @@
-# Beta compatibility hotfix — 17 October 2026
+# LLM SDK 2.6.0-beta.3 — compatibility hotfix
 
-These changes take priority over the next-beta playground work. They are local changes; no npm package or production deployment has been released by this task.
+Published to npm `beta` as `@yourgpt/llm-sdk@2.6.0-beta.3` on 2026-10-17 after explicit version confirmation. Release source commit `fa2e66f` starts from the beta base `321bef0`, with only the five compatibility/privacy fixes from `605c38c`. The downloaded registry archive is byte-identical to the tested release candidate. npm `latest` and `alpha` tags remain unchanged.
+
+Decisions, realtime voice, image generation/editing and the new playground remain on the separate next-beta branch and are excluded from this package. Copilot SDK stays at `2.5.1-beta.3`; it has no source changes in this release.
 
 ## Fixed
 
@@ -18,13 +20,14 @@ The two ChatbotController proxy methods were inspected and do forward message co
 
 ## Verification
 
-- 518 automated SDK/Copilot tests pass on Node 26 and Node 18, including 57 additional regression cases compared with the previous 461-test audit.
+- 371 automated tests pass on Node 26 and Node 18 on this isolated release branch: the published beta's 314-test suite plus 57 hotfix regressions. The larger next-beta suite was also tested separately, but is not part of this release.
 - 12 live OpenAI Responses checks pass: stateless and stored continuation, function loops, Runtime replay, actual encrypted reasoning, and persisted Copilot mixed client/server tools over JSON and SSE.
 - 10 targeted live regressions pass: structured tool content via OpenAI and OpenRouter in both modes, plus Anthropic null/image, duplicate and mixed system content in both modes.
+- The packed npm archive passes all 41 focused compatibility regressions in a clean consumer install, and all 13 public entry points import successfully. Its exports, dependencies, peer requirements and Node engine requirement match the published beta.2 package.
 - SDK build and type checks pass. The Core controller passes `node --check`; the complete Core service was not booted or integration-tested.
 - No live Google, xAI or Fireworks credentials were used. Their shared adapter paths were verified with transport fixtures.
 
-Local detailed logs and synthetic-only reports: `/tmp/copilot-hotfix-*`. Tests are reproducible via `packages/llm-sdk/test/beta-compatibility-regressions.test.cjs`, `anthropic-system.test.cjs`, `responses.test.cjs` and the opt-in `test/live/beta-compatibility.cjs` / `test/live/responses.cjs` scripts.
+Release-candidate logs and synthetic-only reports: `/tmp/copilot-beta-hotfix-release/`. Tests are reproducible via `packages/llm-sdk/test/beta-compatibility-regressions.test.cjs`, `anthropic-system.test.cjs`, `responses.test.cjs` and the opt-in `test/live/beta-compatibility.cjs` / `test/live/responses.cjs` scripts.
 
 ## Reference checks
 

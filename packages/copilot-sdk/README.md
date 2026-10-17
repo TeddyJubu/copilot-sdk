@@ -22,6 +22,13 @@ npm install @yourgpt/copilot-sdk @yourgpt/llm-sdk
 
 ## Quick Start
 
+For beta integrations, see the [compatibility and release guide](../../apps/docs/content/docs/llm-sdk/beta-upgrade.mdx).
+The published Copilot beta remains `2.5.1-beta.3`; the LLM compatibility hotfix is
+`2.6.0-beta.3`. Image tool output and recorded microphone helpers are available
+in those packages. `RealtimeVoiceSession` and `useRealtimeVoice` are implemented
+on the next-beta branch and are **not published yet**. Their setup and lifecycle
+are documented in the [media guide](../llm-sdk/docs/media.md).
+
 ```tsx
 import { CopilotProvider } from "@yourgpt/copilot-sdk/react";
 import { CopilotChat } from "@yourgpt/copilot-sdk/ui";

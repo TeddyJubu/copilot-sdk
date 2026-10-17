@@ -1,6 +1,6 @@
 ---
 title: OpenAI
-description: Use GPT-4o, GPT-4, and GPT-3.5 models
+description: Configure OpenAI chat, Responses, reasoning parameters, and media APIs.
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
@@ -9,10 +9,18 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 <ProviderHeader
   provider="openai"
   name="OpenAI"
-  description="GPT-4o, GPT-4, GPT-3.5 Turbo"
+  description="Chat, Responses, reasoning and media"
 />
 
-The most popular LLM provider. Access GPT-4o, GPT-4 Turbo, and GPT-3.5 models.
+Use OpenAI with the generation helpers or the Copilot Runtime. For the current
+beta, see [reasoning parameters and fallback](/docs/llm-sdk/parameters-and-fallback),
+[Responses and caching](/docs/llm-sdk/responses),
+[image tool results](/docs/llm-sdk/tool-images), and
+[speech/transcription](/docs/llm-sdk/audio).
+
+[Decisions](/docs/llm-sdk/decisions), [realtime voice](/docs/llm-sdk/realtime) and
+[image generation](/docs/llm-sdk/image-generation) are next-beta additions. Check
+[release availability](/docs/llm-sdk/beta-upgrade) before using those exports.
 
 ---
 
@@ -99,7 +107,7 @@ const model = openai('gpt-4o', {
 const result = await generateText({
   model: openai('gpt-4o'),
   prompt: 'Hello',
-  temperature: 0.7,        // 0-2, default 1
+  temperature: 0.7,        // Availability depends on model and reasoning settings
   maxTokens: 4096,         // Max response length
 });
 ```

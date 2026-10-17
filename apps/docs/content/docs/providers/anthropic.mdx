@@ -146,6 +146,13 @@ const result = await generateText({
 
 ## Long Context
 
+For Runtime calls, use `systemPrompt`; modern `generateText`/`streamText` use
+`system`. Existing system-role messages are also supported. The
+[system prompt compatibility guide](/docs/llm-sdk/beta-upgrade#which-system-prompt-field-should-i-use)
+shows both forms and explains the beta.3 fix for unusual content and duplicate
+instructions. Native image results from tools are covered in
+[Images in tool results](/docs/llm-sdk/tool-images).
+
 Claude excels at long documents (200K context):
 
 ```ts

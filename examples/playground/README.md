@@ -2,6 +2,11 @@
 
 This is the existing [deployed Copilot playground](https://copilot-sdk.yourgpt.ai/playground). The dashboard compares providers and exercises Copilot tools. Its **Feature lab** link adds focused examples for the next beta, sharing the same **API keys** dialog and saved keys. Both pages use the workspace SDK packages built from this repository.
 
+The Feature Lab is currently local; it has not been deployed to that public URL.
+The [step-by-step testing guide](../../apps/docs/content/docs/feature-lab.mdx)
+covers every control and expected result. See [release availability](../../apps/docs/content/docs/llm-sdk/beta-upgrade.mdx)
+for the distinction between the published hotfix and next-beta source.
+
 ## Use the hosted playground
 
 After deploying this branch to the existing playground project, open **Feature lab** from the dashboard, choose **API keys**, and select an example. Existing saved OpenAI, Anthropic and OpenRouter keys work on both pages. The same dialog also accepts direct TypeSafe/Jev and Cloudflare credentials, including the Cloudflare account ID.

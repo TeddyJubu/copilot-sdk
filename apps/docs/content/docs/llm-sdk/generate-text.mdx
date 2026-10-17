@@ -8,6 +8,10 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 Generate complete text responses in a single call. Supports tools and multi-step reasoning.
 
+For reasoning models, see [parameter handling](/docs/llm-sdk/parameters-and-fallback).
+Use the [Responses guide](/docs/llm-sdk/responses) for continuation, caching and
+the distinction between saved message state and server diagnostics.
+
 ```ts
 import { generateText } from '@yourgpt/llm-sdk';
 import { openai } from '@yourgpt/llm-sdk/openai';

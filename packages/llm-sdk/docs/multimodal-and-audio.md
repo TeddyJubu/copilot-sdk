@@ -50,7 +50,7 @@ OpenAI Chat Completions, Gemini, Ollama, Azure Chat and other compatible endpoin
 
 Native output is carried as `modelOutput` next to the tool message's text. Preserve it when storing/restoring messages, along with `tool_call_id` / `toolCallId` and assistant tool calls. The Runtime storage helper places it at `StorageMessage.metadata.modelOutput`; a custom loader must map it back to `modelOutput`. Copilot's serialized `UIMessage` history preserves it directly, including server results in streaming execution metadata. Do not truncate image base64 or substitute it with text. Context pruning can remove complete older tool exchanges.
 
-If an existing screenshot handler explicitly uses `addAsUserMessage`, it continues to add an attachment. When native model output is also supplied, the native output takes precedence and no extra attachment turn is created. General image generation is separate and is not implemented here.
+If an existing screenshot handler explicitly uses `addAsUserMessage`, it continues to add an attachment. When native model output is also supplied, the native output takes precedence and no extra attachment turn is created. General image generation and editing use the separate, unreleased API in the [media guide](./media.md).
 
 ## Speech generation on the server
 
@@ -163,7 +163,7 @@ upload?.abort();
 recorder.dispose();
 ```
 
-The recorder negotiates supported WebM/Opus, MP4, or Ogg/Opus containers. Stop, cancel, permission races, recorder errors and disposal release microphone tracks. Defaults: 20 MB and 60 seconds; exceeding either discards the recording and invokes `onError`. No automatic message submission, voice cloning, telephony, live transcription, or bidirectional voice call is included.
+The recorder negotiates supported WebM/Opus, MP4, or Ogg/Opus containers. Stop, cancel, permission races, recorder errors and disposal release microphone tracks. Defaults: 20 MB and 60 seconds; exceeding either discards the recording and invokes `onError`. The recorder does not submit chat messages automatically or provide voice cloning, telephony, live transcription or a bidirectional call. For the separate next-beta WebRTC call API, see the [realtime guide](./media.md#realtime-voice-server-setup).
 
 ## Verification sources
 

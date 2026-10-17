@@ -1,0 +1,119 @@
+---
+title: Speech and transcription
+description: Generate speech, transcribe uploaded audio, and record reviewable voice input in Copilot.
+---
+
+`generateSpeech` and `transcribe` are separate server helpers with OpenAI
+implementations. `VoiceRecorder` and `transcribeRecording` connect recorded
+microphone input to your normal Copilot chat flow. These APIs are included in the
+published beta described in the [upgrade guide](/docs/llm-sdk/beta-upgrade).
+For a live two-way conversation, use the experimental
+[realtime API](/docs/llm-sdk/realtime).
+
+## Generate speech
+
+```ts title="app/api/speech/route.ts"
+import { generateSpeech } from "@yourgpt/llm-sdk";
+import { openaiSpeech } from "@yourgpt/llm-sdk/openai";
+
+export async function POST(request: Request) {
+  // Authenticate and apply your application's rate limits before this call.
+  const { text } = await request.json();
+  const speech = await generateSpeech({
+    model: openaiSpeech("gpt-4o-mini-tts"),
+    text,
+    voice: "alloy",
+    outputFormat: "wav",
+    instructions: "Speak clearly and warmly.",
+    signal: request.signal,
+  });
+  return new Response(new Uint8Array(speech.audio.uint8Array), {
+    headers: {
+      "Content-Type": speech.audio.mediaType,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+```
+
+The model reads `OPENAI_API_KEY` on the server. Results include audio bytes,
+base64, media type, warnings and request metadata. Usage is optional and is not
+invented when absent. This helper buffers the complete audio response.
+
+Use WAV or MP3 for ordinary browser playback. Other supported formats are
+Opus/Ogg, AAC, FLAC and raw PCM. Text/instructions are limited to 4096 characters
+and speed to 0.25–4. `tts-1` and `tts-1-hd` reject instructions. The SDK bounds
+responses at 25 MB and validates headers, without full codec decoding.
+Tell listeners that the speech is AI-generated, as required by the
+[OpenAI speech guide](https://developers.openai.com/api/docs/guides/text-to-speech).
+
+## Transcribe a file
+
+```ts title="app/api/transcribe/route.ts"
+import { transcribe } from "@yourgpt/llm-sdk";
+import { openaiTranscription } from "@yourgpt/llm-sdk/openai";
+
+export async function POST(request: Request) {
+  // Authenticate and apply your application's upload limits first.
+  const form = await request.formData();
+  const file = form.get("file");
+  if (!(file instanceof Blob)) {
+    return new Response("Audio file required", { status: 400 });
+  }
+  const result = await transcribe({
+    model: openaiTranscription("gpt-4o-mini-transcribe"),
+    audio: file,
+    language: "en",
+    signal: request.signal,
+  });
+  return Response.json({ text: result.text });
+}
+```
+
+Inputs accept Blob, bytes/ArrayBuffer, or base64. Bytes and base64 need a
+`mediaType`. Encoded files are limited to 25 MB and must have matching container
+headers and filename extensions. Accepted containers include MP3, MP4/M4A, WAV,
+WebM, Ogg and FLAC. The SDK does not fetch remote URLs. Silence may correctly
+return an empty transcript.
+
+Timestamps are available with `whisper-1` and
+`providerOptions.openai.timestampGranularities`. Speaker labels use
+`gpt-4o-transcribe-diarize`; this selects diarized JSON and automatic chunking.
+Do not combine diarization with prompts or timestamp granularity options.
+
+Both helpers support cancellation and expose `AudioAPIError` with a code,
+HTTP status and request ID where available. They do not automatically retry paid
+requests. Keep raw results and provider diagnostics on the server unless your
+application explicitly needs to expose selected fields.
+
+## Record and review a message
+
+```ts
+import { VoiceRecorder, transcribeRecording } from "@yourgpt/copilot-sdk/core";
+
+const recorder = new VoiceRecorder();
+
+// Call from your Record button on HTTPS or localhost.
+await recorder.start();
+
+// Call from your Stop button.
+const recording = await recorder.stop();
+const transcript = await transcribeRecording(recording, {
+  url: "/api/transcribe",
+});
+// Put transcript.text into an editable draft, then let the user send it.
+
+// On cancellation or component disposal:
+recorder.dispose();
+```
+
+Recording starts only after an explicit call to `start()` and browser permission.
+Handle rejected promises and `onError` in your UI. Stop, cancel and disposal
+release microphone tracks. Defaults are 60 seconds and 20 MB; exceeding either
+discards the recording and reports an error. The Feature Lab intentionally uses
+smaller limits: 30 seconds and 4 MiB. Neither helper automatically submits a chat
+message.
+
+The [Feature Lab guide](/docs/feature-lab) covers playback, uploads and microphone
+testing. Its automated recording checks use synthetic speech; physical microphone
+quality and browser/device compatibility still need manual testing.

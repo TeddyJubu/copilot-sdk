@@ -7,6 +7,11 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 One API, any provider. Switch between OpenAI, Anthropic, Google, and more with a single line change.
 
+For the current beta, start with [release availability and compatibility](/docs/llm-sdk/beta-upgrade).
+Decisions, realtime voice and image generation pages describe the unreleased
+next-beta branch. The [Feature Lab guide](/docs/feature-lab) explains how to test
+each feature locally and what has been verified with real provider calls.
+
 ```ts
 import { streamText } from '@yourgpt/llm-sdk';
 import { openai } from '@yourgpt/llm-sdk/openai';
@@ -155,6 +160,13 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
 | [`streamText()`](/docs/llm-sdk/stream-text) | Stream responses in real-time |
 | [`generateText()`](/docs/llm-sdk/generate-text) | Generate complete responses |
 | [`tool()`](/docs/llm-sdk/tools) | Define AI-callable functions |
+| [Parameters and fallback](/docs/llm-sdk/parameters-and-fallback) | Handle reasoning settings and specific compatibility failures |
+| [Responses](/docs/llm-sdk/responses) | Preserve OpenAI conversation and tool state |
+| [Image tool results](/docs/llm-sdk/tool-images) | Return native images to supported models |
+| [`generateSpeech()` / `transcribe()`](/docs/llm-sdk/audio) | Generate speech and transcribe recorded audio |
+| [`experimental_decide()`](/docs/llm-sdk/decisions) | Native decisions; next beta, unreleased |
+| [`generateImage()`](/docs/llm-sdk/image-generation) | Image generation and editing; next beta, unreleased |
+| [Realtime voice](/docs/llm-sdk/realtime) | Browser voice calls; next beta, experimental |
 
 ---
 

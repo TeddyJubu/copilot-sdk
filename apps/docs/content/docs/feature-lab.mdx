@@ -1,0 +1,127 @@
+---
+title: Feature Lab testing
+description: Run each SDK feature in the existing Copilot playground and understand the verification limits.
+---
+
+The Feature Lab lives in the existing `examples/playground` application. It uses
+the workspace SDK packages and shares the dashboard's **API keys** settings.
+It is on the next-beta branch and **has not been deployed to the public site**.
+Use the local page until deployment is complete.
+
+## Start the playground
+
+From the repository root, with Node.js 20.9+ and pnpm:
+
+```bash
+pnpm install
+pnpm build:sdk
+pnpm --filter playground dev:features
+```
+
+Open [the local Feature Lab](http://127.0.0.1:3035/playground/features).
+Select **API keys** to configure your providers. Local development can also use
+privately supplied environment keys; the status panel reports availability
+without displaying the keys. A key entered in the dialog takes precedence.
+
+| Provider            | Configuration                                       | Examples                                                              |
+| ------------------- | --------------------------------------------------- | --------------------------------------------------------------------- |
+| OpenAI              | `OPENAI_API_KEY`                                    | Parameters, fallback, Decisions, Responses, image tools and all media |
+| Anthropic           | `ANTHROPIC_API_KEY`                                 | Image tools and system prompts                                        |
+| OpenRouter          | `OPENROUTER_API_KEY`                                | Decisions using Jev through the gateway                               |
+| Direct Jev/TypeSafe | `TYPESAFE_AI_API_KEY`                               | Direct Decisions                                                      |
+| Cloudflare          | `CLOUDFLARE_AUTH_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` | Workers AI Decisions                                                  |
+
+The dialog saves keys in browser storage and sends only the selected provider's
+credentials in headers to the playground server. Production routes require
+caller keys and never use shared server environment keys. Do not commit keys.
+Example runs make real provider calls and use your provider quota.
+
+## Test every feature
+
+Start with **Run core checks**. It runs ten cases: parameters, fallback,
+Responses, four Decisions providers, two image-tool providers, and Anthropic
+system prompts. Missing credentials produce **skipped**, not passed. Media
+examples run separately.
+
+| Example                     | Action                                                                   | Expected result                                                                           |
+| --------------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Reasoning parameters        | Run with the default reasoning setting, then select `none` and run again | Both answer `OK`; default reasoning omits temperature with a warning, `none` retains it   |
+| Compatibility fallback      | Run the deliberate invalid-parameter example                             | One fallback to GPT-4o, zero retries of the invalid request, and an answer                |
+| Native Decisions            | Run the sample ticket with each configured provider                      | Named outage/team/impact answers with probabilities; inspect **Response details & usage** |
+| Responses & replay          | Run with Streaming on, then off                                          | The follow-up recalls `ORCHID-742`                                                        |
+| Images in tool calls        | Run the default image with OpenAI, then Anthropic                        | The model identifies blue; one tool execution and saved-history replay pass               |
+| System prompt compatibility | Run with Anthropic                                                       | Both `systemPrompt` and system-role tests return `SYSTEM_OK`                              |
+| Voice generation · TTS      | Enter a sentence, run, and press play                                    | Audible generated speech; **Download audio** saves the file                               |
+| Voice input · STT           | Upload audio, or record and stop, then run                               | Transcript matches the speech; no-file runs use a synthetic TTS/STT round trip            |
+| Realtime voice              | Start a call and follow the controls below                               | Connected audio, transcripts and controlled tool execution                                |
+| Image generation & editing  | Generate the sample, then upload an image with an edit instruction       | A preview and downloadable result for each operation                                      |
+
+Uploads are limited to 4 MiB. Microphone recording is capped at 30 seconds; stop
+before the cap. The SDK's underlying upload/recording limits are documented
+separately in [audio](/docs/llm-sdk/audio) and [image tools](/docs/llm-sdk/tool-images).
+
+Decision thresholds in this example are illustrative, not calibrated for your
+business. A low-confidence answer or named refusal can correctly require human
+review. OpenRouter Decisions does not support image state. Cache misses are valid;
+this runner does not establish cache savings or production classification accuracy.
+
+## Realtime voice controls
+
+1. Click **Start voice call**, allow microphone access, and wait for **connected**.
+2. Speak, check the transcript, and listen for a response. Use **Enable audio** if
+   your browser blocks playback. The response uses an AI-generated voice.
+3. Click **Ask for demo status**, then **Allow tool**. Expect “Blue balloon ready”
+   and one tool execution.
+4. Ask again and **Deny tool**. The execution count should not increase.
+5. Check **Mute/Unmute**, **Interrupt reply**, and **End call**. Ending the call
+   should release the microphone and close the connection.
+
+The [realtime guide](/docs/llm-sdk/realtime) explains server setup, permissions,
+timeouts and cleanup. Run these steps on the actual browsers and audio devices
+your application supports.
+
+## Test inside Copilot chat
+
+Select Responses or Images and click **Open Copilot chat**. Ask it to inspect the
+sample image, then ask it to remember `ORCHID-742` and recall that code in a later
+turn. Compare **Streaming** on/off; the image example also allows selecting
+Anthropic. This exercises `CopilotProvider`, tools and conversation history through
+the real chat UI.
+
+**Export results** downloads the focused example history with checks, responses
+and timings. It excludes audio/image bytes, but can include your prompts and model
+outputs. History clears on reload. Realtime has a separate transcript/event panel
+and is not included in this export.
+
+## What has been verified
+
+On 17 October 2026, the local production build passed eight core provider cases;
+direct Jev and Cloudflare were skipped because their credentials were unavailable.
+OpenRouter's Jev result does not certify the direct Jev endpoint.
+
+Nine browser checks passed, covering the core runner, parameter modes, Responses
+replay, TTS playback, STT round trip/upload, image generation/editing and layout.
+Seven integration checks passed, covering OpenAI/Anthropic chat in JSON/SSE,
+synthetic browser recording, a real WebRTC call and browser errors. The SDK,
+Copilot and route suite passed 532 automated tests separately.
+
+Realtime used synthetic audio with a real provider connection; input transcription,
+incoming audio energy, approval, mute and disconnect were observed. Tool denial
+and disconnect during pending approval were tested with protocol fixtures.
+Physical microphone/speaker quality, Safari/Firefox/mobile devices, production
+latency and the deployed public URL still need testing. Mobile layout checks do
+not certify a physical mobile browser.
+
+## Deploy the existing project
+
+Build from the workspace root:
+
+```bash
+pnpm exec turbo run build --filter=playground...
+```
+
+Deploy `examples/playground` to its existing project. The docs application's
+`/playground/:path*` proxy already covers the Feature Lab and its API routes.
+Deploy the documentation application separately, then verify the public route,
+key entry, one core run and the media flows. A successful local production build
+does not mean either deployment has happened.

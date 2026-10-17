@@ -1,7 +1,7 @@
 # Native Decisions — next beta (unreleased)
 
 This API is on `codex/next-beta-decisions`. It is not in the published
-`@yourgpt/llm-sdk@2.6.0-beta.2` package. The production release candidate is separate.
+`@yourgpt/llm-sdk@2.6.0-beta.3` hotfix. The production release candidate is separate.
 
 Use Decisions to classify or score shared state with native decision models.
 Chat generation, Responses, and tool execution keep their existing APIs.

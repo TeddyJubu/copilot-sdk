@@ -2,6 +2,20 @@
 
 Multi-provider LLM SDK with streaming. One API, any provider.
 
+## Release availability
+
+As of 17 October 2026, the published npm `beta` is `2.6.0-beta.3`; the
+`latest` tag is `2.5.1-beta.1`. The beta.3 compatibility hotfix includes structured
+tool-message preservation, tolerant Anthropic system content, reduced Responses
+replay metadata, recoverable malformed tool calls and optional-tool-call handling.
+Responses, image tool output and TTS/STT are already included in that beta.
+
+This checkout also contains **unreleased** native Decisions, realtime voice and
+image generation/editing. Installing `@yourgpt/llm-sdk@beta` does not include those
+additions yet. See the [upgrade guide](../../apps/docs/content/docs/llm-sdk/beta-upgrade.mdx)
+in this repository and the shipped guides below. The
+[Feature Lab](../../examples/playground/README.md) runs the workspace source.
+
 ## Installation
 
 ```bash
@@ -264,7 +278,8 @@ const decision = await runtime.chat({
 
 The published `2.6.0-beta.1` Runtime adapter silently dropped system-role
 messages; use the explicit `systemPrompt` form above until you upgrade to a release
-containing this fix. The separate `generateText`/`streamText` Anthropic provider
+containing this fix (`2.6.0-beta.3` includes it and the compatibility corrections).
+The separate `generateText`/`streamText` Anthropic provider
 already handles system-role messages.
 
 ## Selective Tool Loading
@@ -345,7 +360,9 @@ Tools can return native image content using `toModelOutput` or the existing `_ai
 
 `generateSpeech` / `transcribe` are separate server audio helpers, with `openaiSpeech` / `openaiTranscription` factories from `@yourgpt/llm-sdk/openai`. They support cancellation, validated encoded audio, and response metadata. Copilot's `VoiceRecorder` and `transcribeRecording` provide recorded microphone input and a reviewable transcript.
 
-See [image and audio contracts, examples, and limitations](./docs/multimodal-and-audio.md). Realtime voice calls and image generation are separate follow-ups.
+See [image and audio contracts, examples, and limitations](./docs/multimodal-and-audio.md).
+Realtime voice calls and image generation are implemented separately on the
+unreleased next-beta branch; see [the media guide](./docs/media.md).
 
 ### Native Decisions (next beta, unreleased)
 

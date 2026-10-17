@@ -9,6 +9,11 @@ import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
 
 Your server receives messages from the Copilot SDK frontend, calls the LLM, and returns the response.
 
+For existing beta applications, read the [compatibility upgrade guide](/docs/llm-sdk/beta-upgrade).
+It explains `systemPrompt` versus system-role messages, structured tool content,
+and which usage/debug fields to omit from public responses. Preserve the message
+state described in [Responses replay](/docs/llm-sdk/responses) when using custom storage.
+
 ---
 
 ## Quick Start

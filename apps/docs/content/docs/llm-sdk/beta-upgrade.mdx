@@ -1,0 +1,142 @@
+---
+title: Beta upgrades and compatibility
+description: Published fixes, next-beta availability, system prompts, and safe response serialization.
+---
+
+## Published beta and next-beta source
+
+Registry status checked on **17 October 2026**:
+
+| Package                | Published `beta` | Published `latest` |
+| ---------------------- | ---------------- | ------------------ |
+| `@yourgpt/llm-sdk`     | `2.6.0-beta.3`   | `2.5.1-beta.1`     |
+| `@yourgpt/copilot-sdk` | `2.5.1-beta.3`   | `2.5.0`            |
+
+Use an explicit version when adopting the verified compatibility hotfix:
+
+```bash
+npm install @yourgpt/llm-sdk@2.6.0-beta.3 @yourgpt/copilot-sdk@2.5.1-beta.3
+```
+
+Keep the provider peer packages required by your application installed. This
+command does not install the unreleased features below. Recheck dist-tags before
+a later upgrade; an unqualified install follows `latest`, not `beta`.
+
+| Capability                                                                   | Availability                                           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Reasoning parameters and configurable compatibility fallback                 | Included in the published beta                         |
+| OpenAI Responses and conversation replay                                     | Included in the published beta                         |
+| Images returned by tools; TTS and recorded-file STT                          | Included in the published beta                         |
+| Structured tool content, Anthropic system content and response privacy fixes | LLM SDK `2.6.0-beta.3`                                 |
+| Native Decisions                                                             | Implemented on `codex/next-beta-decisions`, unreleased |
+| Realtime voice; image generation and editing                                 | Implemented on that branch, unreleased                 |
+| Playground Feature Lab                                                       | Implemented locally; public deployment pending         |
+
+The next-beta version has not been assigned. Its workspace package version is
+not evidence of npm publication. The separate production release candidate has
+not been released by this work.
+
+## Compatibility fixes in 2.6.0-beta.3
+
+- **Structured tool messages:** OpenAI-compatible raw-message transports preserve
+  array/object content instead of coercing it to `[object Object]`. The provider
+  still validates its own content schema. Explicit `modelOutput` uses its existing
+  provider-specific conversion.
+- **Anthropic system content:** null, non-text values and unsupported blocks are
+  ignored; valid text survives. An explicit prompt repeated as a system message
+  is sent once, while distinct instructions retain their order.
+- **Responses metadata:** saved messages carry reduced continuation state, while
+  full provider output and usage remain on the server-side generation result.
+- **Malformed tool calls:** invalid Responses function calls raise `502` /
+  `INVALID_PROVIDER_RESPONSE` before execution, so configured recovery can run
+  before any output has been emitted.
+- **Optional tool calls:** `generateText` handles models that omit `toolCalls`.
+
+## Which system prompt field should I use?
+
+| API                                                 | Request-level system instruction     |
+| --------------------------------------------------- | ------------------------------------ |
+| `generateText` / `streamText`                       | `system`                             |
+| Runtime `chat`, `generate`, `stream`, `processChat` | `systemPrompt`                       |
+| Existing message-based integrations                 | `{ role: "system", content: "..." }` |
+
+Choose one form for the same instruction. A Runtime `systemPrompt` is convenient
+when your server owns the instruction and the message list holds conversation
+history:
+
+```ts
+import { createRuntime } from "@yourgpt/llm-sdk";
+import { createAnthropic } from "@yourgpt/llm-sdk/anthropic";
+
+const runtime = createRuntime({
+  provider: createAnthropic(),
+  model: "claude-sonnet-4-5",
+});
+const systemPrompt = "Classify the email. Do not answer it. Return SYSTEM_OK.";
+const emailContext = "Please help me with a duplicate charge.";
+
+const result = await runtime.chat({
+  systemPrompt,
+  messages: [{ role: "user", content: emailContext }],
+});
+console.log(result.text);
+```
+
+The message-based equivalent is:
+
+```ts
+const result = await runtime.chat({
+  messages: [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: emailContext },
+  ],
+});
+```
+
+For Anthropic, Runtime extracts system text into the provider's top-level system
+field and removes those messages from the conversation. The nonempty request
+prompt, or Runtime default, comes first. Distinct system messages follow in order.
+Duplicate text shared between the explicit prompt and messages is removed;
+intentional repeated message-only instructions remain.
+
+In `2.6.0-beta.1`, the Runtime adapter dropped system-role messages; explicit
+`systemPrompt` worked. Beta.2 forwarded system messages but rejected unusual
+content and could duplicate the explicit prompt. Beta.3 retains forwarding and
+fixes those regressions. The separate modern Anthropic generation provider
+already supported system-role messages.
+
+## Keep diagnostics out of public responses
+
+Full generation results contain server diagnostics. Return the fields your UI
+needs, rather than forwarding a complete `generateText` result. Runtime results
+still expose top-level billing `usage` and debug `events`; remove them at your
+application boundary after accounting:
+
+```ts
+const result = await runtime.chat(requestBody);
+await recordBilling(result.usage); // Your existing server-side billing function.
+const { usage, events, ...clientResult } = result;
+return Response.json(clientResult);
+```
+
+Do not remove the reduced message-level continuation metadata needed for
+[Responses replay](/docs/llm-sdk/responses). Default SSE responses omit usage;
+`includeUsage: true` deliberately exposes it. Installing the SDK cannot update
+your controller's response serialization or dependency pins automatically.
+
+## Verification and rollout
+
+The isolated published hotfix passed 371 automated tests on Node 18 and Node 26,
+22 live provider checks, 41 packed-consumer regression cases and all 13 public
+entry-point imports. The downloaded npm archive matched the tested archive.
+Google, xAI and Fireworks shared transport paths used fixtures, not live keys.
+
+The next-beta branch has separate evidence: 532 automated tests and local
+production-build browser/API checks. [Feature Lab testing](/docs/feature-lab)
+lists the exact live coverage and skips. Direct Jev/Cloudflare account access,
+physical audio quality and the public deployment remain unverified.
+
+For an existing app, pin the intended package versions, retain conversation
+metadata in custom storage, apply the public-response boundary, and test its
+actual prompts and tools before rollout. No automatic guardrail policy change
+is included; see [parameters and fallback](/docs/llm-sdk/parameters-and-fallback).

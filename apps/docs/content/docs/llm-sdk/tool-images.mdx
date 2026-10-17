@@ -1,0 +1,79 @@
+---
+title: Images in tool results
+description: Return images to OpenAI Responses and Anthropic while preserving tool history.
+---
+
+Tools still receive schema-validated JSON arguments. Pass an image ID or another
+authorized reference in those arguments, resolve its bytes in your handler, and
+return native image content with `toModelOutput`. The model does not need to
+generate base64 inside its function arguments.
+
+```ts
+import { readFile } from "node:fs/promises";
+import { generateText, tool } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+import { z } from "zod";
+
+const result = await generateText({
+  model: openai("gpt-6-luna", {
+    api: "responses",
+    responses: { store: false },
+  }),
+  prompt: "Inspect the sample image and describe its main color.",
+  maxSteps: 3,
+  tools: {
+    inspect_image: tool({
+      description: "Load the application's sample image",
+      parameters: z.object({}),
+      execute: async () => ({ bytes: await readFile("./sample.png") }),
+      toModelOutput: (image) => ({
+        type: "content",
+        content: [
+          { type: "text", text: "Sample image" },
+          { type: "image", data: image.bytes, mediaType: "image/png" },
+        ],
+      }),
+    }),
+  },
+});
+console.log(result.text);
+```
+
+Replace the sample file with an image your application is authorized to access.
+The handler's raw result remains in `result.toolResults`; its model-facing output
+is retained in `result.response.messages` for later turns. `toModelOutput` is a
+synchronous mapper called once when the tool completes.
+
+## Supported transports
+
+| Input part                                | OpenAI Responses               | Anthropic |
+| ----------------------------------------- | ------------------------------ | --------- |
+| Encoded bytes/base64 with `mediaType`     | Supported                      | Supported |
+| HTTPS image URL                           | Supported                      | Supported |
+| OpenAI `fileId` with `provider: "openai"` | Supported for accessible files | Rejected  |
+
+Supported image types are PNG, JPEG, WebP and GIF, with a 20 MiB SDK limit per
+image. Provider aggregate limits may be smaller. The SDK does not implicitly
+download URLs or upload files. Native image tool output is rejected on OpenAI
+Chat Completions, Gemini, Ollama, Azure Chat and other unsupported transports;
+text-only mapped output still works.
+
+## Runtime, Copilot and saved history
+
+Runtime and Copilot tools support the same mapper. Existing handlers can also
+return `{ success: true, _aiContent: [...] }`; an explicit mapper takes priority.
+MCP image output keeps accompanying text in order. The screenshot attachment
+path using `addAsUserMessage` remains available; native output takes priority if
+both are provided, avoiding a duplicate attachment turn.
+
+Keep `modelOutput`, tool IDs and assistant tool calls when persisting messages.
+Custom Runtime storage maps `StorageMessage.metadata.modelOutput` back to the
+message's `modelOutput` on restore. Copilot's serialized UI history preserves it.
+An arbitrary JSON array is never inferred to be an image result. The
+[compatibility hotfix](/docs/llm-sdk/beta-upgrade) also preserves raw structured
+tool-message content without coercing it to `[object Object]`; provider schemas
+still determine what raw content they accept.
+
+Test the built-in blue image with OpenAI and Anthropic in the
+[Feature Lab](/docs/feature-lab). Image creation and editing use the separate
+[image generation API](/docs/llm-sdk/image-generation).
