@@ -1493,7 +1493,7 @@ importers:
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@18.3.7(@types/react@18.3.27))(@types/react@18.3.27)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@streamdown/code':
-        specifier: ^1.0.1
+        specifier: 1.0.1
         version: 1.0.1(react@18.3.1)
       class-variance-authority:
         specifier: ^0.7.1
@@ -1511,7 +1511,7 @@ importers:
         specifier: ^0.561.0
         version: 0.561.0(react@18.3.1)
       streamdown:
-        specifier: ^2.1.0
+        specifier: 2.1.0
         version: 2.1.0(react@18.3.1)
       tailwind-merge:
         specifier: ^3.4.0
