@@ -98,7 +98,7 @@ The corrected commands find the workspace root from either the repository root
 or an app directory:
 
 ```sh
-npx --yes pnpm@11.5.1 --workspace-root install --frozen-lockfile
+npx --yes pnpm@11.5.1 install --recursive --frozen-lockfile
 npx --yes pnpm@11.5.1 --workspace-root exec turbo run build --filter=@yourgpt/copilot-sdk-docs
 npx --yes pnpm@11.5.1 --workspace-root exec turbo run build --filter=playground...
 # Run the test command from the repository root.
@@ -114,13 +114,27 @@ The user approved pushing `38fe77c` and creating the combined
 the original `cd ../..` moved to `/`. The local checks had only tested that
 command from an app directory and did not expose this difference.
 
-Both configs now use pnpm's explicit `--workspace-root` option instead of fixed
-directory traversal. Frozen installs pass from the repository root, docs app and
-playground app. Uncached builds pass on Node 24.22.0 using the corrected commands
-from the docs app and repository root respectively. This follow-up changes no
-SDK source, dependencies or package versions. A fresh push authorization is
-required to update PR #131; the failed remote playground check is not resolved
-until that corrected commit is pushed and its new preview succeeds.
+The first correction, `8732d70`, replaced fixed directory traversal with pnpm's
+`--workspace-root` option. It was separately approved and pushed. GitHub CI passed
+at that commit, including the full workspace build and regression tests. The docs
+preview passed and its Decisions guide returned HTTP 200 with the expected content.
+
+Further preview checks exposed two issues that the existing local installation
+had masked. The playground Vercel project had
+`sourceFilesOutsideRootDirectory: false`, excluding the workspace and SDK source;
+that setting has now been enabled, matching the docs project. A redeploy of the
+old failure inherited its old settings, so a fresh Git-source preview was used.
+It then installed only root dependencies because `--workspace-root install` is
+scoped to that package, and Next.js was consequently unavailable.
+
+The final install command uses explicit recursive installation, while build
+commands retain `--workspace-root exec`. It was verified in a fresh `git archive`
+source copy with no `node_modules`, built output, Turbo cache or `.env` files.
+The install included all 27 workspace projects; both deployment builds and all
+550 regression tests passed on Node 24.22.0. These checks supersede the earlier
+install rechecks that reused existing dependencies. This correction changes no
+SDK source, dependency versions or package versions. Its push and successful new
+remote playground preview are still required before merging PR #131.
 
 ## Merge and deployment checklist
 

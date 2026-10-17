@@ -193,7 +193,7 @@
       "uncachedPlaygroundBuildFromRepositoryRoot": "passed",
       "node": "24.22.0"
     },
-    "pending": "Fresh authorization to push correction, then successful new preview",
+    "pending": "Push final recursive-install correction with fresh authorization, then verify new preview",
     "logs": [
       {
         "path": "/tmp/copilot-vercel-workspace-install-root.log",
@@ -214,7 +214,53 @@
       {
         "path": "/tmp/copilot-vercel-workspace-build-playground.log",
         "sha256": "56b2cb56dd1532d14300f6595f6ca37cdbcc3f577f9c2d43006e450c77e5df49"
+      },
+      {
+        "path": "/tmp/copilot-pr131-clean-install.log",
+        "sha256": "53e39089493c160adca9cb0eb4966aaac7868196f07edbed48d767889d1bb315"
+      },
+      {
+        "path": "/tmp/copilot-pr131-clean-docs-build.log",
+        "sha256": "12e3d4cbcb8f505b8d6819bd89f15f3ea8636d5227b80ddd2700d27011fea2af"
+      },
+      {
+        "path": "/tmp/copilot-pr131-clean-playground-build.log",
+        "sha256": "cd0de33df660411556b9c0a84d14819886f71542355da5ae803d9319b830a941"
+      },
+      {
+        "path": "/tmp/copilot-pr131-clean-tests.log",
+        "sha256": "e98da3b6b6da5400a4af59a7c579fb9a4ecb23748c90103abdf4e634fd759cf4"
       }
-    ]
+    ],
+    "firstCorrectionPushed": "8732d7076709aa23c677bc9507cfe1a67234bf20",
+    "githubCI": {
+      "runId": 39046392756,
+      "conclusion": "success",
+      "commit": "8732d7076709aa23c677bc9507cfe1a67234bf20"
+    },
+    "additionalFindings": [
+      "Playground project excluded source files outside its root; setting enabled to match docs",
+      "CLI redeployment inherited old deployment settings; fresh Git-source preview used",
+      "workspace-root install installed only root dependencies; previous local modules masked the missing Next.js installation"
+    ],
+    "vercelSetting": {
+      "project": "copilot-playground",
+      "sourceFilesOutsideRootDirectory": true,
+      "productionChanged": false
+    },
+    "finalCorrection": "pnpm install --recursive --frozen-lockfile; retain --workspace-root only for build exec",
+    "cleanVerification": {
+      "source": "fresh git archive of 8732d70 plus corrected deployment configs",
+      "nodeModulesInitiallyPresent": false,
+      "environmentFilesCopied": false,
+      "workspaceProjectsInstalled": 27,
+      "node": "24.22.0",
+      "pnpm": "11.5.1",
+      "docsBuild": "passed; uncached",
+      "playgroundBuild": "passed; uncached",
+      "tests": 550,
+      "failures": 0,
+      "skips": 0
+    }
   }
 }
