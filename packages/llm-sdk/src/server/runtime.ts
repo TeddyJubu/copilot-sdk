@@ -1,4 +1,10 @@
 import { responseReplayMetadata } from "../core/openai-responses";
+import {
+  invalidProviderResponse,
+  providerErrorEvent,
+  throwIfAborted,
+} from "../core/provider-error";
+import { parseToolArguments, validateToolCalls } from "../core/tool-validation";
 import { resolveToolOutput, type ToolModelOutput } from "../core/tool-output";
 import type {
   Message,
@@ -115,7 +121,7 @@ function buildToolResultForAI(
     case "full":
     default:
       // Include context as prefix if available, then full data
-      const fullData = JSON.stringify(result);
+      const fullData = JSON.stringify(result ?? null);
       return aiContext ? `${aiContext}\n\nFull data: ${fullData}` : fullData;
   }
 }
@@ -1025,12 +1031,15 @@ export class Runtime {
     // Accumulate data from stream
     let accumulatedText = "";
     const toolCalls: ToolCallInfo[] = [];
-    let currentToolCall: {
-      id: string;
-      name: string;
-      args: string;
-      extra_content?: Record<string, unknown>;
-    } | null = null;
+    const pendingToolCalls = new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        extra_content?: Record<string, unknown>;
+      }
+    >();
+    const endedToolIds = new Set<string>();
 
     // Server-side tool results (populated inline during stream, before message:end)
     const serverToolResults: Array<{
@@ -1086,173 +1095,186 @@ export class Runtime {
     const stream = this.adapter.stream(completionRequest);
 
     // Process stream events
-    for await (const event of stream) {
-      switch (event.type) {
-        case "message:start":
-          yield event; // Forward to client
-          break;
+    try {
+      for await (const event of stream) {
+        throwIfAborted(signal);
+        switch (event.type) {
+          case "message:start":
+            yield event; // Forward to client
+            break;
 
-        case "message:end":
-          yield {
-            ...event,
-            providerMetadata: responseReplayMetadata(event.providerMetadata),
-          }; // Natural order — always arrives after action:end from every provider
-          break;
+          case "message:end":
+            yield {
+              ...event,
+              providerMetadata: responseReplayMetadata(event.providerMetadata),
+            }; // Natural order — always arrives after action:end from every provider
+            break;
 
-        case "message:delta":
-          accumulatedText += event.content;
-          yield event; // Forward text to client
-          break;
+          case "message:delta":
+            accumulatedText += event.content;
+            yield event; // Forward text to client
+            break;
 
-        case "action:start":
-          currentToolCall = {
-            id: event.id,
-            name: event.name,
-            args: "",
-            ...(event.extra_content
-              ? { extra_content: event.extra_content }
-              : {}),
-          };
-          if (debug) {
-            console.log(`[Copilot SDK] Tool call started: ${event.name}`);
+          case "action:start":
+            if (
+              !event.id ||
+              !event.name ||
+              pendingToolCalls.has(event.id) ||
+              toolCalls.some((call) => call.id === event.id)
+            )
+              throw invalidProviderResponse(
+                "Tool calls have missing or duplicate identities",
+              );
+            pendingToolCalls.set(event.id, {
+              id: event.id,
+              name: event.name,
+              ...(event.extra_content
+                ? { extra_content: event.extra_content }
+                : {}),
+            });
+            if (debug) {
+              console.log(`[Copilot SDK] Tool call started: ${event.name}`);
+            }
+            yield event; // Forward to client
+            break;
+
+          case "action:args": {
+            const current = pendingToolCalls.get(event.id);
+            if (!current)
+              throw invalidProviderResponse(
+                "Tool arguments have no matching call",
+              );
+            toolCalls.push({
+              ...current,
+              args: parseToolArguments(event.args),
+            });
+            pendingToolCalls.delete(event.id);
+            yield event; // Forward to client
+            break;
           }
-          yield event; // Forward to client
-          break;
 
-        case "action:args":
-          if (currentToolCall) {
-            try {
-              const parsedArgs = JSON.parse(event.args || "{}");
+          case "action:end": {
+            const tc = toolCalls.find((t) => t.id === event.id);
+            const eventName = (event as StreamEvent & { name?: string }).name;
+            if (
+              !tc ||
+              (eventName && eventName !== tc.name) ||
+              endedToolIds.has(event.id)
+            )
+              throw invalidProviderResponse(
+                "Tool completion has no matching unexecuted call",
+              );
+            endedToolIds.add(event.id);
+            const toolName = tc.name;
+            const tool = toolName ? selectedToolMap.get(toolName) : undefined;
+
+            if (tool?.location === "server" && tool.handler) {
+              // Execute server-side tool inline — before message:end arrives naturally
+              // This preserves the correct event order: action:end(result) → message:end
               if (debug) {
                 console.log(
-                  `[Copilot SDK] Tool args for ${currentToolCall.name}:`,
-                  parsedArgs,
+                  `[Copilot SDK] Executing server-side tool: ${toolName}`,
                 );
               }
-              toolCalls.push({
-                id: currentToolCall.id,
-                name: currentToolCall.name,
-                args: parsedArgs,
-                ...(currentToolCall.extra_content
-                  ? { extra_content: currentToolCall.extra_content }
-                  : {}),
-              });
-            } catch (e) {
-              console.error(
-                "[Copilot SDK] Failed to parse tool args:",
-                event.args,
-                e,
+              const args = tc.args;
+              const toolContext = buildToolContext(
+                event.id,
+                signal,
+                request.threadId,
+                _httpRequest,
+                toolContextData,
               );
-              toolCalls.push({
-                id: currentToolCall.id,
-                name: currentToolCall.name,
-                args: {},
-                ...(currentToolCall.extra_content
-                  ? { extra_content: currentToolCall.extra_content }
-                  : {}),
-              });
+              try {
+                throwIfAborted(signal);
+                const result = await tool.handler(args, toolContext);
+                throwIfAborted(signal);
+                const modelOutput = resolveToolOutput(
+                  result,
+                  tool.toModelOutput?.(result),
+                );
+                serverToolResults.push({
+                  id: event.id,
+                  name: toolName!,
+                  args,
+                  result,
+                  modelOutput,
+                  tool,
+                });
+                yield {
+                  type: "action:end",
+                  id: event.id,
+                  name: toolName,
+                  result,
+                  modelOutput,
+                } as StreamEvent;
+              } catch (error) {
+                throwIfAborted(signal);
+                const errorResult = {
+                  success: false,
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : "Tool execution failed",
+                };
+                serverToolResults.push({
+                  id: event.id,
+                  name: toolName!,
+                  args,
+                  result: errorResult,
+                  tool,
+                });
+                yield {
+                  type: "action:end",
+                  id: event.id,
+                  name: toolName,
+                  error:
+                    error instanceof Error
+                      ? error.message
+                      : "Tool execution failed",
+                } as StreamEvent;
+              }
+            } else {
+              yield event; // Client-side tool — forward as-is
             }
-            currentToolCall = null;
+            break;
           }
-          yield event; // Forward to client
-          break;
 
-        case "action:end": {
-          const toolName = (event as StreamEvent & { name?: string }).name;
-          const tool = toolName ? selectedToolMap.get(toolName) : undefined;
+          case "citation":
+            // Forward web search citations to client
+            yield event;
+            break;
 
-          if (tool?.location === "server" && tool.handler) {
-            // Execute server-side tool inline — before message:end arrives naturally
-            // This preserves the correct event order: action:end(result) → message:end
-            if (debug) {
-              console.log(
-                `[Copilot SDK] Executing server-side tool: ${toolName}`,
-              );
-            }
-            const tc = toolCalls.find((t) => t.id === event.id);
-            const args = tc?.args ?? {};
-            const toolContext = buildToolContext(
-              event.id,
-              signal,
-              request.threadId,
-              _httpRequest,
-              toolContextData,
+          case "error":
+            yield event;
+            return; // Exit on error
+
+          case "done":
+            adapterProviderMetadata = responseReplayMetadata(
+              event.providerMetadata,
             );
-            try {
-              const result = await tool.handler(args, toolContext);
-              const modelOutput = resolveToolOutput(
-                result,
-                tool.toModelOutput?.(result),
-              );
-              serverToolResults.push({
-                id: event.id,
-                name: toolName!,
-                args,
-                result,
-                modelOutput,
-                tool,
-              });
-              yield {
-                type: "action:end",
-                id: event.id,
-                name: toolName,
-                result,
-                modelOutput,
-              } as StreamEvent;
-            } catch (error) {
-              const errorResult = {
-                success: false,
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "Tool execution failed",
-              };
-              serverToolResults.push({
-                id: event.id,
-                name: toolName!,
-                args,
-                result: errorResult,
-                tool,
-              });
-              yield {
-                type: "action:end",
-                id: event.id,
-                name: toolName,
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "Tool execution failed",
-              } as StreamEvent;
+            // Capture usage from adapter's done event (for onFinish callback)
+            // We don't yield done yet - we need to check for tool calls first
+            if (event.usage) {
+              adapterUsage = event.usage;
             }
-          } else {
-            yield event; // Client-side tool — forward as-is
-          }
-          break;
+            break;
+
+          default:
+            yield event;
         }
-
-        case "citation":
-          // Forward web search citations to client
-          yield event;
-          break;
-
-        case "error":
-          yield event;
-          return; // Exit on error
-
-        case "done":
-          adapterProviderMetadata = responseReplayMetadata(
-            event.providerMetadata,
-          );
-          // Capture usage from adapter's done event (for onFinish callback)
-          // We don't yield done yet - we need to check for tool calls first
-          if (event.usage) {
-            adapterUsage = event.usage;
-          }
-          break;
-
-        default:
-          yield event;
       }
+
+      throwIfAborted(signal);
+      if (
+        pendingToolCalls.size ||
+        toolCalls.some((call) => !endedToolIds.has(call.id))
+      )
+        throw invalidProviderResponse(
+          "Stream ended with incomplete tool calls",
+        );
+    } catch (error) {
+      yield providerErrorEvent(error, "RUNTIME_STREAM_ERROR");
+      return;
     }
 
     // Check if we got tool calls
@@ -1626,6 +1648,8 @@ export class Runtime {
       try {
         // Call the non-streaming complete method
         const result = await this.adapter.complete(completionRequest);
+        throwIfAborted(signal);
+        validateToolCalls(result.toolCalls);
 
         // Capture usage from adapter response (convert camelCase to snake_case)
         if (result.usage) {
@@ -1707,6 +1731,7 @@ export class Runtime {
             "toolContext" in this.config ? this.config.toolContext : undefined;
 
           for (const tc of serverToolCalls) {
+            throwIfAborted(signal);
             const tool = selectedToolMap.get(tc.name);
             if (tool?.handler) {
               if (debug) {
@@ -1724,6 +1749,7 @@ export class Runtime {
 
               try {
                 const toolResult = await tool.handler(tc.args, toolContext);
+                throwIfAborted(signal);
                 const modelOutput = resolveToolOutput(
                   toolResult,
                   tool.toModelOutput?.(toolResult),
@@ -1744,6 +1770,7 @@ export class Runtime {
                   modelOutput,
                 } as StreamEvent;
               } catch (error) {
+                throwIfAborted(signal);
                 const errorResult = {
                   success: false,
                   error:

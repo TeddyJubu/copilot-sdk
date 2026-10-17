@@ -21,6 +21,8 @@ import type {
 import type { AIProvider } from "../providers/types";
 import { generateToolCallId, generateMessageId } from "../core/utils";
 import { getFormatter } from "../providers";
+import { throwIfAborted } from "../core/provider-error";
+import { validateToolCalls } from "../core/tool-validation";
 import {
   buildProviderToolOptions,
   searchTools,
@@ -255,9 +257,13 @@ export async function* runAgentLoop(
         providerTools,
         providerToolOptions,
       );
+      throwIfAborted(signal);
 
       // Parse tool calls and text from response
       const toolCalls = formatter.parseToolCalls(response);
+      validateToolCalls(
+        toolCalls.map((call) => ({ ...call, args: call.input })),
+      );
       const textContent = formatter.extractTextContent(response);
 
       // Emit text content as message
@@ -278,15 +284,13 @@ export async function* runAgentLoop(
         }
 
         // Execute tools
-        const results = await executeToolCalls(
+        const results = yield* executeToolCalls(
           toolCalls,
           effectiveSelectedTools,
           executeServerTool,
           waitForClientToolResult,
-          function* (event: StreamEvent) {
-            yield event;
-          },
           debug,
+          signal,
         );
 
         // Emit tool results
@@ -417,7 +421,7 @@ function buildConversation(
 /**
  * Execute tool calls
  */
-async function executeToolCalls(
+async function* executeToolCalls(
   toolCalls: UnifiedToolCall[],
   tools: ToolDefinition[],
   executeServerTool?: (
@@ -429,12 +433,13 @@ async function executeToolCalls(
     name: string,
     args: Record<string, unknown>,
   ) => Promise<ToolResponse>,
-  emitEvent?: (event: StreamEvent) => void,
   debug?: boolean,
-): Promise<UnifiedToolResult[]> {
+  signal?: AbortSignal,
+): AsyncGenerator<StreamEvent, UnifiedToolResult[]> {
   const results: UnifiedToolResult[] = [];
 
   for (const toolCall of toolCalls) {
+    throwIfAborted(signal);
     const tool = tools.find((t) => t.name === toolCall.name);
 
     if (!tool) {
@@ -456,27 +461,31 @@ async function executeToolCalls(
     }
 
     // Emit action start (include hidden flag for client-side filtering)
-    emitEvent?.({
+    yield {
       type: "action:start",
       id: toolCall.id,
       name: toolCall.name,
       hidden: tool.hidden ?? false,
-    });
+    };
 
     // Emit arguments
-    emitEvent?.({
+    yield {
       type: "action:args",
       id: toolCall.id,
       args: JSON.stringify(toolCall.input),
-    });
+    };
 
     try {
       let response: ToolResponse;
+      throwIfAborted(signal);
 
       if (tool.location === "server") {
         // Server-side tool
         if (tool.handler) {
-          response = (await tool.handler(toolCall.input)) as ToolResponse;
+          response = (await tool.handler(toolCall.input, {
+            signal,
+            toolCallId: toolCall.id,
+          })) as ToolResponse;
         } else if (executeServerTool) {
           response = await executeServerTool(toolCall.name, toolCall.input);
         } else {
@@ -503,12 +512,13 @@ async function executeToolCalls(
       }
 
       // Emit action end
-      emitEvent?.({
+      throwIfAborted(signal);
+      yield {
         type: "action:end",
         id: toolCall.id,
         name: toolCall.name,
         result: response,
-      });
+      };
 
       results.push({
         toolCallId: toolCall.id,
@@ -517,16 +527,17 @@ async function executeToolCalls(
         error: response.error,
       });
     } catch (error) {
+      throwIfAborted(signal);
       const errorMessage =
         error instanceof Error ? error.message : "Tool execution failed";
 
       // Emit action end with error
-      emitEvent?.({
+      yield {
         type: "action:end",
         id: toolCall.id,
         name: toolCall.name,
         error: errorMessage,
-      });
+      };
 
       results.push({
         toolCallId: toolCall.id,

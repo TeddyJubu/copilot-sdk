@@ -83,6 +83,8 @@ export interface StreamResultConstructorOptions {
  * Collected result after consuming the stream
  */
 export interface CollectedResult {
+  /** Terminal provider/runtime failure, also retained in events. */
+  error?: { message: string; code?: string };
   /** Accumulated text content */
   text: string;
   /** All messages from the stream (for persistence) */
@@ -558,6 +560,10 @@ export class StreamResult {
         }
         break;
       }
+
+      case "error":
+        collected.error = { message: event.message, code: event.code };
+        break;
 
       case "done":
         if (event.messages) {

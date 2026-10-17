@@ -1,4 +1,12 @@
 import { toolOutputForProvider } from "../../core/tool-output";
+import {
+  invalidProviderResponse,
+  throwIfAborted,
+} from "../../core/provider-error";
+import {
+  parseToolArguments,
+  validateToolCalls,
+} from "../../core/tool-validation";
 /**
  * Anthropic Provider - Modern Pattern
  *
@@ -294,6 +302,12 @@ export function anthropic(
         }
       }
 
+      validateToolCalls(toolCalls);
+      if (toolCalls.length && response.stop_reason !== "tool_use")
+        throw invalidProviderResponse(
+          "Anthropic response ended with incomplete tool calls",
+        );
+
       return {
         text,
         reasoningText:
@@ -364,13 +378,12 @@ export function anthropic(
       let inputTokens = 0;
       let outputTokens = 0;
       const content: any[] = [];
+      const toolCalls: ToolCall[] = [];
+      let stopReason: string | undefined;
 
       for await (const event of stream) {
         collectAnthropicContent(content, event);
-        if (params.signal?.aborted) {
-          yield { type: "error", error: new Error("Aborted") };
-          return;
-        }
+        throwIfAborted(params.signal);
 
         switch (event.type) {
           case "message_start":
@@ -404,14 +417,11 @@ export function anthropic(
 
           case "content_block_stop":
             if (currentToolUse) {
-              yield {
-                type: "tool-call",
-                toolCall: {
-                  id: currentToolUse.id,
-                  name: currentToolUse.name,
-                  args: JSON.parse(currentToolUse.input || "{}"),
-                },
-              };
+              toolCalls.push({
+                id: currentToolUse.id,
+                name: currentToolUse.name,
+                args: parseToolArguments(currentToolUse.input),
+              });
               currentToolUse = null;
             }
             break;
@@ -421,20 +431,32 @@ export function anthropic(
               outputTokens = event.usage.output_tokens ?? 0;
             }
             if (event.delta?.stop_reason) {
-              yield {
-                type: "finish",
-                finishReason: mapFinishReason(event.delta.stop_reason),
-                providerMetadata: anthropicReplay(content),
-                usage: {
-                  promptTokens: inputTokens,
-                  completionTokens: outputTokens,
-                  totalTokens: inputTokens + outputTokens,
-                },
-              };
+              stopReason = event.delta.stop_reason;
             }
             break;
         }
       }
+      throwIfAborted(params.signal);
+      if (!stopReason || currentToolUse)
+        throw invalidProviderResponse(
+          "Anthropic stream ended before its turn completed",
+        );
+      validateToolCalls(toolCalls);
+      if (toolCalls.length && stopReason !== "tool_use")
+        throw invalidProviderResponse(
+          "Anthropic stream ended with incomplete tool calls",
+        );
+      for (const toolCall of toolCalls) yield { type: "tool-call", toolCall };
+      yield {
+        type: "finish",
+        finishReason: mapFinishReason(stopReason),
+        providerMetadata: anthropicReplay(content),
+        usage: {
+          promptTokens: inputTokens,
+          completionTokens: outputTokens,
+          totalTokens: inputTokens + outputTokens,
+        },
+      };
     },
   };
 }

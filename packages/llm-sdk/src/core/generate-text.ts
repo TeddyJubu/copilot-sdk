@@ -40,6 +40,7 @@ import type {
 } from "./types";
 import { formatToolsForOpenAI, formatToolsForAnthropic } from "./tool";
 import { throwIfAborted } from "./provider-error";
+import { validateMaxSteps, validateToolCalls } from "./tool-validation";
 
 /**
  * Generate text using a language model
@@ -51,6 +52,7 @@ export async function generateText(
   params: GenerateTextParams,
 ): Promise<GenerateTextResult> {
   const { model, tools, maxSteps = 1, signal } = params;
+  validateMaxSteps(maxSteps);
 
   if (params.responseFormat && model.capabilities.supportsJsonMode === false) {
     console.warn(
@@ -88,18 +90,20 @@ export async function generateText(
     throwIfAborted(signal);
 
     const toolCalls = result.toolCalls ?? [];
+    validateToolCalls(toolCalls);
+    allToolCalls.push(...toolCalls);
 
     // Record this step
     const stepToolResults: ToolResult[] = [];
 
     // If there are tool calls, execute them
     if (toolCalls.length > 0 && tools) {
-      allToolCalls.push(...toolCalls);
-
       // Execute each tool
       for (const call of toolCalls) {
         throwIfAborted(signal);
-        const toolDef = tools[call.name];
+        const toolDef = Object.prototype.hasOwnProperty.call(tools, call.name)
+          ? tools[call.name]
+          : undefined;
         if (!toolDef) {
           const errorResult: ToolResult = {
             toolCallId: call.id,
@@ -170,7 +174,7 @@ export async function generateText(
         : {}),
     };
     messages = [...messages, assistantMessage];
-    if (toolCalls.length === 0) break;
+    if (toolCalls.length === 0 || !tools) break;
 
     // Add tool result messages
     for (const tr of stepToolResults) {
@@ -179,7 +183,7 @@ export async function generateText(
         toolCallId: tr.toolCallId,
         content: tr.modelOutput
           ? "[Tool returned content]"
-          : JSON.stringify(tr.result),
+          : JSON.stringify(tr.result ?? null),
         ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
       };
       messages = [...messages, toolMessage];

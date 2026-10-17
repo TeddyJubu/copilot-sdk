@@ -1,3 +1,4 @@
+import { parseToolArguments } from "../core/tool-validation";
 /**
  * OpenAI Provider Formatter
  *
@@ -55,16 +56,7 @@ export function parseToolCalls(response: unknown): UnifiedToolCall[] {
   const toolCalls = (message?.tool_calls as OpenAIToolCall[]) || [];
 
   return toolCalls.map((tc) => {
-    let input: Record<string, unknown> = {};
-    try {
-      input = JSON.parse(tc.function.arguments);
-    } catch (e) {
-      console.error(
-        "Failed to parse tool arguments:",
-        tc.function.arguments,
-        e,
-      );
-    }
+    const input = parseToolArguments(tc.function.arguments);
     return {
       id: tc.id,
       name: tc.function.name,

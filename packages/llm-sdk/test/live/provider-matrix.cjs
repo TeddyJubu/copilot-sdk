@@ -53,6 +53,7 @@ async function run({ provider, modelId, surface, mode, scenario, transport }) {
   const callsTool = scenario.startsWith("tools");
   const structured = scenario.includes("schema") || scenario === "json";
   const nested = scenario === "nested-schema";
+  const nullableTool = scenario === "tools-nullable-schema";
   const expected = nested
     ? {
         minimum: 7,
@@ -95,12 +96,12 @@ async function run({ provider, modelId, surface, mode, scenario, transport }) {
       : undefined;
   let executions = 0;
   const execute = async ({ id }) => {
-    assert.equal(id, "sample");
+    assert.equal(id, nullableTool ? null : "sample");
     executions++;
     return { nested: [{ marker: "ORBIT-742", count: 7 }] };
   };
   const prompt = callsTool
-    ? "Call lookup with id sample exactly once. Read the nested result. " +
+    ? `Call lookup with id ${nullableTool ? "null (JSON null, not a string)" : "sample"} exactly once. Read the nested result. ` +
       (structured
         ? "Return only a JSON object with marker and count from the result."
         : "Reply only with its marker.")
@@ -151,7 +152,11 @@ async function run({ provider, modelId, surface, mode, scenario, transport }) {
         ? {
             lookup: {
               description: "Read the marker and count for a sample.",
-              parameters: z.object({ id: z.enum(["sample"]) }),
+              parameters: z.object({
+                id: nullableTool
+                  ? z.union([z.enum(["sample"]), z.number().int()]).nullable()
+                  : z.enum(["sample"]),
+              }),
               execute,
             },
           }
@@ -199,7 +204,17 @@ async function run({ provider, modelId, surface, mode, scenario, transport }) {
               location: "server",
               inputSchema: {
                 type: "object",
-                properties: { id: { type: "string", enum: ["sample"] } },
+                properties: {
+                  id: nullableTool
+                    ? {
+                        anyOf: [
+                          { type: "string", enum: ["sample"] },
+                          { type: "integer" },
+                          { type: "null" },
+                        ],
+                      }
+                    : { type: "string", enum: ["sample"] },
+                },
                 required: ["id"],
                 additionalProperties: false,
               },

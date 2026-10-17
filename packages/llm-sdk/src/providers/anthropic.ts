@@ -1,3 +1,4 @@
+import { parseToolArguments } from "../core/tool-validation";
 /**
  * Anthropic/Claude Provider Formatter
  *
@@ -59,7 +60,7 @@ export function parseToolCalls(response: unknown): UnifiedToolCall[] {
     .map((block) => ({
       id: block.id,
       name: block.name,
-      input: block.input || {},
+      input: parseToolArguments(block.input),
     }));
 }
 

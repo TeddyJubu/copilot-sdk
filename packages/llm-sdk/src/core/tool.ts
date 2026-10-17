@@ -116,6 +116,7 @@ function zodToJsonSchema(schema: z.ZodType): {
   items?: unknown;
   enum?: unknown[];
   description?: string;
+  anyOf?: unknown[];
 } {
   const def = (schema as unknown as { _def: unknown })._def as Record<
     string,
@@ -131,7 +132,28 @@ function zodToJsonSchema(schema: z.ZodType): {
       return { type: "string", description };
 
     case "ZodNumber":
-      return { type: "number", description };
+      return {
+        type: (def.checks as Array<{ kind: string }> | undefined)?.some(
+          (check) => check.kind === "int",
+        )
+          ? "integer"
+          : "number",
+        description,
+      };
+
+    case "ZodNull":
+      return { type: "null", description };
+
+    case "ZodAny":
+    case "ZodUnknown":
+      return { description };
+
+    case "ZodEffects":
+      // The provider sees the input schema; local parsing still applies refinements/transforms.
+      return {
+        ...zodToJsonSchema(def.schema as z.ZodType),
+        ...(description ? { description } : {}),
+      };
 
     case "ZodBoolean":
       return { type: "boolean", description };
@@ -157,17 +179,15 @@ function zodToJsonSchema(schema: z.ZodType): {
       const required: string[] = [];
 
       for (const [key, value] of Object.entries(shapeObj)) {
-        properties[key] = zodToJsonSchema(value);
+        Object.defineProperty(properties, key, {
+          value: zodToJsonSchema(value),
+          enumerable: true,
+          configurable: true,
+          writable: true,
+        });
 
-        // Check if required (not optional, not nullable, not with default)
-        const valueDef = (value as unknown as { _def: Record<string, unknown> })
-          ._def;
-        const isOptional =
-          valueDef.typeName === "ZodOptional" ||
-          valueDef.typeName === "ZodNullable" ||
-          valueDef.typeName === "ZodDefault";
-
-        if (!isOptional) {
+        // Nullable accepts null, not a missing property.
+        if (!acceptsMissingInput(value)) {
           required.push(key);
         }
       }
@@ -180,8 +200,14 @@ function zodToJsonSchema(schema: z.ZodType): {
       };
     }
 
-    case "ZodOptional":
     case "ZodNullable": {
+      return {
+        anyOf: [zodToJsonSchema(def.innerType as z.ZodType), { type: "null" }],
+        description,
+      };
+    }
+
+    case "ZodOptional": {
       const innerType = def.innerType as z.ZodType;
       return zodToJsonSchema(innerType);
     }
@@ -193,6 +219,7 @@ function zodToJsonSchema(schema: z.ZodType): {
 
     case "ZodLiteral": {
       const value = def.value;
+      if (value === null) return { type: "null", description };
       if (typeof value === "string") {
         return { type: "string", enum: [value], description };
       }
@@ -225,14 +252,25 @@ function zodToJsonSchema(schema: z.ZodType): {
         return { type: "string", enum: stringLiterals, description };
       }
 
-      // For complex unions, just return the first option's schema
-      return zodToJsonSchema(options[0]);
+      return { anyOf: options.map(zodToJsonSchema), description };
     }
 
     default:
       // Fallback for unknown types
       return { type: "string", description };
   }
+}
+
+function acceptsMissingInput(schema: z.ZodType): boolean {
+  const def = (schema as unknown as { _def: Record<string, any> })._def;
+  if (
+    ["ZodOptional", "ZodDefault", "ZodAny", "ZodUnknown"].includes(def.typeName)
+  )
+    return true;
+  if (def.typeName === "ZodNullable") return acceptsMissingInput(def.innerType);
+  if (def.typeName === "ZodEffects") return acceptsMissingInput(def.schema);
+  if (def.typeName === "ZodUnion") return def.options.some(acceptsMissingInput);
+  return false;
 }
 
 /**

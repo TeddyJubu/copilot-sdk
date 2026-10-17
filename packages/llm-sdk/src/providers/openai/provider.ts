@@ -1,5 +1,9 @@
 import { textToolOutput } from "../../core/tool-output";
 import {
+  parseToolArguments,
+  validateToolCalls,
+} from "../../core/tool-validation";
+import {
   resolveOpenAITransport,
   useOpenAIResponses,
   type OpenAITransportOptions,
@@ -7,7 +11,11 @@ import {
 import { OpenAIAdapter } from "../../adapters/openai";
 import type { ChatCompletionRequest } from "../../adapters/base";
 import { type OpenAIParameterOptions } from "../../core/openai-parameters";
-import { errorFromEvent, throwIfAborted } from "../../core/provider-error";
+import {
+  errorFromEvent,
+  throwIfAborted,
+  invalidProviderResponse,
+} from "../../core/provider-error";
 /**
  * OpenAI Provider - Modern Pattern
  *
@@ -314,9 +322,19 @@ export function openai(
         (tc: any) => ({
           id: tc.id,
           name: tc.function.name,
-          args: JSON.parse(tc.function.arguments || "{}"),
+          args: parseToolArguments(tc.function.arguments),
         }),
       );
+
+      validateToolCalls(toolCalls);
+      if (
+        toolCalls.length &&
+        choice.finish_reason &&
+        !["tool_calls", "function_call"].includes(choice.finish_reason)
+      )
+        throw invalidProviderResponse(
+          "OpenAI response ended with incomplete tool calls",
+        );
 
       return {
         text: message.content ?? "",
@@ -450,19 +468,26 @@ export function openai(
       }
       throwIfAborted(params.signal);
       if (!finishReason)
-        throw new Error("OpenAI stream ended without a finish reason");
+        throw invalidProviderResponse(
+          "OpenAI stream ended without a finish reason",
+        );
       // Parse all calls before yielding any executable call.
       const calls = [...toolCalls.values()].map((call) => {
         if (!call.id || !call.name)
-          throw new Error("OpenAI stream contains an incomplete tool call");
+          throw invalidProviderResponse(
+            "OpenAI stream contains an incomplete tool call",
+          );
         return {
           id: call.id,
           name: call.name,
-          args: JSON.parse(call.arguments || "{}"),
+          args: parseToolArguments(call.arguments),
         };
       });
       if (calls.length && finishReason !== "tool-calls")
-        throw new Error("OpenAI stream ended with incomplete tool calls");
+        throw invalidProviderResponse(
+          "OpenAI stream ended with incomplete tool calls",
+        );
+      validateToolCalls(calls);
       for (const toolCall of calls) yield { type: "tool-call", toolCall };
       yield { type: "finish", finishReason, usage };
     },
