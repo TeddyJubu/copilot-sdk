@@ -1,0 +1,173 @@
+{
+  "date": "2026-10-17",
+  "branch": "codex/playground-revamp",
+  "baselineCommit": "73b0002dedf8ef6743703761c622206c6e370fb7",
+  "scope": "Local deployment readiness checkpoint; no push, new PR, main merge, new deployment or npm publication",
+  "sdkRuntimeSourceUnchangedFrom": "7d6fa2d",
+  "node": "24.22.0",
+  "pnpm": "11.5.1",
+  "validation": {
+    "frozenInstall": "passed",
+    "docsExactDeploymentBuild": "passed",
+    "playgroundExactDeploymentBuild": "passed after changing model-list route from Edge to Node",
+    "llmTests": 427,
+    "copilotAndPlaygroundTests": 123,
+    "failures": 0,
+    "skips": 0,
+    "browserFeatureGuides": 10,
+    "browserChatGuides": 3,
+    "mobileDocs": "passed",
+    "browserFixtureFeatureRequests": 12,
+    "browserPageErrors": 0,
+    "liveOpenRouterModelListing": {
+      "status": 200,
+      "search": "claude",
+      "models": 34,
+      "apiKeyUsed": false
+    },
+    "productionFeatureLabServerCredentials": false,
+    "docsGeneratedProxyTarget": "https://copilot-sdk-wheat.vercel.app"
+  },
+  "deploymentSettings": [
+    {
+      "id": "prj_t0zcckkCEfkBMCSwtbilp9Jj8PQt",
+      "name": "copilot-playground",
+      "rootDirectory": "examples/playground",
+      "framework": "nextjs",
+      "nodeVersion": "24.x",
+      "buildCommand": null,
+      "installCommand": null,
+      "autoExposeSystemEnvs": true,
+      "git": {
+        "type": "github",
+        "org": "YourGPT",
+        "repo": "copilot-sdk",
+        "productionBranch": "main",
+        "deployHooks": []
+      },
+      "gitDeploymentEnabled": null,
+      "productionDeployment": {
+        "id": "dpl_6zVqrY8jEMo94GSJS7ejuxL3s2hi",
+        "url": "copilot-playground-e0ap64grn-delta4-infotech.vercel.app",
+        "readyState": "READY",
+        "createdAt": 1780641987981
+      },
+      "productionCommit": "70606f261cddcf455d1f7674f5b4ee1bc5b7039c"
+    },
+    {
+      "id": "prj_8fHxgO2bgwowEnCg8MRIBTjorV9T",
+      "name": "copilot-sdk-docs",
+      "rootDirectory": "apps/docs",
+      "framework": "nextjs",
+      "nodeVersion": "24.x",
+      "buildCommand": "npm run build",
+      "installCommand": "npm install",
+      "autoExposeSystemEnvs": true,
+      "git": {
+        "type": "github",
+        "org": "YourGPT",
+        "repo": "copilot-sdk",
+        "productionBranch": "main",
+        "deployHooks": []
+      },
+      "gitDeploymentEnabled": null,
+      "productionDeployment": {
+        "id": "dpl_9QdzZmGfdHfdzNbXuSgYemJbySkz",
+        "url": "copilot-sdk-docs-5qcd94e8w-delta4-infotech.vercel.app",
+        "readyState": "READY",
+        "createdAt": 1780641987945
+      },
+      "productionCommit": "70606f261cddcf455d1f7674f5b4ee1bc5b7039c"
+    }
+  ],
+  "configuredDocsPlaygroundUrl": [
+    {
+      "target": ["production", "preview", "development"],
+      "gitBranch": null,
+      "url": "https://copilot-sdk-wheat.vercel.app"
+    }
+  ],
+  "vercelSharedProviderKeyVariables": [],
+  "existingProductionBrowserChecks": [
+    {
+      "url": "https://copilot-sdk-wheat.vercel.app/playground",
+      "status": 200
+    },
+    {
+      "url": "https://copilot-sdk.yourgpt.ai/docs",
+      "status": 200
+    },
+    {
+      "url": "https://copilot-sdk.yourgpt.ai/playground",
+      "status": 200
+    }
+  ],
+  "packageArchiveInspection": [
+    {
+      "file": "yourgpt-copilot-sdk-2.6.0.tgz",
+      "name": "@yourgpt/copilot-sdk",
+      "version": "2.6.0",
+      "files": 244,
+      "license": true,
+      "missingExports": [],
+      "sensitiveConfigFiles": []
+    },
+    {
+      "file": "yourgpt-llm-sdk-2.6.0.tgz",
+      "name": "@yourgpt/llm-sdk",
+      "version": "2.6.0",
+      "files": 80,
+      "license": true,
+      "missingExports": [],
+      "sensitiveConfigFiles": []
+    }
+  ],
+  "mainRules": {
+    "requiredApprovals": 1,
+    "lastPushMustBeApprovedByOtherUser": true,
+    "staleApprovalsDismissedOnPush": true
+  },
+  "npmPublishing": "manual, deferred; prepared manifests 2.6.0 are not publication authorization",
+  "limits": [
+    "No new paid provider inference calls during deployment-only validation",
+    "Earlier real provider evidence remains linked from the readiness report",
+    "Vercel preview and production checks for the new candidate still require push, PR review and merge",
+    "Legacy playground chat routes support server environment credentials; none are configured in Vercel",
+    "Direct TypeSafe and Cloudflare remain fixture-only",
+    "Physical microphone and broader browser coverage pending"
+  ],
+  "logs": [
+    {
+      "path": "/tmp/copilot-production-node24-install.log",
+      "sha256": "5ce18ced1cc818e101c9324f7939e6c031c9fbedd0e2cbd54afd26c30f405617"
+    },
+    {
+      "path": "/tmp/copilot-production-node24-docs.log",
+      "sha256": "1370f8c5e49a498b1b731d83029f9d3175bfb357a0897cb622eee6a45df267b2"
+    },
+    {
+      "path": "/tmp/copilot-production-node24-playground.log",
+      "sha256": "987d23606b6d4c2d163064b7fd2e061dba580882e0af11492254f9f2bfbdc6fa"
+    },
+    {
+      "path": "/tmp/copilot-production-node24-playground-final.log",
+      "sha256": "5c7a04556674d28e79feaefe1f0de306d4c6644ccaa738843e09f6077e745cc2"
+    },
+    {
+      "path": "/tmp/copilot-production-node24-tests.log",
+      "sha256": "519bb162c9042e7824794104e4f103ded6fc25bc2e547daebc032c964377b42b"
+    },
+    {
+      "path": "/tmp/copilot-production-node24-llm-tests.log",
+      "sha256": "3e769cd944a3a7d7fce68c273dce53486ff8ad940961fbcdeaaf34ddfeb2c8f9"
+    },
+    {
+      "path": "/tmp/copilot-production-browser-doclinks.log",
+      "sha256": "5247867e4c19f8aa7852ec487165f44fffc378fe8515a9f8b29d3159c866d90e"
+    },
+    {
+      "path": "/tmp/copilot-production-browser-keys.log",
+      "sha256": "63000318fc0a215190c0db67f8d73ef3ae302b27ce951d78fb98cbd5bf44ec44"
+    }
+  ]
+}

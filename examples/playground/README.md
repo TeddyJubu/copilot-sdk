@@ -15,7 +15,7 @@ Hosted requests use your selected provider's key. Keys are saved in browser stor
 
 ## Run locally
 
-Requires Node.js 20.9+ and pnpm. From the repository root:
+Requires Node.js 22+ and the workspace's pinned pnpm 11.5.1. From the repository root:
 
 ```bash
 pnpm install
