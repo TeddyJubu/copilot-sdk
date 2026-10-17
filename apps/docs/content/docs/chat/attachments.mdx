@@ -482,7 +482,7 @@ function ChatWithAttachments() {
 
 ## Tool images and recorded audio
 
-Image attachments in a user message are distinct from images returned by a tool. Use the beta's [image tool results](/docs/tools/image-results) for screenshots or images the model receives after a function call. On supported native paths, screenshot output is not also appended as a duplicate user image.
+Image attachments in a user message are distinct from images returned by a tool. Use [image tool results](/docs/tools/image-results) for screenshots or images the model receives after a function call. On supported native paths, screenshot output is not also appended as a duplicate user image.
 
 For microphone input, use [recorded voice input](/docs/chat/voice-input) and a server [transcription route](/docs/llm-sdk/transcription). The initial audio integration returns text for review; it does not make arbitrary audio attachments into chat-model input or add realtime calls.
 

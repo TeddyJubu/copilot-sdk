@@ -1,9 +1,9 @@
 ---
 title: Prompt caching
-description: OpenAI Responses cache options available in beta and the remaining cross-provider work
+description: OpenAI Responses cache options and cross-provider support limits
 ---
 
-**LLM SDK `2.6.0-beta.2` forwards OpenAI Responses cache options.** It does not yet provide unified cache controls, normalized cache-read/write usage, or verified cache-aware pricing across providers. This is provider prompt caching, not an application cache of generated answers.
+The SDK forwards OpenAI Responses cache options. It does not yet provide unified cache controls, normalized cache-read/write usage, or verified cache-aware pricing across providers. This is provider prompt caching, not an application cache of generated answers.
 
 ## OpenAI Responses options
 
@@ -48,4 +48,4 @@ The same options can be supplied through Runtime's `config.openai.responses`. Se
 
 OpenAI Responses raw usage is retained in `result.providerMetadata?.openai?.response?.usage`. The normalized `result.usage` still contains only `promptTokens`, `completionTokens`, and `totalTokens`; it has no normalized cache-read or cache-write counters. Do not calculate guaranteed savings from these three totals.
 
-Request forwarding has fixture coverage. The beta release did not certify live cache hits, retention, or cost savings. OpenAI Chat-specific cache controls, Anthropic cache breakpoints/TTL, Google explicit cache resources, and consistent usage/cost reporting remain follow-ups in [#114](https://github.com/YourGPT/copilot-sdk/issues/114) and [#104](https://github.com/YourGPT/copilot-sdk/issues/104). A provider automatically caching requests does not mean the SDK exposes all its controls.
+Request forwarding has fixture coverage. Live cache hits, retention, and cost savings have not been certified. OpenAI Chat-specific cache controls, Anthropic cache breakpoints/TTL, Google explicit cache resources, and consistent usage/cost reporting remain follow-ups in [#114](https://github.com/YourGPT/copilot-sdk/issues/114) and [#104](https://github.com/YourGPT/copilot-sdk/issues/104). A provider automatically caching requests does not mean the SDK exposes all its controls.

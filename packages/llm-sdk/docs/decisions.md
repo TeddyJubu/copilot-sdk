@@ -1,10 +1,9 @@
-# Native Decisions — next beta (unreleased)
-
-This API is on `codex/next-beta-decisions`. It is not in the published
-`@yourgpt/llm-sdk@2.6.0-beta.3` hotfix. The production release candidate is separate.
+# Native Decisions
 
 Use Decisions to classify or score shared state with native decision models.
 Chat generation, Responses, and tool execution keep their existing APIs.
+See [package availability](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/beta-upgrade)
+for the versions that expose these exports.
 
 ```ts
 import { experimental_decide } from "@yourgpt/llm-sdk";
@@ -172,4 +171,4 @@ Opt-in live tests are in `test/live/decisions.cjs`; select a provider with
 `DECISION_TEST_PROVIDER` and enable `RUN_DECISIONS_LIVE=1` with its key configured
 privately. Direct Jev/Cloudflare live checks require their own credentials.
 
-Research and source pins: [next-beta plan](../../../docs/plans/2026-10-17-next-beta.md).
+Research and source pins: [implementation research](../../../docs/plans/2026-10-17-next-beta.md).

@@ -1,10 +1,10 @@
 ---
 title: Image generation
-description: Generate and edit images with the next beta's OpenAI image model.
+description: Generate and edit images with OpenAI image models.
 ---
 
-This API is available in workspace source but **unreleased on npm**. Existing published versions do
-not yet export `generateImage` or `openaiImage`.
+Use `generateImage` with `openaiImage` to create images from a prompt or edit
+uploaded images.
 
 See [release availability](/docs/llm-sdk/beta-upgrade). The
 [Feature Lab](/docs/feature-lab) provides generation and upload/edit examples,
@@ -57,4 +57,4 @@ fail before the request. Provider HTTP errors expose status/request ID through
 
 This helper handles final image results. Streaming previews and Responses-hosted
 image generation are separate integrations. See the [OpenAI guide](https://developers.openai.com/api/docs/guides/image-generation)
-and the SDK's [complete media guide](https://github.com/YourGPT/copilot-sdk/blob/codex/next-beta-decisions/packages/llm-sdk/docs/media.md).
+and the SDK's [complete media guide](https://github.com/YourGPT/copilot-sdk/blob/main/packages/llm-sdk/docs/media.md).

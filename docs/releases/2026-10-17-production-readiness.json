@@ -138,36 +138,36 @@
   ],
   "logs": [
     {
-      "path": "/tmp/copilot-production-node24-install.log",
-      "sha256": "5ce18ced1cc818e101c9324f7939e6c031c9fbedd0e2cbd54afd26c30f405617"
+      "sha256": "5ce18ced1cc818e101c9324f7939e6c031c9fbedd0e2cbd54afd26c30f405617",
+      "artifact": "copilot-production-node24-install.log"
     },
     {
-      "path": "/tmp/copilot-production-node24-docs.log",
-      "sha256": "1370f8c5e49a498b1b731d83029f9d3175bfb357a0897cb622eee6a45df267b2"
+      "sha256": "1370f8c5e49a498b1b731d83029f9d3175bfb357a0897cb622eee6a45df267b2",
+      "artifact": "copilot-production-node24-docs.log"
     },
     {
-      "path": "/tmp/copilot-production-node24-playground.log",
-      "sha256": "987d23606b6d4c2d163064b7fd2e061dba580882e0af11492254f9f2bfbdc6fa"
+      "sha256": "987d23606b6d4c2d163064b7fd2e061dba580882e0af11492254f9f2bfbdc6fa",
+      "artifact": "copilot-production-node24-playground.log"
     },
     {
-      "path": "/tmp/copilot-production-node24-playground-final.log",
-      "sha256": "5c7a04556674d28e79feaefe1f0de306d4c6644ccaa738843e09f6077e745cc2"
+      "sha256": "5c7a04556674d28e79feaefe1f0de306d4c6644ccaa738843e09f6077e745cc2",
+      "artifact": "copilot-production-node24-playground-final.log"
     },
     {
-      "path": "/tmp/copilot-production-node24-tests.log",
-      "sha256": "519bb162c9042e7824794104e4f103ded6fc25bc2e547daebc032c964377b42b"
+      "sha256": "519bb162c9042e7824794104e4f103ded6fc25bc2e547daebc032c964377b42b",
+      "artifact": "copilot-production-node24-tests.log"
     },
     {
-      "path": "/tmp/copilot-production-node24-llm-tests.log",
-      "sha256": "3e769cd944a3a7d7fce68c273dce53486ff8ad940961fbcdeaaf34ddfeb2c8f9"
+      "sha256": "3e769cd944a3a7d7fce68c273dce53486ff8ad940961fbcdeaaf34ddfeb2c8f9",
+      "artifact": "copilot-production-node24-llm-tests.log"
     },
     {
-      "path": "/tmp/copilot-production-browser-doclinks.log",
-      "sha256": "5247867e4c19f8aa7852ec487165f44fffc378fe8515a9f8b29d3159c866d90e"
+      "sha256": "5247867e4c19f8aa7852ec487165f44fffc378fe8515a9f8b29d3159c866d90e",
+      "artifact": "copilot-production-browser-doclinks.log"
     },
     {
-      "path": "/tmp/copilot-production-browser-keys.log",
-      "sha256": "63000318fc0a215190c0db67f8d73ef3ae302b27ce951d78fb98cbd5bf44ec44"
+      "sha256": "63000318fc0a215190c0db67f8d73ef3ae302b27ce951d78fb98cbd5bf44ec44",
+      "artifact": "copilot-production-browser-keys.log"
     }
   ],
   "previewFollowUp": {
@@ -196,40 +196,40 @@
     "pending": "Push final recursive-install correction with fresh authorization, then verify new preview",
     "logs": [
       {
-        "path": "/tmp/copilot-vercel-workspace-install-root.log",
-        "sha256": "8032546372843508fafb0bc5e9b22f353f1ab2eb8c7f7594cc9a3016877ee999"
+        "sha256": "8032546372843508fafb0bc5e9b22f353f1ab2eb8c7f7594cc9a3016877ee999",
+        "artifact": "copilot-vercel-workspace-install-root.log"
       },
       {
-        "path": "/tmp/copilot-vercel-workspace-install-docs.log",
-        "sha256": "2c2da9a072612650dc564c3c0347a3c31e0bf8cda7096cbdd056f8ac6034176a"
+        "sha256": "2c2da9a072612650dc564c3c0347a3c31e0bf8cda7096cbdd056f8ac6034176a",
+        "artifact": "copilot-vercel-workspace-install-docs.log"
       },
       {
-        "path": "/tmp/copilot-vercel-workspace-install-playground.log",
-        "sha256": "fea8847597c74a8d48cef54c4834429bb8222eea2c18afcd6ee9ae52608e187b"
+        "sha256": "fea8847597c74a8d48cef54c4834429bb8222eea2c18afcd6ee9ae52608e187b",
+        "artifact": "copilot-vercel-workspace-install-playground.log"
       },
       {
-        "path": "/tmp/copilot-vercel-workspace-build-docs.log",
-        "sha256": "d9a4ca771906c10753c916678fc7ef342b186d04669c736e46571c9f4986ecaa"
+        "sha256": "d9a4ca771906c10753c916678fc7ef342b186d04669c736e46571c9f4986ecaa",
+        "artifact": "copilot-vercel-workspace-build-docs.log"
       },
       {
-        "path": "/tmp/copilot-vercel-workspace-build-playground.log",
-        "sha256": "56b2cb56dd1532d14300f6595f6ca37cdbcc3f577f9c2d43006e450c77e5df49"
+        "sha256": "56b2cb56dd1532d14300f6595f6ca37cdbcc3f577f9c2d43006e450c77e5df49",
+        "artifact": "copilot-vercel-workspace-build-playground.log"
       },
       {
-        "path": "/tmp/copilot-pr131-clean-install.log",
-        "sha256": "53e39089493c160adca9cb0eb4966aaac7868196f07edbed48d767889d1bb315"
+        "sha256": "53e39089493c160adca9cb0eb4966aaac7868196f07edbed48d767889d1bb315",
+        "artifact": "copilot-pr131-clean-install.log"
       },
       {
-        "path": "/tmp/copilot-pr131-clean-docs-build.log",
-        "sha256": "12e3d4cbcb8f505b8d6819bd89f15f3ea8636d5227b80ddd2700d27011fea2af"
+        "sha256": "12e3d4cbcb8f505b8d6819bd89f15f3ea8636d5227b80ddd2700d27011fea2af",
+        "artifact": "copilot-pr131-clean-docs-build.log"
       },
       {
-        "path": "/tmp/copilot-pr131-clean-playground-build.log",
-        "sha256": "cd0de33df660411556b9c0a84d14819886f71542355da5ae803d9319b830a941"
+        "sha256": "cd0de33df660411556b9c0a84d14819886f71542355da5ae803d9319b830a941",
+        "artifact": "copilot-pr131-clean-playground-build.log"
       },
       {
-        "path": "/tmp/copilot-pr131-clean-tests.log",
-        "sha256": "e98da3b6b6da5400a4af59a7c579fb9a4ecb23748c90103abdf4e634fd759cf4"
+        "sha256": "e98da3b6b6da5400a4af59a7c579fb9a4ecb23748c90103abdf4e634fd759cf4",
+        "artifact": "copilot-pr131-clean-tests.log"
       }
     ],
     "firstCorrectionPushed": "8732d7076709aa23c677bc9507cfe1a67234bf20",
@@ -262,5 +262,6 @@
       "failures": 0,
       "skips": 0
     }
-  }
+  },
+  "logArtifactStorage": "Named log artifacts are retained locally, outside the repository; only their names and checksums are recorded here."
 }

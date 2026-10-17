@@ -188,10 +188,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 - [Fallback Chain](/docs/providers/fallback) - Automatic failover between providers
 - [generateText()](/docs/llm-sdk) - Full LLM SDK reference
 
-## Next beta: reasoning controls
+## Reasoning controls
 
-The following additions are on the unreleased compatibility branch. Existing
-OpenRouter calls keep Chat Completions and the model's reasoning defaults.
+Configure reasoning through the modern `openrouter()` factory. Calls keep Chat
+Completions and the model's reasoning defaults unless you supply these options.
+See [package availability](/docs/llm-sdk/beta-upgrade) before upgrading.
 
 ```ts
 import { generateText, streamText } from "@yourgpt/llm-sdk";

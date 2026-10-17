@@ -90,7 +90,7 @@ test each new preview directly before merging.
 - Both package tarballs were created locally and inspected: all declared export
   targets and licenses exist; no `.env`, `.env.local`, `.npmrc` or credentials
   store files are included. This is packaging inspection, not npm publication.
-- SDK runtime source is unchanged from the tested next-beta/UI baseline by the
+- SDK runtime source is unchanged from the tested feature and UI baseline by the
   reconciliation and this deployment checkpoint.
 
 See [sanitized checkpoint evidence](2026-10-17-production-readiness.json).

@@ -1,7 +1,7 @@
 # Image tool results and recorded audio
 
-First published in LLM SDK **`2.6.0-beta.2`**, with Copilot integration in **`2.5.1-beta.3`**; included in both stable **`2.6.0`** packages.
-For the navigable documentation, start with the [beta upgrade guide](https://copilot-sdk.yourgpt.ai/docs/beta),
+Tools can return images to supported models, and audio helpers provide speech generation and recorded voice input.
+For the navigable documentation, start with the [versions and compatibility](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/beta-upgrade),
 [image tool results](https://copilot-sdk.yourgpt.ai/docs/tools/image-results),
 [speech](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/speech),
 [transcription](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/transcription), and
@@ -57,7 +57,7 @@ OpenAI Chat Completions, Gemini, Ollama, Azure Chat and other compatible endpoin
 
 Native output is carried as `modelOutput` next to the tool message's text. Preserve it when storing/restoring messages, along with `tool_call_id` / `toolCallId` and assistant tool calls. The Runtime storage helper places it at `StorageMessage.metadata.modelOutput`; a custom loader must map it back to `modelOutput`. Copilot's serialized `UIMessage` history preserves it directly, including server results in streaming execution metadata. Do not truncate image base64 or substitute it with text. Context pruning can remove complete older tool exchanges.
 
-If an existing screenshot handler explicitly uses `addAsUserMessage`, it continues to add an attachment. When native model output is also supplied, the native output takes precedence and no extra attachment turn is created. General image generation and editing use the separate, unreleased API in the [media guide](./media.md).
+If an existing screenshot handler explicitly uses `addAsUserMessage`, it continues to add an attachment. When native model output is also supplied, the native output takes precedence and no extra attachment turn is created. General image generation and editing use the API in the [media guide](./media.md).
 
 ## Speech generation on the server
 
@@ -170,7 +170,7 @@ upload?.abort();
 recorder.dispose();
 ```
 
-The recorder negotiates supported WebM/Opus, MP4, or Ogg/Opus containers. Stop, cancel, permission races, recorder errors and disposal release microphone tracks. Defaults: 20 MB and 60 seconds; exceeding either discards the recording and invokes `onError`. The recorder does not submit chat messages automatically or provide voice cloning, telephony, live transcription or a bidirectional call. For the separate next-beta WebRTC call API, see the [realtime guide](./media.md#realtime-voice-server-setup).
+The recorder negotiates supported WebM/Opus, MP4, or Ogg/Opus containers. Stop, cancel, permission races, recorder errors and disposal release microphone tracks. Defaults: 20 MB and 60 seconds; exceeding either discards the recording and invokes `onError`. The recorder does not submit chat messages automatically or provide voice cloning, telephony, live transcription or a bidirectional call. For the WebRTC call API, see the [realtime guide](./media.md#realtime-voice-server-setup).
 
 ## Verification sources
 

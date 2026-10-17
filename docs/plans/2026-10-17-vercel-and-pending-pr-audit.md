@@ -16,7 +16,7 @@ This is a source/issue audit, not approval to merge or a new release.
 - The saved competitor directories are older: `competitors/ai-main` contains
   core `6.0.3`; `competitors/vercel-ai` contains `7.0.0-canary.124`. Those were
   not used as the current feature baseline.
-- Remote Copilot `beta` remains `321bef0`. The next-beta implementation is local,
+- Remote Copilot `beta` remains `321bef0`. The feature implementation is local,
   and the separately published LLM `2.6.0-beta.3` hotfix still needs source
   integration into remote beta. npm publication and Git branch state differ.
 
@@ -26,7 +26,7 @@ Do not reopen these as wholly missing: model-aware OpenAI parameters and narrow
 compatibility fallback; explicit Responses selection and stored/stateless replay;
 OpenAI/Anthropic image tool output; Anthropic system instructions; TTS and
 recorded-file STT. Native Decisions, OpenAI WebRTC voice, image generation/editing
-and the Feature Lab are implemented on the next-beta branch but unpublished.
+and the Feature Lab are implemented on the feature integration branch but unpublished.
 
 OpenAI and OpenRouter Decisions passed live checks. Direct TypeSafe/Jev and
 Cloudflare are implemented with fixtures but lack live credential validation.
@@ -85,7 +85,7 @@ do not implement the old RFC wording without revising it.
 | Richer Decisions                                | Common boolean/choice/score and native image input are implemented. TypeSafe `box` questions added in core `7.0.143` / TypeSafe `3.0.21` are absent. Ordered mixed state and richer image-reference parity need a separate contract decision.                                      |
 | More audio/media providers                      | Current speech, transcription, realtime and generated-image implementations are OpenAI-first. Google audio response modalities, native speech/Live integration, incremental transcription and streaming audio remain broader work.                                                 |
 | Partial/generated image events inside Responses | Standalone generation/editing works. Streaming image previews and the provider-hosted Responses image tool are not covered by that helper.                                                                                                                                         |
-| Wider SDK surface                               | No matching top-level embedding/reranking, batch, translation, video or durable workflow API was found in the inspected exports. These are discovery items, not prerequisites for shipping the requested next-beta scope.                                                          |
+| Wider SDK surface                               | No matching top-level embedding/reranking, batch, translation, video or durable workflow API was found in the inspected exports. These are discovery items, not prerequisites for shipping the requested feature scope.                                                            |
 
 Core release details above come from the
 [pinned core changelog](https://github.com/vercel/ai/blob/fce9210c6405c0ad8452fee3f50717e8ea910b97/packages/ai/CHANGELOG.md).
@@ -97,7 +97,7 @@ they are not all new October features.
 Five are authored by Ankush. Four target beta. No submitted formal reviews or
 inline review comments were returned; #110 has substantial issue-comment review
 discussion. GitHub mergeability below is against each PR's remote target branch,
-not a guarantee against our unpublished next-beta work.
+not a guarantee against our unpublished feature work.
 
 | PR / author                                                                                          | Head / base                                    | Assessment and next action                                                                                                                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -136,7 +136,7 @@ This turn did not build or run every PR head and does not claim merge readiness.
 | #111, #112                                         | Keep roadmap/reconciliation open; update dated release statements and the now-completed beta-CI item after review.                                                                                                                                          |
 | #122, #123, #124, #125                             | Main requested slices shipped: parameters/fallback, image tools, TTS, recorded STT. Reconcile acceptance and close or split residual provider/browser scope; do not rebuild them.                                                                           |
 | #115                                               | Core Responses/replay slice shipped. Keep broader native-tool/provider parity separate rather than treating Responses as absent.                                                                                                                            |
-| #116, #126                                         | Decisions and realtime implemented locally; wait for next-beta integration/publication. Direct Jev/Cloudflare and physical audio remain validation gaps.                                                                                                    |
+| #116, #126                                         | Decisions and realtime implemented locally; wait for feature integration and publication. Direct Jev/Cloudflare and physical audio remain validation gaps.                                                                                                  |
 | #121                                               | Selected release tests passed and regressions were added. Production/device/storage/application-policy gates remain; distinguish them from completed beta gates.                                                                                            |
 | #104, #113, #114, #117, #118, #119, #120, #96, #97 | Real remaining provider/API work; priorities and direction corrections are above.                                                                                                                                                                           |
 | #74 — Ankush                                       | Custom message-type renderer registry remains absent. `renderMessage`/`messageView` customization exists but is not the proposed registration API. Keep the request, with a separate typed presentation discriminator rather than arbitrary provider roles. |
@@ -148,7 +148,7 @@ This turn did not build or run every PR head and does not claim merge readiness.
 
 No issue or PR was closed, edited, commented on, approved or merged. No branch
 was pushed. Existing documentation edits were preserved. Detailed snapshots and
-the fresh cache-accounting fixture are in `/tmp/copilot-pending-audit-2026-10-17/`.
+the fresh cache-accounting fixture are retained locally, outside the repository.
 
 ## Recommended sequence
 
@@ -156,7 +156,7 @@ the fresh cache-accounting fixture are in `/tmp/copilot-pending-audit-2026-10-17
    distinction between aggregate tokens, cache categories and monetary cost.
 2. Integrate the already-published hotfix source, then finish #110's regression
    and preview validation. Review #94 only after its concrete registry defect is fixed.
-3. Prepare the existing next-beta implementation and docs for the approved Git
+3. Prepare the existing feature implementation and docs for the approved Git
    and npm release steps, retaining the explicit live-test limitations.
 4. Use existing #118/#119/#117/#97/#96 for the next provider work. Re-scope #99's
    useful additions against today's implementation and retire superseded work

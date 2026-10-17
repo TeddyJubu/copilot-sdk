@@ -657,7 +657,7 @@ export default function FeatureLab() {
                 <span className="text-brand">Compatibility check</span>
               ) : (
                 <>
-                  <span className="text-brand">Beta</span>
+                  <span className="text-brand">Feature</span>
                   <span aria-hidden>·</span>
                   <span className="num">
                     {String(featureIndex).padStart(2, "0")}/

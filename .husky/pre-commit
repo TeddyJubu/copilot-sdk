@@ -4,12 +4,12 @@
 #
 
 # Add homebrew to PATH for non-interactive shells
-export PATH="/Users/s/Library/pnpm:/opt/homebrew/bin:$PATH"
+export PATH="${PNPM_HOME:-$HOME/Library/pnpm}:/opt/homebrew/bin:$PATH"
 
 echo "🔍 Running Gitleaks to check for secrets..."
 
 # Check if gitleaks is installed
-if ! command -v gitleaks &> /dev/null; then
+if ! command -v gitleaks >/dev/null 2>&1; then
     echo ""
     echo "❌ ERROR: Gitleaks is not installed!"
     echo ""
@@ -21,11 +21,9 @@ if ! command -v gitleaks &> /dev/null; then
 fi
 
 # Run gitleaks on staged changes
-gitleaks protect --staged --verbose --config=.gitleaks.toml
-
-if [ $? -eq 1 ]; then
+if ! gitleaks git --staged --redact=100 --ignore-gitleaks-allow --config=.gitleaks.toml; then
     echo ""
-    echo "❌ COMMIT BLOCKED: Secrets or .env files detected!"
+    echo "❌ COMMIT BLOCKED: Secret scan failed or found private data."
     echo ""
     echo "To fix:"
     echo "  1. Remove sensitive data from staged files"

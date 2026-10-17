@@ -12,7 +12,7 @@ import { Steps, Step } from 'fumadocs-ui/components/steps';
 ## Session Persistence
 
 <Callout type="warn">
-**Beta** — This feature is in **alpha**. APIs may change before stable release.
+**Experimental.** APIs may change before they are stabilized.
 </Callout>
 
 Persist the full conversation state — including compaction metadata and message history — across page reloads with zero extra code.
@@ -410,7 +410,7 @@ interface WelcomeConfig {
 
 ---
 
-## Beta provider and image state
+## Provider and image state
 
 Copilot SDK `2.5.1-beta.3` preserves supported provider metadata and native tool `modelOutput` through JSON/SSE and full UI-message serialization. Keep whole messages and tool executions when persisting a thread; saving only visible text loses state needed for continuation.
 

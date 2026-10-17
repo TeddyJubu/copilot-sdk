@@ -1,9 +1,13 @@
 ---
 title: 2.6.0 upgrade guide
-description: Promote the tested beta features to stable SDK versions and understand the compatibility changes
+description: Features, package availability, and compatibility changes in the 2.6.0 source
 ---
 
-The isolated **2.6.0 production candidate in [PR #130](https://github.com/YourGPT/copilot-sdk/pull/130)** carries the feature set tested in LLM SDK `2.6.0-beta.3` and Copilot SDK `2.5.1-beta.3`, including the compatibility hotfix. That PR’s runtime source matches those betas. The combined workspace and playground also contain the unreleased next-beta features described below; they are not part of that baseline comparison. npm publication is a separate step; merging the production PR does not publish packages.
+This guide covers the combined SDK features and compatibility fixes in the `2.6.0`
+source on `main`, including Decisions, Responses, image tools, audio and realtime
+voice. The documentation and playground use this source. Check
+[package availability](/docs/llm-sdk/beta-upgrade) before upgrading an npm
+installation; merging source and deploying the website do not publish packages.
 
 ## Installation
 
@@ -17,7 +21,7 @@ Use matching stable versions when validating the upgrade. The `beta` tag is a se
 
 Until stable publication, use the verified versions `@yourgpt/llm-sdk@2.6.0-beta.3` and `@yourgpt/copilot-sdk@2.5.1-beta.3`.
 
-## Included in this release
+## Features in 2.6.0 source
 
 | Feature or fix                                                               | Guide                                                                                                                                        |
 | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -28,8 +32,15 @@ Until stable publication, use the verified versions `@yourgpt/llm-sdk@2.6.0-beta
 | Buffered OpenAI text-to-speech and recorded-file speech-to-text              | [Speech](/docs/llm-sdk/speech), [transcription](/docs/llm-sdk/transcription)                                                                 |
 | Browser microphone recording, cancellation, and transcript review            | [Voice input](/docs/chat/voice-input)                                                                                                        |
 | Structured output translation and token usage fixes across existing adapters | [Structured output](/docs/llm-sdk/structured-output), [token tracking](/docs/advanced/token-tracking)                                        |
+| Native Decisions for OpenAI, Jev/TypeSafe, OpenRouter and Cloudflare          | [Decisions](/docs/llm-sdk/decisions)                                                                                                        |
+| OpenAI image generation and editing                                         | [Image generation](/docs/llm-sdk/image-generation)                                                                                         |
+| Experimental browser voice calls with Copilot tools                         | [Realtime voice](/docs/llm-sdk/realtime)                                                                                                   |
+| Modern OpenRouter reasoning controls and replay                             | [Reasoning controls](/docs/providers/openrouter#reasoning-controls)                                                                        |
 
-The release also retains the tested fixes for mixed server/client tool turns, tool-loop iteration limits, cancellation, stream reader reuse, interleaved tool arguments, screenshot attachments, trailing usage, and public CJS/ESM declarations. Feature guides mention the beta versions where the APIs first appeared; those APIs are included in stable 2.6.0.
+The source also retains the tested fixes for mixed server/client tool turns,
+tool-loop iteration limits, cancellation, stream reader reuse, interleaved tool
+arguments, screenshot attachments, trailing usage, and public CJS/ESM declarations.
+The version guide lists which capabilities are available in each published package.
 
 ## Compatibility checks
 
@@ -45,10 +56,14 @@ The hosted YourGPT storage adapter does not yet preserve all Responses/image rep
 
 OpenAI is the built-in TTS/STT provider. Live media checks covered inline images and WAV/MP3; other supported formats have fixture coverage. Cache option forwarding is available for OpenAI Responses, while unified cache usage/cost accounting remains pending. See [storage](/docs/server/storage#responses-and-image-result-persistence) and [prompt caching](/docs/advanced/prompt-caching).
 
-Prompt delivery checks do not establish strict JSON output or application guardrail accuracy. The backend's `TRAINING_CONFLICT` schema and failure policy still need application-level evaluation.
+Prompt delivery checks do not establish strict JSON output or application guardrail
+accuracy. Evaluate your application's schemas and failure policy with representative inputs.
 
-## Next beta
+## Trying the features
 
-Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, and Cloudflare, experimental realtime voice, and image generation/editing are implemented in the workspace source and new Feature Lab, alongside later UI/PR adaptations. They remain unpublished on npm and were outside the isolated PR #130 baseline. Use the [availability guide](/docs/llm-sdk/beta-upgrade) to distinguish workspace APIs from installed package exports. Remaining provider/caching and persistence work stays on the [roadmap](https://github.com/YourGPT/copilot-sdk/issues/111).
+Use the [Feature Lab](/playground/features) to try the SDK with your provider keys.
+Direct Jev and Cloudflare account tests and physical microphone validation remain
+pending. Provider caching and persistence follow-ups are tracked on the
+[roadmap](https://github.com/YourGPT/copilot-sdk/issues/111).
 
-For historical beta versions and validation evidence, see the [beta release record](/docs/beta).
+For published versions and validation evidence, see the [release history](/docs/beta).

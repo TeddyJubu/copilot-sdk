@@ -9,7 +9,7 @@ import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
 
 Your server receives messages from the Copilot SDK frontend, calls the LLM, and returns the response.
 
-For existing beta applications, read the [compatibility upgrade guide](/docs/llm-sdk/beta-upgrade).
+For existing applications, read the [compatibility upgrade guide](/docs/llm-sdk/beta-upgrade).
 It explains `systemPrompt` versus system-role messages, structured tool content,
 and which usage/debug fields to omit from public responses. Preserve the message
 state described in [Responses replay](/docs/llm-sdk/responses) when using custom storage.
@@ -643,11 +643,11 @@ return Response.json({ text: result.text });
 
 ---
 
-## Beta request behavior
+## Request behavior
 
 [System prompts](/docs/server/system-prompts) documents Runtime's `systemPrompt`, default/request precedence, and the Anthropic system-role fix. The modern generation functions use `system` instead.
 
-Use request `config.openai` for [OpenAI transport and Responses options](/docs/llm-sdk/responses). Preserve returned provider metadata and image `modelOutput` when [saving and restoring conversation history](/docs/server/storage#responses-and-image-result-persistence). See the [beta upgrade guide](/docs/beta) for exact package versions and remaining work.
+Use request `config.openai` for [OpenAI transport and Responses options](/docs/llm-sdk/responses). Preserve returned provider metadata and image `modelOutput` when [saving and restoring conversation history](/docs/server/storage#responses-and-image-result-persistence). See the [versions and compatibility](/docs/llm-sdk/beta-upgrade) for exact package versions and remaining work.
 
 ---
 

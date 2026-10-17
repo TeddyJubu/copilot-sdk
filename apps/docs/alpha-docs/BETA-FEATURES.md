@@ -1,6 +1,6 @@
-# Beta Features — Complete List
+# Feature inventory (archived)
 
-> **Status, 17 October 2026:** This is an earlier internal beta inventory. It includes design examples and historical branch comparisons that are not a current API contract. See the [published release](../../../docs/releases/2026-10-17-beta.md) and [current beta guide](../../../apps/docs/content/docs/beta.mdx) for released versions, actual APIs, and pending work.
+> **Status, 17 October 2026:** This is an earlier internal beta inventory. It includes design examples and historical branch comparisons that are not a current API contract. See the [published release](../../../docs/releases/2026-10-17-beta.md) and [versions and compatibility](../../../apps/docs/content/docs/llm-sdk/beta-upgrade.mdx) for released versions, actual APIs, and pending work.
 
 > All features present in `beta` branch but **not yet in `main`** (production).
 > Organised by SDK package. Docs/alpha-doc status noted per feature.

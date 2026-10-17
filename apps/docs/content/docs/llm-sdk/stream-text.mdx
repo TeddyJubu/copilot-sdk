@@ -86,8 +86,8 @@ result.fullStream     // AsyncIterable<StreamPart> - all events
 result.text           // Promise<string> - full text
 result.usage          // Promise<TokenUsage> - token counts
 result.finishReason   // Promise<FinishReason>
-result.response       // Promise<{ messages: CoreMessage[] }> (beta)
-result.providerMetadata // Promise<ProviderMetadata | undefined> (beta)
+result.response       // Promise<{ messages: CoreMessage[] }>
+result.providerMetadata // Promise<ProviderMetadata | undefined>
 
 // HTTP Response helpers
 result.toTextStreamResponse()   // text/plain stream
@@ -312,7 +312,7 @@ export async function POST(req: Request) {
 
 ---
 
-## Beta continuation and shared execution
+## Continuation and shared execution
 
 The optional `openai` request setting selects the [OpenAI transport](/docs/llm-sdk/responses). Stream readers, response helpers, and result promises share one model execution. Reading `textStream` and then awaiting `response` or `providerMetadata` does not send a second request.
 

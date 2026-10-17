@@ -1,8 +1,9 @@
-# Images and realtime voice — unreleased beta
+# Images and realtime voice
 
-These additions are on `codex/next-beta-decisions`; they are not yet published.
-Existing chat, Responses, Decisions, speech generation and file transcription APIs
-keep their existing contracts. Realtime voice is experimental.
+Generate and edit images with OpenAI, or connect browser voice calls to Copilot
+tools over WebRTC. Realtime voice is experimental. See
+[package availability](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/beta-upgrade)
+for the versions that expose these APIs.
 
 ## Image generation and editing
 
@@ -49,7 +50,7 @@ optional HTTP `status`, and `requestId`; it omits provider error bodies.
 ## Realtime voice: server setup
 
 OpenAI GA Realtime is a turn-based speech conversation over WebRTC. It is distinct
-from GPT-Live's continuous/delegated protocol. This beta supports OpenAI Realtime
+from GPT-Live's continuous/delegated protocol. The SDK supports OpenAI Realtime
 browser calls, not GPT-Live, telephony/SIP, or other realtime providers.
 
 Authenticate and authorize your session endpoint, apply quotas/rate limits, and
@@ -197,4 +198,4 @@ Provider contracts: [Realtime getting started](https://developers.openai.com/api
 Compared with [Vercel realtime](https://ai-sdk.dev/docs/ai-sdk-core/realtime) and
 [image generation](https://ai-sdk.dev/docs/ai-sdk-core/image-generation), including
 source and changelog snapshot `fce9210c6405c0ad8452fee3f50717e8ea910b97` (2026-10-16).
-See the repository's media beta plan/release record for exact validation results.
+See the repository's media implementation and validation records for exact validation results.

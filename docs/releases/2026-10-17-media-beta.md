@@ -1,4 +1,4 @@
-# Next beta: images and realtime voice
+# images and realtime voice
 
 Implemented on `codex/next-beta-decisions` after the native Decisions commit.
 No version bump, npm release, push or PR is included. The production candidate
@@ -57,7 +57,7 @@ input/output and interruption checks passed. Initial React demo testing caught
 the legacy-context reference and stale registry snapshot; both were corrected and
 the UI smoke test was rerun successfully.
 
-Evidence is under `/tmp/copilot-next-beta-media`: `all-tests.log`,
+Evidence is retained locally, outside the repository: `all-tests.log`,
 `node18-tests.log`, `node20-tests.log`, `workspace-build-final.log`,
 `public-types.log`, `react-test.log`, `live-media.json`,
 `live-realtime-browser.json`, and retained initial failure reports. Only synthetic

@@ -2,7 +2,7 @@
 
 17 October 2026. Reviewed the five open Ankush PRs at the exact heads recorded in
 [evidence.json](./evidence.json). Work is isolated on
-`codex/ankush-pr-compatibility`, based on next-beta commit `40fc00d`. No development
+`codex/ankush-pr-compatibility`, based on feature commit `40fc00d`. No development
 branch was imported. No PR was approved, merged, closed or edited, and nothing was
 pushed or published. The original checkout and its documentation edits are intact.
 
@@ -126,7 +126,7 @@ not treated as the latest implementation.
 
 ## Remaining work before merging these PRs
 
-1. Review the prepared compatibility changes against the current next-beta base.
+1. Review the prepared compatibility changes against the feature integration base.
 2. Integrate the sandbox patch only with the GenUI feature and its dependency work.
 3. Reimplement single-turn presentation while preserving canonical history,
    branching, approvals, cancellation and persistence. #78/#88 remain blocked.
@@ -138,7 +138,7 @@ not treated as the latest implementation.
 
 Reproduction commands live in `test/pr-compatibility.test.cjs`,
 `test/browser/pr-compatibility.cjs`, `test/review/`, and the two new LLM test files.
-Detailed local logs and exact-head snapshots are under
-`/tmp/copilot-ankush-verification/`. This review establishes concrete fixes and
+Detailed logs and exact-head snapshots are retained locally, outside the
+repository. This review establishes concrete fixes and
 merge blockers; it does not certify all historical feature-branch code or all
 provider/model/browser combinations.

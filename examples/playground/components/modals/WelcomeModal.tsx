@@ -39,8 +39,8 @@ function WelcomeModalComponent({
             Welcome to the Copilot SDK playground
           </DialogTitle>
           <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground">
-            Chat with a configurable Copilot and test every beta feature against
-            real providers.
+            Chat with a configurable Copilot and try SDK features with real
+            providers.
           </DialogDescription>
         </DialogHeader>
 

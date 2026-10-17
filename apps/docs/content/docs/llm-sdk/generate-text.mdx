@@ -77,7 +77,7 @@ result.toolCalls      // ToolCall[] - All tool calls made
 result.toolResults    // ToolResult[] - All tool results
 result.steps          // GenerateStep[] - Step-by-step breakdown
 result.response       // { messages } - Full message history
-result.providerMetadata // Provider-specific response state (beta)
+result.providerMetadata // Provider-specific response state
 ```
 
 ---
@@ -238,7 +238,7 @@ for (const step of result.steps) {
 
 ---
 
-## Beta transport and history
+## Transport and history
 
 The optional `openai` request setting selects Chat/Responses and overrides provider transport defaults. See [Responses](/docs/llm-sdk/responses) for full examples, `store`, and `previousResponseId`.
 
