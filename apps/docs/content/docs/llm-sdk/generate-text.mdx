@@ -73,6 +73,7 @@ result.toolCalls      // ToolCall[] - All tool calls made
 result.toolResults    // ToolResult[] - All tool results
 result.steps          // GenerateStep[] - Step-by-step breakdown
 result.response       // { messages } - Full message history
+result.providerMetadata // Provider-specific response state (beta)
 ```
 
 ---
@@ -230,6 +231,14 @@ for (const step of result.steps) {
 | Batch operations | `generateText()` |
 | Simple API endpoints | `generateText()` |
 | When you need full response at once | `generateText()` |
+
+---
+
+## Beta transport and history
+
+The optional `openai` request setting selects Chat/Responses and overrides provider transport defaults. See [Responses](/docs/llm-sdk/responses) for full examples, `store`, and `previousResponseId`.
+
+Preserve `result.response.messages` intact for stateless continuation, including provider metadata and native image tool outputs. `result.providerMetadata` retains the final provider response state. Do not rebuild a conversation from `result.text` alone. [System instructions](/docs/server/system-prompts) use `system` in this API; Runtime uses `systemPrompt`.
 
 ---
 

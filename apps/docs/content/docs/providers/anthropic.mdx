@@ -1,6 +1,6 @@
 ---
 title: Anthropic
-description: Use Claude 3.5 Sonnet, Claude 3 Opus, and more
+description: Configure Claude, system instructions, and native image tool results
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout';
@@ -9,7 +9,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 <ProviderHeader
   provider="anthropic"
   name="Anthropic"
-  description="Claude 3.5 Sonnet, Claude 3 Opus"
+  description="Claude models, system instructions, and image tools"
 />
 
 Claude models from Anthropic. Known for safety, long context, and excellent reasoning.
@@ -41,7 +41,7 @@ import { generateText } from '@yourgpt/llm-sdk';
 import { anthropic } from '@yourgpt/llm-sdk/anthropic';
 
 const result = await generateText({
-  model: anthropic('claude-sonnet-4-20250514'),
+  model: anthropic('claude-sonnet-4-5'),
   prompt: 'Explain the theory of relativity.',
 });
 
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
   const { messages } = await req.json();
 
   const result = await streamText({
-    model: anthropic('claude-sonnet-4-20250514'),
+    model: anthropic('claude-sonnet-4-5'),
     system: 'You are a helpful assistant.',
     messages,
   });
@@ -69,27 +69,9 @@ export async function POST(req: Request) {
 
 ---
 
-## Available Models
+## Model selection
 
-```ts
-// Claude 4 (Latest)
-anthropic('claude-sonnet-4-20250514')    // Best balance of speed & quality
-anthropic('claude-opus-4-20250514')      // Most capable
-
-// Claude 3.7
-anthropic('claude-3-7-sonnet-20250219')  // Extended thinking support
-anthropic('claude-3-7-sonnet-latest')    // Latest 3.7 version
-
-// Claude 3.5
-anthropic('claude-sonnet-4-20250514')  // Great performance
-anthropic('claude-3-5-sonnet-latest')    // Latest 3.5 version
-anthropic('claude-3-5-haiku-20241022')   // Fast and affordable
-
-// Claude 3
-anthropic('claude-3-opus-20240229')      // High quality
-anthropic('claude-3-sonnet-20240229')    // Balanced
-anthropic('claude-3-haiku-20240307')     // Fastest
-```
+The examples use `claude-sonnet-4-5`, which was used for the Anthropic prompt-delivery checks. Select a model available to your account from [Anthropic's model catalog](https://platform.claude.com/docs/en/models/overview). Context limits, pricing, and supported features depend on the model; these examples are not a current model ranking.
 
 ---
 
@@ -99,13 +81,13 @@ anthropic('claude-3-haiku-20240307')     // Fastest
 import { anthropic } from '@yourgpt/llm-sdk/anthropic';
 
 // Custom API key
-const model = anthropic('claude-3-5-sonnet-20241022', {
+const model = anthropic('claude-sonnet-4-5', {
   apiKey: 'sk-ant-custom-key',
 });
 
 // With generation options
 const result = await generateText({
-  model: anthropic('claude-sonnet-4-20250514'),
+  model: anthropic('claude-sonnet-4-5'),
   prompt: 'Hello',
   temperature: 0.7,        // 0-1
   maxTokens: 4096,         // Max response length
@@ -124,7 +106,7 @@ import { anthropic } from '@yourgpt/llm-sdk/anthropic';
 import { z } from 'zod';
 
 const result = await generateText({
-  model: anthropic('claude-sonnet-4-20250514'),
+  model: anthropic('claude-sonnet-4-5'),
   prompt: 'Analyze this document for key insights',
   tools: {
     analyzeDocument: tool({
@@ -146,14 +128,14 @@ const result = await generateText({
 
 ## Long Context
 
-Claude excels at long documents (200K context):
+Check the selected model's context limit before sending long documents:
 
 ```ts
 const result = await generateText({
-  model: anthropic('claude-sonnet-4-20250514'),
+  model: anthropic('claude-sonnet-4-5'),
   system: `You are a support agent. Here is our full documentation:
 
-  ${fullDocumentation}  // Can be 100K+ tokens
+  ${fullDocumentation}
 
   Answer questions based on this documentation.`,
   prompt: userQuestion,
@@ -168,7 +150,7 @@ Claude models support image analysis:
 
 ```ts
 const result = await generateText({
-  model: anthropic('claude-sonnet-4-20250514'),
+  model: anthropic('claude-sonnet-4-5'),
   messages: [
     {
       role: 'user',
@@ -205,13 +187,37 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 ## Pricing
 
-| Model | Input | Output |
-|-------|-------|--------|
-| claude-3-5-sonnet | $3/1M tokens | $15/1M tokens |
-| claude-3-opus | $15/1M tokens | $75/1M tokens |
-| claude-3-5-haiku | $0.80/1M tokens | $4/1M tokens |
+Check [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing) for current rates. The beta does not yet add unified Anthropic cache controls or normalized cache-read/write accounting.
 
-*Check [Anthropic pricing](https://anthropic.com/pricing) for current rates.*
+---
+
+## System instructions in Runtime
+
+**Fixed in LLM SDK `2.6.0-beta.2`.** Runtime now moves `role: 'system'` messages into Anthropic's top-level `system` field. Previously those messages could be filtered out without reaching the model. Existing `systemPrompt` behavior remains supported.
+
+```ts
+import { createRuntime } from '@yourgpt/llm-sdk';
+import { createAnthropic } from '@yourgpt/llm-sdk/anthropic';
+
+const runtime = createRuntime({
+  provider: createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
+  model: 'claude-sonnet-4-5',
+});
+const result = await runtime.chat({
+  systemPrompt: 'Classify the user message. Reply with SUPPORT or OTHER only.',
+  messages: [{ role: 'user', content: 'I cannot sign in.' }],
+});
+```
+
+Use Runtime's `systemPrompt` or modern `generateText` / `streamText`'s `system` for new application-owned instructions. If you also supply system-role messages, both apply: explicit/default instructions first, then system messages in their original order. They are not deduplicated or treated as overrides. Text-only system content is accepted; unsupported non-text content throws instead of disappearing.
+
+See [system prompts](/docs/server/system-prompts) for precedence, streaming, migration examples, and guardrail validation limits.
+
+---
+
+## Images returned by tools
+
+The beta maps typed [image tool results](/docs/tools/image-results) to native Anthropic `tool_result` content, preserving accompanying text and the original application result. User image inputs and tool-output images have different shapes. This support does not add image generation or speech/transcription to the Anthropic adapter.
 
 ---
 

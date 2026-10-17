@@ -206,3 +206,7 @@ export function ChatPanel() {
   );
 }
 ```
+
+## Cache accounting in beta
+
+Normalized token usage has three fields: `promptTokens`, `completionTokens`, and `totalTokens`. It does not yet include normalized cache-read/write counters. OpenAI Responses retains raw provider usage in metadata, but this is not a complete cross-provider pricing model. See [prompt caching](/docs/advanced/prompt-caching) before using token totals to estimate caching savings.

@@ -5,7 +5,7 @@ description: Unified API for any LLM provider
 
 import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
-One API, any provider. Switch between OpenAI, Anthropic, Google, and more with a single line change.
+Use a common generation API with OpenAI, Anthropic, Google, and other supported providers. Model parameters, native tools, caching, and audio support vary by provider. See the [2.6.0 upgrade guide](/docs/release-2-6) for new APIs and compatibility limits.
 
 ```ts
 import { streamText } from '@yourgpt/llm-sdk';
@@ -21,7 +21,7 @@ const result = await streamText({
 
 ## Switch Providers Instantly
 
-Same code, different provider. No refactoring needed.
+Basic text generation shares the same call shape. Check feature-specific support before switching providers in workflows that use native tools or replay state.
 
 <Tabs items={['OpenAI', 'Anthropic', 'Google', 'xAI']}>
   <Tab value="OpenAI">
@@ -155,6 +155,8 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
 | [`streamText()`](/docs/llm-sdk/stream-text) | Stream responses in real-time |
 | [`generateText()`](/docs/llm-sdk/generate-text) | Generate complete responses |
 | [`tool()`](/docs/llm-sdk/tools) | Define AI-callable functions |
+| [`generateSpeech()`](/docs/llm-sdk/speech) | Beta: buffered OpenAI text-to-speech |
+| [`transcribe()`](/docs/llm-sdk/transcription) | Beta: recorded OpenAI speech-to-text |
 
 ---
 

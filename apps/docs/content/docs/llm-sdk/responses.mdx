@@ -1,0 +1,144 @@
+---
+title: OpenAI Responses
+description: Select the Responses API and preserve state across tool calls and conversation turns
+---
+
+Available in **LLM SDK `2.6.0-beta.2`**, with Copilot history integration in **Copilot SDK `2.5.1-beta.3`**. Responses is an OpenAI transport choice for the existing generation and Runtime APIs; there is no new `runtime.response()` method in this release.
+
+## Select the transport
+
+```ts
+import { generateText, streamText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+
+const model = openai("gpt-5.2", {
+  api: "responses",
+  responses: { store: false },
+});
+
+const result = await generateText({
+  model,
+  prompt: "Explain an HTTP cache hit.",
+});
+console.log(result.text);
+console.log(result.providerMetadata?.openai?.response?.id);
+```
+
+| `api`              | Behavior                                                                                                                                                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `'auto'` (default) | Keeps compatibility routing. Responses options, native tool search, applicable reasoning/tool combinations, and official-endpoint replay can select Responses. |
+| `'responses'`      | Uses Responses explicitly, including requests without tools.                                                                                                   |
+| `'chat'`           | Uses Chat Completions; incompatible Responses options/native tool search are rejected.                                                                         |
+
+Custom OpenAI-compatible endpoints keep Chat by default unless you explicitly select Responses or provide Responses-only options. A compatible Chat endpoint does not imply Responses support. Azure and custom Responses endpoints need their own validation.
+
+### Runtime
+
+```ts
+import { createRuntime } from "@yourgpt/llm-sdk";
+import { createOpenAI } from "@yourgpt/llm-sdk/openai";
+
+const runtime = createRuntime({
+  provider: createOpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+    api: "responses",
+    responses: { store: false },
+  }),
+  model: "gpt-5.2",
+  systemPrompt: "Help the user understand HTTP caching.",
+});
+
+const result = await runtime.chat({
+  messages: [{ role: "user", content: "What is a cache hit?" }],
+  config: { openai: { api: "responses", responses: { store: false } } },
+});
+```
+
+The request's `config.openai` overrides provider transport defaults. Modern generation has the equivalent `openai` option. Responses option objects merge by field.
+
+## Stateless continuation
+
+Preserve `response.messages` in full, including provider metadata, tool calls, and native tool outputs:
+
+```ts
+import { generateText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+
+const model = openai("gpt-5.2", {
+  api: "responses",
+  responses: { store: false },
+});
+const first = await generateText({
+  model,
+  prompt: "Remember that my project is Atlas.",
+});
+const history = JSON.parse(JSON.stringify(first.response.messages));
+const next = await generateText({
+  model,
+  messages: [
+    ...history,
+    { role: "user", content: "What is my project called?" },
+  ],
+});
+```
+
+With `store: false`, the SDK requests encrypted reasoning content for replay. Treat returned native output as opaque: keep completed reasoning/tool items, their identifiers, and ordering. Do not reconstruct history from display text alone or remove encrypted fields. Short model responses may contain no reasoning items.
+
+Streaming shares one execution across stream readers and result promises:
+
+```ts
+const result = await streamText({ model, prompt: "Explain HTTP caching." });
+for await (const delta of result.textStream) process.stdout.write(delta);
+const { messages } = await result.response;
+const metadata = await result.providerMetadata;
+// Persist messages intact for the next turn.
+```
+
+## Stored continuation
+
+Choose server-side storage explicitly and send only new input after the stored response ID:
+
+```ts
+const storedModel = openai("gpt-5.2", {
+  api: "responses",
+  responses: { store: true },
+});
+const first = await generateText({
+  model: storedModel,
+  prompt: "Remember project Atlas.",
+});
+const id = first.providerMetadata?.openai?.response?.id;
+if (!id) throw new Error("Missing response ID");
+
+const next = await generateText({
+  model: openai("gpt-5.2", {
+    api: "responses",
+    responses: { store: true, previousResponseId: id },
+  }),
+  prompt: "What project did I mention?",
+});
+```
+
+Do not combine `previousResponseId` with a replay of the same old history. Resend application instructions needed on the new call. Omitting `store` preserves the provider's default; it does not explicitly disable storage.
+
+## Responses options
+
+| Option                 | Purpose                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| `store`                | Explicit provider-side response storage choice                  |
+| `previousResponseId`   | Continue a stored response using new input                      |
+| `include`              | Additional supported response fields                            |
+| `reasoningSummary`     | `'auto'`, `'concise'`, or `'detailed'`                          |
+| `promptCacheKey`       | Provider cache-key hint                                         |
+| `promptCacheRetention` | Legacy `'in_memory'` or `'24h'`, where supported                |
+| `promptCacheOptions`   | Model-specific `{ mode: 'implicit' \| 'explicit', ttl: '30m' }` |
+
+Cache fields are forwarded and fixture-tested; this is not a guarantee of hits, savings, or complete cache accounting. See [prompt caching](/docs/advanced/prompt-caching).
+
+## Tool results and persistence
+
+Responses supports [native image tool results](/docs/tools/image-results). Keep `modelOutput` as well as tool IDs and matching results. Malformed or incomplete function arguments fail before tool execution; failed/incomplete streams do not count as successful completion.
+
+Copilot JSON/SSE and full serialized UI history preserve the supported replay state. Runtime storage records place it in `metadata.providerMetadata` and `metadata.modelOutput`; custom loaders must restore these fields to their message locations. The hosted YourGPT adapter is not yet a lossless store for this state. See [storage limitations](/docs/server/storage#responses-and-image-result-persistence).
+
+Native Decisions, full native MCP/background job lifecycle, and generalized provider compaction remain separate work. See the [beta status](/docs/beta#still-pending).

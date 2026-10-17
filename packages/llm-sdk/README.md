@@ -2,6 +2,20 @@
 
 Multi-provider LLM SDK with streaming. One API, any provider.
 
+## Version 2.6.0
+
+```bash
+npm install @yourgpt/llm-sdk@2.6.0
+```
+
+Use Copilot SDK `2.6.0` for matching UI history and recorder integration.
+This release promotes the runtime implementation tested in LLM SDK `2.6.0-beta.2`
+and Copilot SDK `2.5.1-beta.3`. See the
+[2.6.0 upgrade guide](https://copilot-sdk.yourgpt.ai/docs/release-2-6) for parameter
+and Anthropic system-prompt fixes, Responses, native image tool results, OpenAI
+TTS/STT, and compatibility limits. Native Decisions and realtime voice remain
+separate follow-ups.
+
 ## Installation
 
 ```bash
@@ -231,10 +245,12 @@ const decision = await runtime.chat({
 });
 ```
 
-The published `2.6.0-beta.1` Runtime adapter silently dropped system-role
-messages; use the explicit `systemPrompt` form above until you upgrade to a release
-containing this fix. The separate `generateText`/`streamText` Anthropic provider
-already handles system-role messages.
+Fixed in published **`2.6.0-beta.2`**: the `2.6.0-beta.1` Runtime adapter silently
+dropped system-role messages. Upgrade to beta.2 to preserve them. Existing
+explicit `systemPrompt` calls retain their behavior; supplying both forms applies
+both, without deduplication. The separate `generateText`/`streamText` Anthropic
+provider already handles system-role messages. See the
+[system prompt guide](https://copilot-sdk.yourgpt.ai/docs/server/system-prompts).
 
 ## Selective Tool Loading
 

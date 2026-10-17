@@ -1,0 +1,87 @@
+---
+title: Image tool results
+description: Return model-visible image and text content from server, browser, and MCP tools
+---
+
+Available in **LLM SDK `2.6.0-beta.2`** and **Copilot SDK `2.5.1-beta.3`**. Native image results work with **OpenAI Responses** and **Anthropic**. Other endpoints reject this output explicitly.
+
+## Tool input and output are different
+
+A function still takes JSON arguments validated by its schema. Pass an image ID, authorized URL, or crop reference and resolve the image in the handler. A tool can then return actual image content for the model to inspect. Do not make the model generate base64 in function arguments.
+
+For user-message images, the modern SDK uses `{ type: 'image', image, mimeType }`; see [attachments](/docs/chat/attachments). Model-facing tool output instead uses the shapes below.
+
+## Map a tool result for the model
+
+```ts
+import { generateText, tool } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+import { z } from "zod";
+
+// Implement this with your application's authorization and image storage.
+declare function loadAuthorizedImage(id: string): Promise<{
+  caption: string;
+  bytes: Uint8Array;
+}>;
+
+const result = await generateText({
+  model: openai("gpt-5.2", { api: "responses", responses: { store: false } }),
+  prompt: "Inspect image sample.",
+  maxSteps: 3,
+  tools: {
+    inspect_image: tool({
+      description: "Read an image the caller is authorized to access",
+      parameters: z.object({ imageId: z.string() }),
+      execute: async ({ imageId }) => loadAuthorizedImage(imageId),
+      toModelOutput: (image) => ({
+        type: "content",
+        content: [
+          { type: "text", text: image.caption },
+          { type: "image", data: image.bytes, mediaType: "image/png" },
+        ],
+      }),
+    }),
+  },
+});
+```
+
+`toModelOutput` is synchronous and runs once when the handler completes. `result.toolResults` retains the original application result; the model receives the mapped content. The mapper is also supported by Runtime tools and Copilot's `useTool` / `useTools` definitions. It may return `undefined` to use the normal result path.
+
+Existing Runtime/Copilot handlers can return this envelope:
+
+```ts
+const toolResult = {
+  success: true,
+  data: { imageId: "sample" },
+  _aiContent: [
+    { type: "text" as const, text: "Current screenshot" },
+    { type: "image" as const, url: "https://example.com/authorized-image.png" },
+  ],
+};
+```
+
+Explicit `toModelOutput` takes precedence over `_aiContent`. Ordinary array-shaped JSON is not automatically interpreted as image content. MCP image results use this native path and keep accompanying text in order.
+
+## Content shapes
+
+| Image part                                      | OpenAI Responses                 | Anthropic   |
+| ----------------------------------------------- | -------------------------------- | ----------- |
+| `{ type: 'image', data, mediaType }`            | Supported                        | Supported   |
+| `{ type: 'image', url }`                        | HTTP(S) URL                      | HTTP(S) URL |
+| `{ type: 'image', fileId, provider: 'openai' }` | Accessible OpenAI file reference | Rejected    |
+
+`data` accepts `Uint8Array`, canonical base64, or a data URL matching `mediaType`. Supported types are PNG, JPEG, WebP, and GIF, with a 20 MiB limit per image. Provider aggregate limits may be smaller. URL fetching occurs at the provider; the SDK does not implicitly download URLs or upload files. File IDs are provider/account scoped.
+
+OpenAI Chat Completions, Gemini, Ollama, Azure Chat, and other compatible Chat endpoints do not support this native image-result path. Text-only mapped content can still be used with those adapters. For custom Responses endpoints, verify support yourself before enabling it.
+
+## Screenshots and history
+
+Existing screenshot tools that use `addAsUserMessage` retain the attachment path. If a result also supplies native model output, native output takes precedence and the SDK does not create a duplicate attachment turn.
+
+Retain `modelOutput`, assistant tool calls, and matching tool-call IDs when saving history. Copilot UI history preserves these fields, including server results represented in streaming execution metadata. Runtime storage uses `metadata.modelOutput`; custom loaders must restore it. See [storage](/docs/server/storage#responses-and-image-result-persistence).
+
+Do not truncate image bytes/base64 into invalid content. Context pruning can remove a complete older tool exchange. This feature lets a model inspect a returned image; it does not add an image-generation API.
+
+## Validation scope
+
+Live checks covered inline images, OpenAI Responses/Anthropic, modern and Runtime generation, Copilot JSON/SSE, and restored UI history. URL/file-reference forms have fixture coverage. See [beta status](/docs/beta).

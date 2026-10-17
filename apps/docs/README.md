@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Copilot SDK documentation
 
-## Getting Started
+The documentation site lives here: Next.js, Fumadocs, and MDX in `content/docs`.
 
-First, run the development server:
+## Run locally
+
+From the repository root, after installing workspace dependencies:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm --filter @yourgpt/copilot-sdk-docs dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [localhost:3002](http://localhost:3002). The production build command is:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm --filter @yourgpt/copilot-sdk-docs build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The build compiles MDX and generates the documentation routes. It may need network
+access for configured web fonts. `pnpm --filter @yourgpt/copilot-sdk-docs start`
+serves the built application with Next.js's default production port.
 
-## Learn More
+## Edit documentation
 
-To learn more about Next.js, take a look at the following resources:
+- Pages: `content/docs/**/*.mdx`, with `title` and `description` frontmatter.
+- Sidebar order: the `meta.json` in each content directory.
+- Content source: `source.config.ts` and `lib/source.ts`.
+- Shared MDX components: `mdx-components.tsx`.
+- Machine-readable routes: `/llms.txt`, `/llms-full.txt`, and `/llms.mdx/docs/...`.
+  These derive from the same source; do not maintain a separate feature list there.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+For a new API, document the public import, exact option/result shape, supported
+providers, error/cancellation behavior, and persistence implications. Check code
+examples against the SDK declarations and run the docs build after editing.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Release documentation
 
-## Deploy on Vercel
+The [2.6.0 upgrade guide](content/docs/release-2-6.mdx) covers stable promotion.
+The [beta guide](content/docs/beta.mdx) records the 17 October 2026 releases:
+LLM SDK `2.6.0-beta.2` and Copilot SDK `2.5.1-beta.3`. Feature pages identify their
+minimum beta versions. Keep pending APIs and validation gaps distinct from shipped
+behavior. Untagged installation examples use npm's `latest` channel; historical beta examples
+specify an exact prerelease version. Features promoted to stable are listed in the
+2.6.0 guide.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The [release record](../../docs/releases/2026-10-17-beta.md) and
+[GitHub roadmap](https://github.com/YourGPT/copilot-sdk/issues/111) provide status.
+`alpha-docs/` contains historical working notes and design drafts; it is not the
+published API reference. Documentation edits do not promote npm tags or deploy the
+website automatically from a local checkout.

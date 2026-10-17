@@ -1,5 +1,13 @@
 {
   "title": "LLM SDK",
   "icon": "AiChip1",
-  "pages": ["generate-text", "stream-text", "structured-output", "tools"]
+  "pages": [
+    "generate-text",
+    "stream-text",
+    "responses",
+    "structured-output",
+    "tools",
+    "speech",
+    "transcription"
+  ]
 }

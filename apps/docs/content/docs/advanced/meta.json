@@ -1,5 +1,5 @@
 {
   "title": "Advanced",
   "icon": "SlidersHorizontal",
-  "pages": ["compaction", "token-tracking", "branching"]
+  "pages": ["compaction", "token-tracking", "prompt-caching", "branching"]
 }

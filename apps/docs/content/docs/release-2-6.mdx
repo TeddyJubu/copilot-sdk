@@ -1,0 +1,50 @@
+---
+title: 2.6.0 upgrade guide
+description: Promote the tested beta features to stable SDK versions and understand the compatibility changes
+---
+
+The **2.6.0** release for both SDKs carries the feature set tested in LLM SDK `2.6.0-beta.2` and Copilot SDK `2.5.1-beta.3`. This promotion changes release versions and documentation; it adds no new runtime implementation beyond those betas.
+
+## Installation
+
+```bash
+npm install @yourgpt/llm-sdk@2.6.0 @yourgpt/copilot-sdk@2.6.0
+```
+
+Use matching stable versions when validating the upgrade. The `beta` tag is a separate release channel for subsequent work. Provider clients such as `openai` and `@anthropic-ai/sdk` remain optional dependencies for the corresponding chat adapters.
+
+## Included in this release
+
+| Feature or fix                                                               | Guide                                                                                                                                        |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| OpenAI reasoning-model parameters and selective compatibility fallback       | [Parameters](/docs/providers/openai#reasoning-model-parameters), [fallback](/docs/providers/fallback#compatibility-fallback-without-retries) |
+| Anthropic Runtime system-role preservation                                   | [System prompts](/docs/server/system-prompts)                                                                                                |
+| OpenAI Responses transport, stored/stateless continuation, and tool replay   | [Responses](/docs/llm-sdk/responses)                                                                                                         |
+| Native image tool results on OpenAI Responses and Anthropic                  | [Image results](/docs/tools/image-results)                                                                                                   |
+| Buffered OpenAI text-to-speech and recorded-file speech-to-text              | [Speech](/docs/llm-sdk/speech), [transcription](/docs/llm-sdk/transcription)                                                                 |
+| Browser microphone recording, cancellation, and transcript review            | [Voice input](/docs/chat/voice-input)                                                                                                        |
+| Structured output translation and token usage fixes across existing adapters | [Structured output](/docs/llm-sdk/structured-output), [token tracking](/docs/advanced/token-tracking)                                        |
+
+The release also retains the tested fixes for mixed server/client tool turns, tool-loop iteration limits, cancellation, stream reader reuse, interleaved tool arguments, screenshot attachments, trailing usage, and public CJS/ESM declarations. Feature guides mention the beta versions where the APIs first appeared; those APIs are included in stable 2.6.0.
+
+## Compatibility checks
+
+- **Anthropic instructions:** Runtime uses `systemPrompt`; modern generation uses `system`. System-role messages now reach Anthropic. When both forms are supplied, the effective explicit/default prompt comes first and system messages follow in order. There is no deduplication; remove duplicate instructions in your application. Unsupported non-text system content fails explicitly.
+- **OpenAI parameters:** reasoning requests omit unsupported temperature values with a warning. Use supported `reasoningEffort: 'none'` explicitly when sampling is needed. Custom compatible servers can select passthrough behavior.
+- **Continuation:** preserve provider metadata, native tool output, and matching tool-call IDs in saved history. A transcript containing only visible text cannot restore every Responses conversation.
+- **Tools:** ordinary string/JSON results retain their behavior. Native image tool output requires a supported provider/endpoint. A screenshot with native output does not add a duplicate user-image turn.
+- **Audio:** speech and transcription are separate APIs from chat generation. Browser recording returns a transcript for review; it does not submit a chat message automatically.
+
+## Known limits
+
+The hosted YourGPT storage adapter does not yet preserve all Responses/image replay metadata. Use a lossless custom store and test save/reload/continue for those workflows. Physical microphones, browser permission flows, and recorded-container compatibility still require validation on your target devices.
+
+OpenAI is the built-in TTS/STT provider. Live media checks covered inline images and WAV/MP3; other supported formats have fixture coverage. Cache option forwarding is available for OpenAI Responses, while unified cache usage/cost accounting remains pending. See [storage](/docs/server/storage#responses-and-image-result-persistence) and [prompt caching](/docs/advanced/prompt-caching).
+
+Prompt delivery checks do not establish strict JSON output or application guardrail accuracy. The backend's `TRAINING_CONFLICT` schema and failure policy still need application-level evaluation.
+
+## Next beta
+
+Native Decisions for Jev/TypeSafe, OpenAI, OpenRouter, and Cloudflare will be developed separately from this promotion. Remaining provider/caching and persistence work also stays on the [roadmap](https://github.com/YourGPT/copilot-sdk/issues/111). Realtime voice is lower priority; image generation is deferred. Neither is part of 2.6.0.
+
+For historical beta versions and validation evidence, see the [beta release record](/docs/beta).

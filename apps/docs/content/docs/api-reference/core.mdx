@@ -101,3 +101,18 @@ interface ToolCall {
   };
 }
 ```
+
+## Recorded voice exports (beta)
+
+```ts
+import {
+  VoiceRecorder,
+  transcribeRecording,
+  type VoiceRecorderOptions,
+  type VoiceRecordingState,
+  type VoiceRecording,
+  type VoiceTranscript,
+} from '@yourgpt/copilot-sdk/core';
+```
+
+`VoiceRecorder` exposes `state`, `start()`, `stop()`, `cancel()`, and `dispose()`. `stop()` returns a `VoiceRecording`; `transcribeRecording(recording, options)` returns a `VoiceTranscript` from your server. See [recorded voice input](/docs/chat/voice-input) for the complete API, recording limits, cancellation, and a working integration.

@@ -20,6 +20,20 @@ Production-ready AI Copilots for any product. Connect any LLM, deploy on your in
 npm install @yourgpt/copilot-sdk @yourgpt/llm-sdk
 ```
 
+## Version 2.6.0
+
+```bash
+npm install @yourgpt/copilot-sdk@2.6.0 @yourgpt/llm-sdk@2.6.0
+```
+
+This release promotes the runtime implementation tested in Copilot SDK
+`2.5.1-beta.3` and LLM SDK `2.6.0-beta.2`, including Responses provider-state
+preservation, native image tool results, microphone helpers, and the Anthropic
+system-prompt fix. See the [2.6.0 upgrade guide](https://copilot-sdk.yourgpt.ai/docs/release-2-6),
+[image tools](https://copilot-sdk.yourgpt.ai/docs/tools/image-results), and
+[voice input](https://copilot-sdk.yourgpt.ai/docs/chat/voice-input) for examples and
+support limits. Realtime voice and image generation remain pending.
+
 ## Quick Start
 
 ```tsx

@@ -638,10 +638,18 @@ return Response.json({ text: result.text });
 
 ---
 
+## Beta request behavior
+
+[System prompts](/docs/server/system-prompts) documents Runtime's `systemPrompt`, default/request precedence, and the Anthropic system-role fix. The modern generation functions use `system` instead.
+
+Use request `config.openai` for [OpenAI transport and Responses options](/docs/llm-sdk/responses). Preserve returned provider metadata and image `modelOutput` when [saving and restoring conversation history](/docs/server/storage#responses-and-image-result-persistence). See the [beta upgrade guide](/docs/beta) for exact package versions and remaining work.
+
+---
+
 ## Next Steps
 
 - [Deploy](/docs/deploy) - Deploy to Vercel, Cloudflare, AWS, Docker, and more
 - [Tools](/docs/tools) - Learn more about frontend and backend tools
 - [Providers](/docs/providers) - Provider-specific configuration
-- [Chat History](/docs/chat-history) - Persist conversations across sessions
+- [Chat History](/docs/chat/storage) - Persist conversations across sessions
 - [LLM SDK](/docs/llm-sdk) - Low-level AI functions
