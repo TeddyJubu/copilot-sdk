@@ -11,7 +11,11 @@ import {
   filterOpenAIResponseInclude,
   type OpenAIParameterOptions,
 } from "../core/openai-parameters";
-import { providerErrorEvent, throwIfAborted } from "../core/provider-error";
+import {
+  providerErrorEvent,
+  throwIfAborted,
+  invalidProviderResponse,
+} from "../core/provider-error";
 import type {
   LLMConfig,
   StreamEvent,
@@ -272,8 +276,10 @@ export class OpenAIAdapter implements LLMAdapter {
     return messages.map((message) => {
       const { attachments, providerMetadata, modelOutput, ...rest } = message;
       let content =
-        message.role === "tool" && !preserveProviderMetadata
-          ? textToolOutput(modelOutput, String(message.content ?? ""))
+        message.role === "tool" &&
+        !preserveProviderMetadata &&
+        modelOutput !== undefined
+          ? textToolOutput(modelOutput, "")
           : message.content;
       if (preserveProviderMetadata && modelOutput)
         rest.modelOutput = modelOutput;
@@ -444,17 +450,32 @@ export class OpenAIAdapter implements LLMAdapter {
               typeof item.arguments !== "string" ||
               (item.status && item.status !== "completed")
             ) {
-              throw new Error("Responses contains an incomplete function call");
+              throw invalidProviderResponse(
+                "Responses contains an incomplete function call",
+              );
             }
             if (seenCallIds.has(item.call_id))
-              throw new Error("Responses contains duplicate function call IDs");
+              throw invalidProviderResponse(
+                "Responses contains duplicate function call IDs",
+              );
             seenCallIds.add(item.call_id);
-            const args = JSON.parse(item.arguments);
+            let args: unknown;
+            try {
+              args = JSON.parse(item.arguments);
+            } catch {
+              throw invalidProviderResponse(
+                "Responses function arguments must be valid JSON",
+              );
+            }
             if (!args || typeof args !== "object" || Array.isArray(args))
-              throw new Error(
+              throw invalidProviderResponse(
                 "Responses function arguments must be a JSON object",
               );
-            return { id: item.call_id, name: item.name, args };
+            return {
+              id: item.call_id,
+              name: item.name,
+              args: args as Record<string, unknown>,
+            };
           })
       : [];
 
@@ -768,7 +789,9 @@ export class OpenAIAdapter implements LLMAdapter {
     >();
     for (const call of toolCalls.values()) {
       if (!call.id || !call.name)
-        throw new Error("Responses stream contains an incomplete tool call");
+        throw invalidProviderResponse(
+          "Responses stream contains an incomplete tool call",
+        );
       uniqueCalls.set(call.id, call);
     }
     toolCalls.clear();
