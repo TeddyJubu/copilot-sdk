@@ -1,4 +1,23 @@
 import { toolOutputForProvider } from "../core/tool-output";
+import {
+  anthropicTemperature,
+  anthropicThinking,
+  anthropicInputTokens,
+  anthropicMaxTokens,
+  type AnthropicThinking,
+} from "../core/anthropic-parameters";
+import {
+  anthropicReplay,
+  anthropicReplayContent,
+  collectAnthropicContent,
+} from "../core/anthropic-replay";
+import type { ProviderMetadata } from "../core/openai-responses";
+import {
+  invalidProviderResponse,
+  providerErrorEvent,
+  throwIfAborted,
+} from "../core/provider-error";
+import { parseToolArguments, validateToolCalls } from "../core/tool-validation";
 import type {
   LLMConfig,
   StreamEvent,
@@ -27,7 +46,6 @@ import {
  */
 export interface ThinkingConfig {
   type: "enabled";
-  /** Budget for thinking tokens (minimum 1024) */
   budgetTokens?: number;
 }
 
@@ -39,8 +57,12 @@ export interface AnthropicAdapterConfig {
   model?: string;
   /** Base URL for API endpoint */
   baseUrl?: string;
+  timeout?: number;
+  headers?: Record<string, string>;
+  cacheControl?: boolean;
   /** Enable extended thinking (for Claude 3.7 Sonnet, Claude 4) */
-  thinking?: ThinkingConfig;
+  thinking?: AnthropicThinking;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   temperature?: number;
   maxTokens?: number;
   /**
@@ -73,6 +95,9 @@ export class AnthropicAdapter implements LLMAdapter {
       const { default: Anthropic } = await import("@anthropic-ai/sdk");
       this.client = new Anthropic({
         apiKey: this.config.apiKey,
+        baseURL: this.config.baseUrl,
+        timeout: this.config.timeout,
+        defaultHeaders: this.config.headers,
       });
     }
     return this.client;
@@ -128,6 +153,17 @@ export class AnthropicAdapter implements LLMAdapter {
           toolResultIndex = 0;
         }
 
+        const replay = anthropicReplayContent(
+          msg.providerMetadata as ProviderMetadata | undefined,
+        );
+        if (replay) {
+          messages.push({ role: "assistant", content: replay });
+          lastToolCallIds = replay
+            .filter((b) => b.type === "tool_use")
+            .map((b) => b.id as string);
+          toolResultIndex = 0;
+          continue;
+        }
         // Convert assistant message with potential tool_calls
         const content: Array<Record<string, unknown>> = [];
 
@@ -389,7 +425,7 @@ export class AnthropicAdapter implements LLMAdapter {
     const responseFormat = request.config?.responseFormat;
     const jsonObjectSuffix =
       responseFormat?.type === "json_object"
-        ? "\n\nRespond with a single JSON object and no other text."
+        ? "\n\nRespond with a single JSON object and no other text. Do not include Markdown code fences."
         : "";
     let systemMessage: string;
 
@@ -421,26 +457,40 @@ export class AnthropicAdapter implements LLMAdapter {
           request.toolDefinitions ?? [],
           anthropicNativeSearch.variant,
         )
-      : request.actions?.map((action) => ({
-          name: action.name,
-          description: action.description,
-          input_schema: {
-            type: "object" as const,
-            properties: action.parameters
-              ? Object.fromEntries(
-                  Object.entries(action.parameters).map(([key, param]) => [
-                    key,
-                    parameterToJsonSchema(param),
-                  ]),
-                )
-              : {},
-            required: action.parameters
-              ? Object.entries(action.parameters)
-                  .filter(([, param]) => param.required)
-                  .map(([key]) => key)
-              : [],
-          },
-        })) || [];
+      : request.toolDefinitions?.length
+        ? request.toolDefinitions
+            .filter((tool) => tool.available !== false)
+            .map((tool) => ({
+              name: tool.name,
+              description: tool.description,
+              // Keep the original schema. Legacy ActionParameter conversion
+              // cannot represent unions, null, or nested required constraints.
+              input_schema: tool.inputSchema ?? {
+                type: "object" as const,
+                properties: {},
+                required: [],
+              },
+            }))
+        : request.actions?.map((action) => ({
+            name: action.name,
+            description: action.description,
+            input_schema: {
+              type: "object" as const,
+              properties: action.parameters
+                ? Object.fromEntries(
+                    Object.entries(action.parameters).map(([key, param]) => [
+                      key,
+                      parameterToJsonSchema(param),
+                    ]),
+                  )
+                : {},
+              required: action.parameters
+                ? Object.entries(action.parameters)
+                    .filter(([, param]) => param.required)
+                    .map(([key]) => key)
+                : [],
+            },
+          })) || [];
 
     // Check for web search configuration (from request or adapter config)
     const webSearchConfig = request.webSearch ?? this.config.webSearch;
@@ -484,13 +534,28 @@ export class AnthropicAdapter implements LLMAdapter {
       }
     }
 
+    const thinking = anthropicThinking(
+      request.config?.model || this.model,
+      this.config.thinking,
+    );
     // Build request options
     const options: Record<string, unknown> = {
       model: request.config?.model || this.model,
-      max_tokens: request.config?.maxTokens || this.config.maxTokens || 4096,
+      max_tokens: anthropicMaxTokens(
+        request.config?.maxTokens ?? this.config.maxTokens,
+        thinking,
+      ),
       system: systemMessage,
       messages,
       tools: tools.length ? tools : undefined,
+      ...(this.config.cacheControl
+        ? { cache_control: { type: "ephemeral" } }
+        : {}),
+      ...anthropicTemperature(
+        request.config?.model || this.model,
+        request.config?.temperature ?? this.config.temperature,
+        !!this.config.thinking && this.config.thinking.type !== "disabled",
+      ),
     };
 
     const anthropicToolOptions = request.providerToolOptions?.anthropic;
@@ -523,21 +588,17 @@ export class AnthropicAdapter implements LLMAdapter {
       options.server_tool_configuration = serverToolConfiguration;
     }
 
-    // Anthropic structured output (`output_config.format`) — GA on Claude API
-    // and Bedrock as of late 2025. Vertex AI does not support it; users on
-    // Vertex should use a forced-tool pattern via `actions` + `toolChoice`.
+    // Native structured output. Support varies by model and deployment platform.
     const outputConfig = toAnthropicOutputConfig(responseFormat);
-    if (outputConfig) {
-      options.output_config = outputConfig;
+    if (outputConfig || this.config.effort) {
+      options.output_config = {
+        ...outputConfig,
+        ...(this.config.effort ? { effort: this.config.effort } : {}),
+      };
     }
 
     // Add thinking configuration if enabled
-    if (this.config.thinking?.type === "enabled") {
-      options.thinking = {
-        type: "enabled",
-        budget_tokens: this.config.thinking.budgetTokens || 10000,
-      };
-    }
+    if (thinking) options.thinking = thinking;
 
     return { options, messages };
   }
@@ -562,7 +623,9 @@ export class AnthropicAdapter implements LLMAdapter {
         nonStreamingOptions,
         request.debug,
       );
-      const response = await client.messages.create(nonStreamingOptions);
+      const response = await client.messages.create(nonStreamingOptions, {
+        signal: request.signal,
+      });
       logProviderPayload(
         "anthropic",
         "response payload",
@@ -593,20 +656,27 @@ export class AnthropicAdapter implements LLMAdapter {
         }
       }
 
+      validateToolCalls(toolCalls);
+      if (toolCalls.length && response.stop_reason !== "tool_use")
+        throw invalidProviderResponse(
+          "Anthropic response ended with incomplete tool calls",
+        );
+
       // Map Anthropic's usage (input_tokens/output_tokens) to the SDK's camelCase shape,
       // matching the OpenAI adapter's complete(). Without this, complete() returned no usage,
       // so the non-streaming agent loop accumulated zero tokens and credit deduction was
       // skipped entirely for Anthropic models. Anthropic has no total_tokens, so sum it.
       return {
         content,
+        providerMetadata: anthropicReplay(response.content),
         toolCalls,
         thinking: thinking || undefined,
         usage: response.usage
           ? {
-              promptTokens: response.usage.input_tokens ?? 0,
+              promptTokens: anthropicInputTokens(response.usage),
               completionTokens: response.usage.output_tokens ?? 0,
               totalTokens:
-                (response.usage.input_tokens ?? 0) +
+                anthropicInputTokens(response.usage) +
                 (response.usage.output_tokens ?? 0),
             }
           : undefined,
@@ -633,7 +703,9 @@ export class AnthropicAdapter implements LLMAdapter {
         options,
         request.debug,
       );
-      const stream = await client.messages.stream(options);
+      const stream = await client.messages.stream(options, {
+        signal: request.signal,
+      });
 
       let currentToolUse: {
         id: string;
@@ -642,6 +714,13 @@ export class AnthropicAdapter implements LLMAdapter {
       } | null = null;
 
       let isInThinkingBlock = false;
+      const content: any[] = [];
+      const toolCalls: Array<{
+        id: string;
+        name: string;
+        args: Record<string, unknown>;
+      }> = [];
+      let stopReason: string | undefined;
 
       // Track citations from web search
       const collectedCitations: Citation[] = [];
@@ -657,25 +736,25 @@ export class AnthropicAdapter implements LLMAdapter {
         | undefined;
 
       for await (const event of stream) {
+        collectAnthropicContent(content, event);
         logProviderPayload("anthropic", "stream event", event, request.debug);
         // Check for abort
-        if (request.signal?.aborted) {
-          break;
-        }
+        throwIfAborted(request.signal);
 
         switch (event.type) {
           case "message_start":
             // Capture input tokens from message_start
             if (event.message?.usage) {
               usage = {
-                prompt_tokens: event.message.usage.input_tokens,
+                prompt_tokens: anthropicInputTokens(event.message.usage),
                 completion_tokens: 0,
-                total_tokens: event.message.usage.input_tokens,
+                total_tokens: anthropicInputTokens(event.message.usage),
               };
             }
             break;
 
           case "message_delta":
+            if (event.delta?.stop_reason) stopReason = event.delta.stop_reason;
             // Capture output tokens from message_delta
             if (event.usage && usage) {
               usage.completion_tokens = event.usage.output_tokens;
@@ -691,14 +770,6 @@ export class AnthropicAdapter implements LLMAdapter {
                 name: event.content_block.name,
                 input: "",
               };
-              // Don't emit action events for native web_search - citations handle the UI
-              if (currentToolUse.name !== "web_search") {
-                yield {
-                  type: "action:start",
-                  id: currentToolUse.id,
-                  name: currentToolUse.name,
-                };
-              }
             } else if (event.content_block.type === "web_search_tool_result") {
               // Extract citations from web search results
               const webSearchResult = event.content_block as {
@@ -783,18 +854,11 @@ export class AnthropicAdapter implements LLMAdapter {
             if (currentToolUse) {
               // Don't emit action events for native web_search - citations handle the UI
               if (currentToolUse.name !== "web_search") {
-                yield {
-                  type: "action:args",
-                  id: currentToolUse.id,
-                  args: currentToolUse.input,
-                };
-                // For server-side tools, emit action:end immediately
-                // as Anthropic handles execution and results come inline
-                yield {
-                  type: "action:end",
+                toolCalls.push({
                   id: currentToolUse.id,
                   name: currentToolUse.name,
-                };
+                  args: parseToolArguments(currentToolUse.input),
+                });
               }
               currentToolUse = null;
             }
@@ -809,6 +873,28 @@ export class AnthropicAdapter implements LLMAdapter {
         }
       }
 
+      throwIfAborted(request.signal);
+      if (!stopReason || currentToolUse)
+        throw invalidProviderResponse(
+          "Anthropic stream ended before its turn completed",
+        );
+      validateToolCalls(toolCalls);
+      if (toolCalls.length && stopReason !== "tool_use")
+        throw invalidProviderResponse(
+          "Anthropic stream ended with incomplete tool calls",
+        );
+      // Validate the whole turn before exposing executable calls. A later malformed
+      // call or token-limit stop must not leave earlier tool side effects behind.
+      for (const call of toolCalls) {
+        yield { type: "action:start", id: call.id, name: call.name };
+        yield {
+          type: "action:args",
+          id: call.id,
+          args: JSON.stringify(call.args),
+        };
+        yield { type: "action:end", id: call.id, name: call.name };
+      }
+
       // Emit citations if we collected any
       if (collectedCitations.length > 0) {
         // Deduplicate citations by URL
@@ -818,13 +904,9 @@ export class AnthropicAdapter implements LLMAdapter {
 
       // Emit message end
       yield { type: "message:end" };
-      yield { type: "done", usage };
+      yield { type: "done", usage, providerMetadata: anthropicReplay(content) };
     } catch (error) {
-      yield {
-        type: "error",
-        message: error instanceof Error ? error.message : "Unknown error",
-        code: "ANTHROPIC_ERROR",
-      };
+      yield providerErrorEvent(error, "ANTHROPIC_ERROR");
     }
   }
 }

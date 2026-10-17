@@ -1,4 +1,5 @@
 import { toolOutputForProvider, textToolOutput } from "../core/tool-output";
+import { parseToolArguments, validateToolCalls } from "../core/tool-validation";
 import {
   resolveOpenAITransport,
   useOpenAIResponses,
@@ -47,6 +48,8 @@ import {
 export interface OpenAIAdapterConfig
   extends OpenAIParameterOptions, OpenAITransportOptions {
   organization?: string;
+  project?: string;
+  timeout?: number;
   headers?: Record<string, string>;
   apiKey: string;
   model?: string;
@@ -95,6 +98,8 @@ export class OpenAIAdapter implements LLMAdapter {
         apiKey: this.config.apiKey,
         baseURL: this.config.baseUrl,
         organization: this.config.organization,
+        project: this.config.project,
+        timeout: this.config.timeout,
         defaultHeaders: this.config.headers,
       });
     }
@@ -1065,18 +1070,23 @@ export class OpenAIAdapter implements LLMAdapter {
       }
       throwIfAborted(request.signal);
       if (!finishReason)
-        throw new Error("OpenAI stream ended without a finish reason");
+        throw invalidProviderResponse(
+          "OpenAI stream ended without a finish reason",
+        );
       if (
         toolCalls.size &&
         !["tool_calls", "function_call"].includes(finishReason)
       ) {
-        throw new Error("OpenAI stream ended with incomplete tool calls");
+        throw invalidProviderResponse(
+          "OpenAI stream ended with incomplete tool calls",
+        );
       }
-      for (const call of toolCalls.values()) {
-        if (!call.id || !call.name)
-          throw new Error("OpenAI stream contains an incomplete tool call");
-        JSON.parse(call.arguments || "{}");
-      }
+      validateToolCalls(
+        [...toolCalls.values()].map((call) => ({
+          ...call,
+          args: parseToolArguments(call.arguments),
+        })),
+      );
       for (const call of toolCalls.values()) {
         yield {
           type: "action:start",
@@ -1185,23 +1195,26 @@ export class OpenAIAdapter implements LLMAdapter {
 
     const choice = response.choices?.[0];
     const message = choice?.message;
+    const toolCalls = (message?.tool_calls ?? []).map((toolCall: any) => ({
+      id: toolCall.id,
+      name: toolCall.function?.name,
+      args: parseToolArguments(toolCall.function?.arguments ?? "{}"),
+      ...(toolCall.extra_content
+        ? { extra_content: toolCall.extra_content }
+        : {}),
+    }));
+    validateToolCalls(toolCalls);
+    if (
+      toolCalls.length &&
+      choice?.finish_reason &&
+      !["tool_calls", "function_call"].includes(choice.finish_reason)
+    )
+      throw invalidProviderResponse(
+        "OpenAI response ended with incomplete tool calls",
+      );
     return {
       content: message?.content ?? "",
-      toolCalls:
-        message?.tool_calls?.map((toolCall: any) => ({
-          id: toolCall.id ?? generateToolCallId(),
-          name: toolCall.function?.name ?? "",
-          args: (() => {
-            try {
-              return JSON.parse(toolCall.function?.arguments ?? "{}");
-            } catch {
-              return {};
-            }
-          })(),
-          ...(toolCall.extra_content
-            ? { extra_content: toolCall.extra_content }
-            : {}),
-        })) ?? [],
+      toolCalls,
       usage: response.usage
         ? {
             promptTokens: response.usage.prompt_tokens,

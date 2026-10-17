@@ -43,7 +43,8 @@ import type {
   StreamChunk,
 } from "./types";
 import { formatToolsForOpenAI, formatToolsForAnthropic } from "./tool";
-import { throwIfAborted } from "./provider-error";
+import { invalidProviderResponse, throwIfAborted } from "./provider-error";
+import { validateMaxSteps, validateToolCalls } from "./tool-validation";
 
 /**
  * Stream text from a language model
@@ -54,7 +55,18 @@ import { throwIfAborted } from "./provider-error";
 export async function streamText(
   params: StreamTextParams,
 ): Promise<StreamTextResult> {
-  const { model, tools, maxSteps = 1, signal } = params;
+  const { model, tools, maxSteps = 1, signal: callerSignal } = params;
+  validateMaxSteps(maxSteps);
+  const controller = new AbortController();
+  const signal = controller.signal;
+  const relayAbort = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) relayAbort();
+  else callerSignal?.addEventListener("abort", relayAbort, { once: true });
+  const cleanup = () => callerSignal?.removeEventListener("abort", relayAbort);
+  const cancel = () => {
+    controller.abort();
+    cleanup();
+  };
 
   if (params.responseFormat && model.capabilities.supportsJsonMode === false) {
     console.warn(
@@ -93,8 +105,8 @@ export async function streamText(
       let stepText = "";
       let stepProviderMetadata: ProviderMetadata | undefined;
       const toolCalls: ToolCall[] = [];
-      let currentToolCall: Partial<ToolCall> | null = null;
       let stepFinishReason: FinishReason = "stop";
+      let receivedFinish = false;
 
       try {
         // Stream from model
@@ -128,6 +140,11 @@ export async function streamText(
               break;
 
             case "finish":
+              if (receivedFinish)
+                throw invalidProviderResponse(
+                  "Model stream returned multiple finish events",
+                );
+              receivedFinish = true;
               stepProviderMetadata = chunk.providerMetadata;
               finalProviderMetadata = chunk.providerMetadata;
               stepFinishReason = chunk.finishReason;
@@ -148,6 +165,12 @@ export async function streamText(
               return;
           }
         }
+        throwIfAborted(signal);
+        if (!receivedFinish)
+          throw invalidProviderResponse(
+            "Model stream ended without a finish event",
+          );
+        validateToolCalls(toolCalls);
       } catch (error) {
         yield {
           type: "error",
@@ -178,7 +201,9 @@ export async function streamText(
       // Execute each tool
       for (const call of toolCalls) {
         throwIfAborted(signal);
-        const toolDef = tools[call.name];
+        const toolDef = Object.prototype.hasOwnProperty.call(tools, call.name)
+          ? tools[call.name]
+          : undefined;
         if (!toolDef) {
           const errorResult = { error: `Tool not found: ${call.name}` };
           yield {
@@ -223,7 +248,7 @@ export async function streamText(
               toolCallId: call.id,
               content: modelOutput
                 ? "[Tool returned content]"
-                : JSON.stringify(result),
+                : JSON.stringify(result ?? null),
               ...(modelOutput ? { modelOutput } : {}),
             },
           ];
@@ -272,11 +297,17 @@ export async function streamText(
       pending = (async () => {
         try {
           const next = await source.next();
-          if (next.done) finished = true;
-          else parts.push(next.value);
+          if (next.done) {
+            finished = true;
+            cleanup();
+          } else {
+            parts.push(next.value);
+            if (next.value.type === "error") cleanup();
+          }
         } catch (error) {
           failure = error;
           finished = true;
+          cleanup();
         }
       })();
     }
@@ -333,7 +364,7 @@ export async function streamText(
     },
 
     toTextStreamResponse(options?: ResponseOptions): Response {
-      const stream = createTextStreamReadable(createTextStream());
+      const stream = createTextStreamReadable(createTextStream(), cancel);
       return new Response(stream, {
         status: options?.status ?? 200,
         headers: {
@@ -346,7 +377,7 @@ export async function streamText(
     },
 
     toDataStreamResponse(options?: ResponseOptions): Response {
-      const stream = createDataStreamReadable(sharedStream());
+      const stream = createDataStreamReadable(sharedStream(), cancel);
       return new Response(stream, {
         status: options?.status ?? 200,
         headers: {
@@ -408,19 +439,27 @@ function formatToolsForProvider(
  */
 function createTextStreamReadable(
   textStream: AsyncIterable<string>,
+  abort: () => void,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  const iterator = textStream[Symbol.asyncIterator]();
+  let cancelled = false;
 
   return new ReadableStream({
-    async start(controller) {
+    async pull(controller) {
       try {
-        for await (const text of textStream) {
-          controller.enqueue(encoder.encode(text));
-        }
-        controller.close();
+        const next = await iterator.next();
+        if (cancelled) return;
+        if (next.done) controller.close();
+        else controller.enqueue(encoder.encode(next.value));
       } catch (error) {
-        controller.error(error);
+        if (!cancelled) controller.error(error);
       }
+    },
+    cancel() {
+      cancelled = true;
+      abort();
+      void iterator.return?.().catch(() => {});
     },
   });
 }
@@ -430,26 +469,41 @@ function createTextStreamReadable(
  */
 function createDataStreamReadable(
   fullStream: AsyncIterable<StreamPart>,
+  abort: () => void,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
+  const iterator = fullStream[Symbol.asyncIterator]();
+  let cancelled = false;
 
   return new ReadableStream({
-    async start(controller) {
+    async pull(controller) {
       try {
-        for await (const part of fullStream) {
-          const data = JSON.stringify(part);
-          controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+        const next = await iterator.next();
+        if (cancelled) return;
+        if (next.done) {
+          controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+          controller.close();
+          return;
         }
-        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
-        controller.close();
+        if (next.value.type === "error") throw next.value.error;
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify(next.value)}\n\n`),
+        );
       } catch (error) {
+        if (cancelled) return;
         const errorData = JSON.stringify({
           type: "error",
           error: error instanceof Error ? error.message : String(error),
         });
         controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
         controller.close();
+        void iterator.return?.().catch(() => {});
       }
+    },
+    cancel() {
+      cancelled = true;
+      abort();
+      void iterator.return?.().catch(() => {});
     },
   });
 }

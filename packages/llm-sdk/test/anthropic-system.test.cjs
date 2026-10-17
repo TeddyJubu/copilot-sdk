@@ -14,12 +14,16 @@ function harness(reply = () => [{ type: "text", text: "classified" }]) {
   const adapter = new AnthropicAdapter({ apiKey: "fixture" });
   const respond = (body) => {
     requests.push(structuredClone(body));
+    const content = reply(requests.length);
     return {
       id: "msg_fixture",
       role: "assistant",
       type: "message",
       model: "claude-sonnet-4-5",
-      content: reply(requests.length),
+      content,
+      stop_reason: content.some((b) => b.type === "tool_use")
+        ? "tool_use"
+        : "end_turn",
       usage: { input_tokens: 10, output_tokens: 2 },
     };
   };
@@ -53,7 +57,11 @@ function harness(reply = () => [{ type: "text", text: "classified" }]) {
           };
           yield { type: "content_block_stop", index };
         }
-        yield { type: "message_delta", usage: { output_tokens: 2 } };
+        yield {
+          type: "message_delta",
+          delta: { stop_reason: response.stop_reason },
+          usage: { output_tokens: 2 },
+        };
         yield { type: "message_stop" };
       },
     },
@@ -172,7 +180,7 @@ for (const method of ["complete", "stream"]) {
       assert.equal(
         requests[0].system,
         instruction +
-          "\n\nRespond with a single JSON object and no other text.",
+          "\n\nRespond with a single JSON object and no other text. Do not include Markdown code fences.",
       );
       assert.deepEqual(requests[0].messages, [user]);
     });
@@ -269,5 +277,46 @@ for (const method of ["chat", "generate"]) {
     }
     assert.equal(requests[1].messages[1].content[0].type, "tool_use");
     assert.equal(requests[1].messages[2].content[0].type, "tool_result");
+  });
+}
+
+for (const streaming of [false, true]) {
+  test(`Anthropic Runtime preserves the complete tool JSON schema: ${streaming}`, async () => {
+    const { adapter, requests } = harness();
+    const inputSchema = {
+      type: "object",
+      properties: {
+        id: {
+          anyOf: [
+            { type: "string", enum: ["sample"] },
+            { type: "integer" },
+            { type: "null" },
+          ],
+        },
+        options: {
+          type: "object",
+          properties: { limit: { type: "integer", minimum: 1, maximum: 10 } },
+          required: ["limit"],
+          additionalProperties: false,
+        },
+      },
+      required: ["id", "options"],
+      additionalProperties: false,
+    };
+    const runtime = createRuntime({
+      adapter,
+      tools: [
+        {
+          name: "lookup",
+          description: "lookup",
+          location: "server",
+          inputSchema,
+          handler: async () => "OK",
+        },
+      ],
+    });
+    const result = await runtime.chat({ messages: [user], streaming });
+    assert.equal(result.error, undefined);
+    assert.deepEqual(requests[0].tools[0].input_schema, inputSchema);
   });
 }

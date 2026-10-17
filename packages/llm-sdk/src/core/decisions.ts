@@ -36,7 +36,7 @@ export type DecisionQuestion =
     };
 export type DecisionQuestions = Readonly<Record<string, DecisionQuestion>>;
 export interface DecisionImage {
-  /** Encoded image bytes. Native Decisions endpoints do not accept hosted URLs. */
+  /** Encoded image bytes. This SDK interface does not accept hosted URLs. */
   data: Uint8Array;
   mediaType?: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
   /** OpenAI image detail. Other providers reject this setting. */

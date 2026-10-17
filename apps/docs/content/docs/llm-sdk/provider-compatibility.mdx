@@ -1,0 +1,117 @@
+---
+title: Testing provider compatibility
+description: Verify text, streaming, tools, structured output, and usage against your provider account
+---
+
+Model support depends on the model, endpoint, account access, and requested settings. Run the opt-in checks against the SDK source you intend to ship. A successful text request alone does not verify tool continuation, structured output, or billing usage.
+
+## Repeatable live checks
+
+Build the workspace SDKs first. Provide `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` privately in the test process environment. These tests make billable API calls with synthetic prompts. They require an explicit model list and never run as part of the ordinary unit-test command.
+
+From the repository root:
+
+```bash
+pnpm build:sdk
+
+RUN_PROVIDER_MATRIX=1 \
+PROVIDER_MODELS='openai:gpt-6-luna,anthropic:claude-haiku-5-5' \
+node packages/llm-sdk/test/live/provider-matrix.cjs
+```
+
+Each model runs through `generateText`, `streamText`, and `runtime.chat` with streaming enabled and disabled. The cases check plain text, JSON mode, native JSON Schema output, a function call with a nested result, and a function call followed by a schema response. Assertions validate the answer, tool arguments, execution count, text deltas, and token totals.
+
+Use `PROVIDER_CASES=text,schema,tools,tools-schema`, `PROVIDER_SURFACES=modern,runtime`, or `PROVIDER_MODES=complete,stream` to select a smaller run. `PROVIDER_TRANSPORTS=responses` explicitly tests the OpenAI Responses endpoint. `PROVIDER_EFFORT=none` tests non-reasoning OpenAI configurations on models that support it. `PROVIDER_THINKING=1` tests Claude's legacy thinking-budget option and its conversion to adaptive thinking on newer models.
+
+Additional cases are `idle-tools` (tools are available but must not execute) and
+`nested-schema` (nested objects, arrays, enums, nullable values, and property names
+that also happen to be JSON Schema keywords).
+
+Set `PROVIDER_REPORT` to a private path outside the repository for a JSON report containing case names, usage counts, and sanitized errors. Treat a failed assertion as a failure to investigate; do not count skipped models as passing.
+
+## Copilot integration
+
+The Copilot checks use the real `ReactChat` state, HTTP adapter, Runtime, and JSON/SSE serializers, with live provider responses. They test plain text, server tools, and client tools that resume the conversation. They also check that billing usage stays out of client HTTP responses.
+
+```bash
+RUN_PROVIDER_CHAT=1 \
+PROVIDER_MODELS='openai:gpt-6-luna,anthropic:claude-haiku-5-5' \
+node test/live/provider-chat.cjs
+```
+
+This checks the chat integration without opening a browser; it is not a visual or microphone test. Run the playground separately for those interactions.
+
+## Settings that differ by provider
+
+| Setting                                        | Behavior                                                                                                                                                                                |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `temperature`                                  | OpenAI reasoning modes and newer Claude models reject custom sampling. The SDK omits unsupported temperature values with a warning; supported models retain them.                       |
+| `reasoningEffort: 'none'`                      | Supported by GPT-6 Luna and Sol; not by GPT-6.1 Sol or Astra. Tool calls with reasoning use Responses.                                                                                  |
+| Claude thinking                                | Use `thinking: { type: 'adaptive' }` on newer Claude models. Legacy `thinkingBudget` / `{ enabled: true, budgetTokens }` remain accepted and become adaptive on supported newer models. |
+| `responseFormat: { type: 'json_object' }`      | Native on OpenAI. Claude uses an instruction, so formatting remains best effort. Prefer JSON Schema for machine parsing.                                                                |
+| `responseFormat: { type: 'json_schema', ... }` | Uses the provider's native schema API. Validate required business constraints locally; providers support different schema subsets.                                                      |
+| `maxTokens`                                    | Includes reasoning tokens. A low limit may truncate before the final answer. Check completion status before parsing JSON.                                                               |
+| Forced tools                                   | Some thinking modes and Claude models reject forced tool choices. A schema or `auto` tool choice may be appropriate, depending on the task.                                             |
+
+Keep returned conversation messages intact when continuing tool calls. Claude thinking signatures and OpenAI encrypted reasoning are provider state; changing or discarding that state can break continuation. Replay metadata excludes raw billing usage and request diagnostics.
+
+## Usage and caching
+
+`generateText` and `streamText` report `promptTokens`, `completionTokens`, and `totalTokens`. `runtime.chat` is a server-side method and reports snake-case usage: `prompt_tokens`, `completion_tokens`, and `total_tokens`. Runtime's `onFinish` callback uses camel case. Client HTTP responses omit usage by default.
+
+Tool-loop totals include every model call. Claude input totals include uncached input, cache creation, and cache reads. Token counts are not a price calculation: cached tokens and cache writes have different rates.
+
+Enable Claude's automatic prompt caching with `anthropic(model, { cacheControl: true })` or `createAnthropic({ cacheControl: true })`. The provider's minimum prompt length and cache lifetime still apply.
+
+```bash
+RUN_ANTHROPIC_CACHE=1 node packages/llm-sdk/test/live/anthropic-cache.cjs
+```
+
+This uses a longer synthetic prompt to verify a real cache write followed by a cache hit. It does not test custom TTLs or manual block-level cache breakpoints.
+
+## Failure paths and tool boundaries
+
+Check `result.error` after `runtime.chat()`. The same error remains available in `result.events`; a collected response with partial text can still have failed. `generateText()` rejects on provider failures, and `streamText()` reports an error part and rejects its result promises.
+
+Malformed JSON, non-object tool arguments, duplicate call IDs, and incomplete tool turns must not be executed. OpenAI and Claude validate a tool batch before exposing executable calls. Runtime matches streamed arguments by call ID, including interleaved calls. A malformed provider response can fall back before output starts; the SDK does not retry a partially emitted turn because doing so could repeat a tool's side effects.
+
+Pass an `AbortSignal` and forward the tool context's signal to any requests made by your handler. Cancellation prevents subsequent tools and model calls. It cannot undo a side effect that has already happened. Use application-level idempotency for tools that write data, and do not assume call IDs provide deduplication across separate requests. Cancelling a response body from `streamText().toTextStreamResponse()` or `.toDataStreamResponse()` aborts that generation's provider request.
+
+`maxSteps` must be a positive integer. A tool with no return value sends `null` as its model-facing result; `false`, `0`, and explicit `null` are preserved. Modern tools validate arguments using their Zod schema before execution. Runtime handlers should validate their business rules locally; the provider's input schema is not a substitute for application validation.
+
+Nullable Zod properties remain required unless also optional. Integer types and all union alternatives are preserved in tool schemas. Refinements and transforms still run locally; they cannot all be represented in a provider's JSON Schema subset.
+
+The Claude Runtime adapter preserves the original tool `inputSchema`, including null, unions, and nested required properties. Handlers still need to validate incoming arguments before performing side effects.
+
+Modern generation exposes `finishReason`; check it for token-limit truncation. Runtime's collected result does not currently expose a normalized finish reason, so validate complete JSON and required fields before using a text-only structured response. A successful HTTP response alone does not prove that the answer is complete.
+
+Keep signed thinking state with its original model and conversation. Cross-model replay, provider-hosted tool continuations, forced tool choices, and every schema keyword need their own compatibility checks. The direct-provider tests do not certify those combinations.
+
+For tool arguments that include null and union types:
+
+```bash
+RUN_PROVIDER_MATRIX=1 \
+PROVIDER_MODELS='openai:gpt-6-luna,anthropic:claude-haiku-5-5' \
+PROVIDER_CASES=tools-nullable-schema \
+node packages/llm-sdk/test/live/provider-matrix.cjs
+```
+
+## Decisions inside tools
+
+Native Decisions answers boolean, choice, and score questions. It does not execute functions or generate a streamed JSON document. A text-generation tool can call `experimental_decide()`, inspect the answer type (including refusal), and return the selected answer to the model. Return only the fields needed for generation rather than the entire decision response and its diagnostics.
+
+```bash
+RUN_DECISION_TOOLS=1 node packages/llm-sdk/test/live/decision-tools.cjs
+```
+
+This opt-in test uses OpenAI Decisions inside both OpenAI and Claude tool loops, with streaming on/off and a final native JSON Schema response. It requires both provider keys. The separate native Decisions checks cover gateway-specific response formats and limits.
+
+## References
+
+- [OpenAI GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) and [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol)
+- [Claude thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking), [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), and [prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)
+- [Vercel AI SDK's Anthropic provider](https://ai-sdk.dev/providers/ai-sdk-providers/anthropic)
+- [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions)
+- [Claude tool-call stop conditions](https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls)
+
+These checks cover text and function workflows on the direct OpenAI and Claude APIs. They do not establish compatibility for every cloud gateway, hosted tool, model snapshot, audio feature, or possible JSON Schema.

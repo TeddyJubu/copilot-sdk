@@ -1,4 +1,12 @@
 import { toolOutputForProvider } from "../../core/tool-output";
+import {
+  invalidProviderResponse,
+  throwIfAborted,
+} from "../../core/provider-error";
+import {
+  parseToolArguments,
+  validateToolCalls,
+} from "../../core/tool-validation";
 /**
  * Anthropic Provider - Modern Pattern
  *
@@ -23,7 +31,23 @@ import type {
   FinishReason,
   CoreMessage,
 } from "../../core/types";
-import { toAnthropicOutputConfig } from "../../adapters/base";
+import {
+  toAnthropicOutputConfig,
+  extractAnthropicSystemPrompt,
+} from "../../adapters/base";
+import {
+  anthropicModelRules,
+  anthropicTemperature,
+  anthropicThinking,
+  anthropicInputTokens,
+  anthropicMaxTokens,
+  type AnthropicThinking,
+} from "../../core/anthropic-parameters";
+import {
+  anthropicReplay,
+  anthropicReplayContent,
+  collectAnthropicContent,
+} from "../../core/anthropic-replay";
 
 // ============================================
 // Model Definitions
@@ -35,9 +59,8 @@ interface AnthropicModelConfig {
   thinking: boolean;
   pdf: boolean;
   /**
-   * Native structured-output (`output_config.format`) support — GA on Claude
-   * API and Bedrock as of late 2025 for Claude 3.5 and newer. Older Claude 3
-   * base models must use a forced-tool fallback.
+   * Legacy catalog value. Native structured-output availability is determined
+   * by the shared model rules; platform support must be checked separately.
    */
   jsonMode: boolean;
   maxTokens: number;
@@ -150,11 +173,16 @@ export interface AnthropicProviderOptions {
   apiKey?: string;
   /** Base URL for API */
   baseURL?: string;
+  /** Enable automatic prompt caching on the direct Claude API. */
+  cacheControl?: boolean;
   /** Enable extended thinking */
-  thinking?: {
-    enabled: boolean;
-    budgetTokens?: number;
-  };
+  thinking?:
+    | AnthropicThinking
+    | {
+        enabled: boolean;
+        budgetTokens?: number;
+      };
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
 }
 
 // ============================================
@@ -185,6 +213,15 @@ export function anthropic(
 
   const modelConfig =
     ANTHROPIC_MODELS[modelId] ?? ANTHROPIC_MODELS["claude-3-5-sonnet-latest"];
+  const thinking = anthropicThinking(
+    modelId,
+    options.thinking &&
+      ("enabled" in options.thinking
+        ? options.thinking.enabled
+          ? { type: "enabled", budgetTokens: options.thinking.budgetTokens }
+          : undefined
+        : options.thinking),
+  );
 
   return {
     provider: "anthropic",
@@ -194,8 +231,9 @@ export function anthropic(
       supportsVision: modelConfig.vision,
       supportsTools: modelConfig.tools,
       supportsStreaming: true,
-      supportsJsonMode: modelConfig.jsonMode,
-      supportsThinking: modelConfig.thinking,
+      supportsJsonMode: anthropicModelRules(modelId).structured,
+      supportsThinking:
+        modelConfig.thinking || anthropicModelRules(modelId).thinking,
       supportsPDF: modelConfig.pdf,
       maxTokens: modelConfig.maxTokens,
       supportedImageTypes: modelConfig.vision
@@ -210,30 +248,43 @@ export function anthropic(
 
       const requestOptions: any = {
         model: modelId,
-        max_tokens: params.maxTokens ?? 4096,
+        max_tokens: anthropicMaxTokens(params.maxTokens, thinking),
         system: system || undefined,
         messages,
         tools: params.tools as any,
+        ...(options.cacheControl
+          ? { cache_control: { type: "ephemeral" } }
+          : {}),
       };
 
-      if (params.temperature !== undefined) {
-        requestOptions.temperature = params.temperature;
+      Object.assign(
+        requestOptions,
+        anthropicTemperature(
+          modelId,
+          params.temperature,
+          !!thinking && thinking.type !== "disabled",
+        ),
+      );
+      if (params.responseFormat?.type === "json_object") {
+        requestOptions.system =
+          (system || "") +
+          "\n\nRespond with a single JSON object and no other text. Do not include Markdown code fences.";
       }
 
       // Add thinking if enabled
-      if (options.thinking?.enabled && modelConfig.thinking) {
-        requestOptions.thinking = {
-          type: "enabled",
-          budget_tokens: options.thinking.budgetTokens ?? 10000,
+      if (thinking) requestOptions.thinking = thinking;
+
+      const outputConfig = toAnthropicOutputConfig(params.responseFormat);
+      if (outputConfig || options.effort) {
+        requestOptions.output_config = {
+          ...outputConfig,
+          ...(options.effort ? { effort: options.effort } : {}),
         };
       }
 
-      const outputConfig = toAnthropicOutputConfig(params.responseFormat);
-      if (outputConfig) {
-        requestOptions.output_config = outputConfig;
-      }
-
-      const response = await client.messages.create(requestOptions);
+      const response = await client.messages.create(requestOptions, {
+        signal: params.signal,
+      });
 
       // Parse response
       let text = "";
@@ -251,15 +302,27 @@ export function anthropic(
         }
       }
 
+      validateToolCalls(toolCalls);
+      if (toolCalls.length && response.stop_reason !== "tool_use")
+        throw invalidProviderResponse(
+          "Anthropic response ended with incomplete tool calls",
+        );
+
       return {
         text,
+        reasoningText:
+          response.content
+            .filter((b: any) => b.type === "thinking")
+            .map((b: any) => b.thinking)
+            .join("") || undefined,
+        providerMetadata: anthropicReplay(response.content),
         toolCalls,
         finishReason: mapFinishReason(response.stop_reason),
         usage: {
-          promptTokens: response.usage?.input_tokens ?? 0,
+          promptTokens: anthropicInputTokens(response.usage),
           completionTokens: response.usage?.output_tokens ?? 0,
           totalTokens:
-            (response.usage?.input_tokens ?? 0) +
+            anthropicInputTokens(response.usage) +
             (response.usage?.output_tokens ?? 0),
         },
         rawResponse: response,
@@ -273,45 +336,59 @@ export function anthropic(
 
       const requestOptions: any = {
         model: modelId,
-        max_tokens: params.maxTokens ?? 4096,
+        max_tokens: anthropicMaxTokens(params.maxTokens, thinking),
         system: system || undefined,
         messages,
         tools: params.tools as any,
+        ...(options.cacheControl
+          ? { cache_control: { type: "ephemeral" } }
+          : {}),
       };
 
-      if (params.temperature !== undefined) {
-        requestOptions.temperature = params.temperature;
+      Object.assign(
+        requestOptions,
+        anthropicTemperature(
+          modelId,
+          params.temperature,
+          !!thinking && thinking.type !== "disabled",
+        ),
+      );
+      if (params.responseFormat?.type === "json_object") {
+        requestOptions.system =
+          (system || "") +
+          "\n\nRespond with a single JSON object and no other text. Do not include Markdown code fences.";
       }
 
-      if (options.thinking?.enabled && modelConfig.thinking) {
-        requestOptions.thinking = {
-          type: "enabled",
-          budget_tokens: options.thinking.budgetTokens ?? 10000,
+      if (thinking) requestOptions.thinking = thinking;
+
+      const outputConfig = toAnthropicOutputConfig(params.responseFormat);
+      if (outputConfig || options.effort) {
+        requestOptions.output_config = {
+          ...outputConfig,
+          ...(options.effort ? { effort: options.effort } : {}),
         };
       }
 
-      const outputConfig = toAnthropicOutputConfig(params.responseFormat);
-      if (outputConfig) {
-        requestOptions.output_config = outputConfig;
-      }
-
-      const stream = await client.messages.stream(requestOptions);
+      const stream = await client.messages.stream(requestOptions, {
+        signal: params.signal,
+      });
 
       let currentToolUse: { id: string; name: string; input: string } | null =
         null;
       let inputTokens = 0;
       let outputTokens = 0;
+      const content: any[] = [];
+      const toolCalls: ToolCall[] = [];
+      let stopReason: string | undefined;
 
       for await (const event of stream) {
-        if (params.signal?.aborted) {
-          yield { type: "error", error: new Error("Aborted") };
-          return;
-        }
+        collectAnthropicContent(content, event);
+        throwIfAborted(params.signal);
 
         switch (event.type) {
           case "message_start":
             if (event.message?.usage) {
-              inputTokens = event.message.usage.input_tokens ?? 0;
+              inputTokens = anthropicInputTokens(event.message.usage);
             }
             break;
 
@@ -328,6 +405,8 @@ export function anthropic(
           case "content_block_delta":
             if (event.delta?.type === "text_delta") {
               yield { type: "text-delta", text: event.delta.text };
+            } else if (event.delta?.type === "thinking_delta") {
+              yield { type: "reasoning-delta", text: event.delta.thinking };
             } else if (
               event.delta?.type === "input_json_delta" &&
               currentToolUse
@@ -338,14 +417,11 @@ export function anthropic(
 
           case "content_block_stop":
             if (currentToolUse) {
-              yield {
-                type: "tool-call",
-                toolCall: {
-                  id: currentToolUse.id,
-                  name: currentToolUse.name,
-                  args: JSON.parse(currentToolUse.input || "{}"),
-                },
-              };
+              toolCalls.push({
+                id: currentToolUse.id,
+                name: currentToolUse.name,
+                args: parseToolArguments(currentToolUse.input),
+              });
               currentToolUse = null;
             }
             break;
@@ -355,19 +431,32 @@ export function anthropic(
               outputTokens = event.usage.output_tokens ?? 0;
             }
             if (event.delta?.stop_reason) {
-              yield {
-                type: "finish",
-                finishReason: mapFinishReason(event.delta.stop_reason),
-                usage: {
-                  promptTokens: inputTokens,
-                  completionTokens: outputTokens,
-                  totalTokens: inputTokens + outputTokens,
-                },
-              };
+              stopReason = event.delta.stop_reason;
             }
             break;
         }
       }
+      throwIfAborted(params.signal);
+      if (!stopReason || currentToolUse)
+        throw invalidProviderResponse(
+          "Anthropic stream ended before its turn completed",
+        );
+      validateToolCalls(toolCalls);
+      if (toolCalls.length && stopReason !== "tool_use")
+        throw invalidProviderResponse(
+          "Anthropic stream ended with incomplete tool calls",
+        );
+      for (const toolCall of toolCalls) yield { type: "tool-call", toolCall };
+      yield {
+        type: "finish",
+        finishReason: mapFinishReason(stopReason),
+        providerMetadata: anthropicReplay(content),
+        usage: {
+          promptTokens: inputTokens,
+          completionTokens: outputTokens,
+          totalTokens: inputTokens + outputTokens,
+        },
+      };
     },
   };
 }
@@ -394,7 +483,7 @@ function formatMessagesForAnthropic(messages: CoreMessage[]): {
   system: string;
   messages: any[];
 } {
-  let system = "";
+  const system = extractAnthropicSystemPrompt(messages);
   const formatted: any[] = [];
   const pendingToolResults: any[] = [];
 
@@ -425,7 +514,6 @@ function formatMessagesForAnthropic(messages: CoreMessage[]): {
 
   for (const msg of messages) {
     if (msg.role === "system") {
-      system += (system ? "\n" : "") + msg.content;
       continue;
     }
 
@@ -475,6 +563,11 @@ function formatMessagesForAnthropic(messages: CoreMessage[]): {
         formatted.push({ role: "user", content });
       }
     } else if (msg.role === "assistant") {
+      const replay = anthropicReplayContent(msg.providerMetadata);
+      if (replay) {
+        formatted.push({ role: "assistant", content: replay });
+        continue;
+      }
       const content: any[] = [];
 
       if (msg.content) {

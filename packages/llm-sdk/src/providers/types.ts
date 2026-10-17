@@ -363,6 +363,8 @@ export interface OpenAIProviderConfig
  * Anthropic provider configuration
  */
 export interface AnthropicProviderConfig extends BaseProviderConfig {
+  thinking?: import("../core/anthropic-parameters").AnthropicThinking;
+  effort?: "low" | "medium" | "high" | "xhigh" | "max";
   /** Extended thinking budget in tokens (minimum 1024) */
   thinkingBudget?: number;
   /** Enable prompt caching */
