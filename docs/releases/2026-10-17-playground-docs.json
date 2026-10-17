@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-17",
+  "branch": "codex/playground-revamp",
+  "baseCommit": "b75d51d34e8c1987fc6aa4897c4fa666f78095ed",
+  "tests": {
+    "automated": 550,
+    "failed": 0,
+    "playgroundTypecheck": "passed",
+    "playgroundBuild": "passed",
+    "docsBuild": "passed",
+    "browserGuides": 10,
+    "browserChatGuides": 3,
+    "browserKeyRequests": 12
+  },
+  "liveDecisions": [
+    {
+      "provider": "openai",
+      "requestedModel": "gpt-6-luna",
+      "timestamp": "2026-10-17T15:11:19.989Z",
+      "checks": [
+        {
+          "name": "openai: billing, three native questions",
+          "passed": true,
+          "model": "gpt-6-luna",
+          "answers": {
+            "outage": {
+              "type": "boolean",
+              "probability": 0
+            },
+            "team": {
+              "type": "choice",
+              "choice": "billing",
+              "probabilities": {
+                "billing": 1,
+                "engineering": 0
+              },
+              "confidence": 1
+            },
+            "impact": {
+              "type": "score",
+              "score": 0,
+              "probabilities": {
+                "0": 1,
+                "1": 0,
+                "2": 0
+              },
+              "confidence": 1
+            }
+          },
+          "usage": {
+            "inputTokens": 459,
+            "outputTokens": 0,
+            "totalTokens": 459,
+            "cachedInputTokens": 0,
+            "cacheWriteTokens": 0
+          }
+        },
+        {
+          "name": "openai: outage, three native questions",
+          "passed": true,
+          "model": "gpt-6-luna",
+          "answers": {
+            "outage": {
+              "type": "boolean",
+              "probability": 1
+            },
+            "team": {
+              "type": "choice",
+              "choice": "engineering",
+              "probabilities": {
+                "billing": 0,
+                "engineering": 1
+              },
+              "confidence": 1
+            },
+            "impact": {
+              "type": "score",
+              "score": 2,
+              "probabilities": {
+                "0": 0,
+                "1": 0,
+                "2": 1
+              },
+              "confidence": 1
+            }
+          },
+          "usage": {
+            "inputTokens": 465,
+            "outputTokens": 0,
+            "totalTokens": 465,
+            "cachedInputTokens": 0,
+            "cacheWriteTokens": 0
+          }
+        },
+        {
+          "name": "openai: native image decision",
+          "passed": true,
+          "model": "gpt-6-luna",
+          "answers": {
+            "color": {
+              "type": "choice",
+              "choice": "blue",
+              "probabilities": {
+                "red": 0,
+                "blue": 1,
+                "green": 0
+              },
+              "confidence": 1
+            }
+          },
+          "usage": {
+            "inputTokens": 131,
+            "outputTokens": 0,
+            "totalTokens": 131,
+            "cachedInputTokens": 0,
+            "cacheWriteTokens": 0
+          }
+        }
+      ],
+      "passed": true
+    },
+    {
+      "provider": "openrouter",
+      "requestedModel": "typesafe/jev-1.13",
+      "timestamp": "2026-10-17T15:11:17.199Z",
+      "checks": [
+        {
+          "name": "openrouter: billing, three native questions",
+          "passed": true,
+          "model": "typesafe/jev-1.13-20260917",
+          "answers": {
+            "outage": {
+              "type": "boolean",
+              "probability": 0.02
+            },
+            "team": {
+              "type": "choice",
+              "choice": "billing",
+              "probabilities": {
+                "billing": 1,
+                "engineering": 0
+              },
+              "confidence": 1
+            },
+            "impact": {
+              "type": "score",
+              "score": 0,
+              "probabilities": {
+                "0": 1,
+                "1": 0,
+                "2": 0
+              },
+              "confidence": 1
+            }
+          },
+          "usage": {
+            "inputTokens": 448,
+            "outputTokens": 62,
+            "costUsd": 1.8816e-5
+          }
+        },
+        {
+          "name": "openrouter: outage, three native questions",
+          "passed": true,
+          "model": "typesafe/jev-1.13-20260917",
+          "answers": {
+            "outage": {
+              "type": "boolean",
+              "probability": 0.98
+            },
+            "team": {
+              "type": "choice",
+              "choice": "engineering",
+              "probabilities": {
+                "billing": 0,
+                "engineering": 1
+              },
+              "confidence": 1
+            },
+            "impact": {
+              "type": "score",
+              "score": 2,
+              "probabilities": {
+                "0": 0,
+                "1": 0,
+                "2": 1
+              },
+              "confidence": 1
+            }
+          },
+          "usage": {
+            "inputTokens": 454,
+            "outputTokens": 62,
+            "costUsd": 1.9068e-5
+          }
+        }
+      ],
+      "passed": true
+    }
+  ],
+  "limits": [
+    "No direct TypeSafe or Cloudflare live credentials",
+    "No Java SDK tests",
+    "Synthetic API checks, not a production classification accuracy evaluation",
+    "No npm publication or main merge"
+  ]
+}

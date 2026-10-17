@@ -40,6 +40,11 @@ export interface Feature {
   id: FeatureId;
   name: string;
   group: "Core" | "Media";
+  /**
+   * Compatibility regression check rather than a product feature: it runs in
+   * "Run core checks" and is reachable by deep link, but is not listed.
+   */
+  check?: boolean;
   description: string;
   providers: readonly LabProvider[];
   defaultText?: string;
@@ -53,6 +58,7 @@ export const BLUE_PNG =
 export const features: readonly Feature[] = [
   {
     id: "parameters",
+    check: true,
     name: "Reasoning parameters",
     group: "Core",
     providers: ["openai"],
@@ -70,6 +76,7 @@ const result = await generateText({
   },
   {
     id: "fallback",
+    check: true,
     name: "Compatibility fallback",
     group: "Core",
     providers: ["openai"],
@@ -148,6 +155,7 @@ const second = await generateText({ model, messages: [
   },
   {
     id: "system-prompt",
+    check: true,
     name: "System prompt compatibility",
     group: "Core",
     providers: ["anthropic"],
@@ -225,6 +233,9 @@ await voice.connect(); // microphone permission from a user gesture`,
 });`,
   },
 ];
+/** Product features shown in the playground navigation. */
+export const listedFeatures = features.filter((feature) => !feature.check);
+export const defaultFeature: FeatureId = "decisions";
 export const coreChecks: Array<{ feature: FeatureId; provider: LabProvider }> =
   [
     { feature: "parameters", provider: "openai" },

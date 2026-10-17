@@ -4,6 +4,11 @@ Audited `codex/next-beta-decisions`, starting at `9be63b4`. This is a fresh revi
 of parameter handling, native Decisions, Responses, and images in function calls.
 The production branch and npm versions were not changed.
 
+Later documentation recheck: OpenAI's current API now documents hosted image
+URLs. The byte-only behavior below describes this SDK's initial interface; it
+must not be read as the current upstream restriction. See the
+[follow-up verification](2026-10-17-playground-docs.md).
+
 ## Findings and corrections
 
 1. **Responses log probabilities with reasoning:** the SDK already removed

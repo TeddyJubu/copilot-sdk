@@ -68,8 +68,8 @@ questions use 2–10 ordered levels. OpenAI supports up to 200 questions, Cloudf
 up to 64 with restricted IDs. Unsupported options fail explicitly.
 
 Pass encoded image bytes in `images` alongside state for OpenAI, Jev, or
-Cloudflare. Native Decisions does not accept hosted image URLs; OpenRouter image
-state is unsupported. Jev image support is experimental, with PNG/JPEG dimensions
+Cloudflare. This SDK currently accepts bytes only, even though OpenAI’s current
+native API also accepts hosted image URLs. OpenRouter image state is unsupported. Jev image support is experimental, with PNG/JPEG dimensions
 between 280 and 1568 pixels; providers validate decoding and dimensions.
 
 Pass `signal` and `timeoutMs` to control cancellation. The default timeout is 60
@@ -86,6 +86,26 @@ upload and a result inspector. OpenAI and Jev through OpenRouter passed live
 checks. Direct Jev and Cloudflare have transport fixtures but remain unverified
 with real accounts because their credentials were unavailable.
 
-See the [complete Decisions guide](https://github.com/YourGPT/copilot-sdk/blob/codex/next-beta-decisions/packages/llm-sdk/docs/decisions.md)
-for provider options, image limits, errors, and opt-in live tests. That branch link
-will become available after the next-beta branch is pushed.
+## Provider contracts and Vercel comparison
+
+Jev is TypeSafe's decision model, not a Java SDK. `typesafeDecision()` calls
+TypeSafe directly; `openrouterDecision()` can call Jev through OpenRouter.
+`openaiDecision()` calls OpenAI's native Decisions endpoint. These share our
+`experimental_decide` interface; Responses remains the separate chat/tool API.
+
+Implementation references are the official [OpenAI Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create),
+[TypeSafe API](https://docs.typesafe.ai/api), [OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request),
+and [Cloudflare Clef contract](https://developers.cloudflare.com/workers-ai/models/clef/).
+We compared the design and provider mappings with
+[Vercel's pinned Decisions implementation](https://github.com/vercel/ai/tree/fce9210c6405c0ad8452fee3f50717e8ea910b97/packages/ai/src/decide).
+
+This is a native-provider subset, not full Vercel parity or a drop-in replacement.
+Box questions, language-model decision adapters and broader Responses tools are
+not exposed. Our state arrays remain JSON, images are separate byte inputs, and
+we do not download remote files. OpenAI's newer conversation-shaped Decisions
+input and explicit cache controls are also outside this initial SDK contract.
+The live checks establish transport behavior with synthetic examples; production
+routing thresholds still need evaluation on your own labeled data.
+
+See the [complete Decisions guide](https://github.com/YourGPT/copilot-sdk/blob/main/packages/llm-sdk/docs/decisions.md)
+for provider options, image limits, errors, and opt-in live tests.

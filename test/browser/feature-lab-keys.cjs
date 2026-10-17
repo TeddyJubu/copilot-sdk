@@ -1,5 +1,10 @@
 // Fixture-only checks for the existing playground's shared API-key UI.
 const assert = require("node:assert/strict");
+const unlisted = {
+  "Reasoning parameters": "parameters",
+  "Compatibility fallback": "fallback",
+  "System prompt compatibility": "system-prompt",
+};
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const { browserEnvironment } = require("../live/feature-lab-credentials.cjs");
 const url =
@@ -111,10 +116,13 @@ const url =
       ["Voice input", "openai"],
       ["Image generation & editing", "openai"],
     ]) {
-      await page
-        .getByRole("navigation", { name: "Feature examples" })
-        .getByRole("button", { name })
-        .click();
+      // Compatibility checks are not listed in the navigation; open them by link.
+      if (unlisted[name]) await page.goto(`${url}?feature=${unlisted[name]}`);
+      else
+        await page
+          .getByRole("navigation", { name: "Feature examples" })
+          .getByRole("button", { name })
+          .click();
       await page
         .getByRole("combobox", { name: "Provider", exact: true })
         .selectOption(provider);

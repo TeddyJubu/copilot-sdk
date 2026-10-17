@@ -114,8 +114,9 @@ const images = [
 ```
 
 OpenAI accepts PNG, JPEG, WebP, and GIF bytes with optional `detail`, encoded as
-inline data URLs on the wire. Hosted URLs and file IDs are unsupported by the
-native Decisions endpoint. This SDK limits inline files to 20 MiB and 128 images.
+inline data URLs on the wire. This SDK accepts bytes only. OpenAI’s current
+native endpoint also accepts hosted image URLs; URL inputs are not yet exposed
+by this SDK. File IDs remain unsupported by the native endpoint. This SDK limits inline files to 20 MiB and 128 images.
 It never downloads URLs itself. Jev accepts PNG/JPEG bytes up to 16 MiB each using referenced
 native image assets and its required experimental image header. The original state
 is retained under `state` and image references under `images` in the native Jev

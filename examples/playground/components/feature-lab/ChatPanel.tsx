@@ -12,7 +12,7 @@ export default function ChatPanel({
   headers: Record<string, string>;
 }) {
   return (
-    <div style={{ height: 520 }} data-testid="lab-chat">
+    <div className="h-[540px]" data-testid="lab-chat">
       <CopilotProvider
         key={`${provider}-${streaming}`}
         runtimeUrl={`/playground/api/features/chat?provider=${provider}`}

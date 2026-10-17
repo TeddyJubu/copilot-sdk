@@ -1,6 +1,11 @@
 // Start the local Feature Lab with server-side credentials before running.
 // RUN_FEATURE_LAB_LIVE=1 PLAYWRIGHT_MODULE=/path/to/playwright node test/live/feature-lab-browser.cjs
 const assert = require("node:assert/strict");
+const unlisted = {
+  "Reasoning parameters": "parameters",
+  "Compatibility fallback": "fallback",
+  "System prompt compatibility": "system-prompt",
+};
 const fs = require("node:fs");
 const {
   browserEnvironment,
@@ -90,6 +95,8 @@ async function check(name, fn) {
         };
       });
     async function select(name) {
+      // Compatibility checks are not listed in the navigation; open them by link.
+      if (unlisted[name]) return page.goto(`${url}?feature=${unlisted[name]}`);
       await page
         .getByRole("navigation", { name: "Feature examples" })
         .getByRole("button", { name })

@@ -1,12 +1,6 @@
 "use client";
 
-import { memo, useState, useMemo } from "react";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { memo, useMemo, useState } from "react";
 import {
   Select,
   SelectContent,
@@ -14,31 +8,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
-  Settings2,
-  Terminal,
-  Palette,
-  Zap,
+  Camera,
+  Check,
+  ChevronDown,
+  ChevronsUpDown,
+  Cpu,
+  FlaskConical,
+  Gauge,
   Layers,
-  RotateCcw,
-  Plus,
+  LoaderCircle,
   Minus,
+  Plus,
+  RotateCcw,
+  ScrollText,
+  Settings2,
   ShoppingCart,
   Trash2,
-  CircleDot,
-  Gauge,
-  User,
-  Sparkles,
-  MessageSquare,
-  Layout,
-  Cpu,
-  Camera,
-  ScrollText,
+  UserRound,
+  Wrench,
   X,
-  ExternalLink,
-  Check,
-  ChevronsUpDown,
-  FlaskConical,
 } from "lucide-react";
 import {
   Command,
@@ -84,6 +74,9 @@ import { ConfigInfoHoverCard } from "./ConfigInfoHoverCard";
 import { AlphaFeaturesSection } from "./AlphaFeaturesSection";
 import { toolMetadata } from "@/lib/tool-metadata";
 import { configMetadata } from "@/lib/config-metadata";
+import { Btn, Led, Segmented } from "@/components/bench/ui";
+import { CodeView } from "@/components/bench/CodeView";
+import { cn } from "@/lib/utils";
 
 const generativeUIKeys: GenerativeUIKey[] = [
   "weather",
@@ -97,51 +90,119 @@ const exampleQuestions = [
   "What's my name and role?",
 ];
 
-// Reusable section label
-function SectionLabel({
-  icon: Icon,
-  label,
+const triggerClass =
+  "h-8 w-full rounded-lg border-input bg-surface px-2.5 text-[13px] shadow-none dark:bg-surface dark:hover:bg-surface hover:border-line-strong";
+
+type InfoKey = Exclude<keyof typeof configMetadata, "generativeUI">;
+
+function Info({ k }: { k: InfoKey }) {
+  const meta = configMetadata[k];
+  return (
+    <ConfigInfoHoverCard
+      description={meta.description}
+      tip={meta.tip}
+      codeSnippet={meta.codeSnippet}
+      codeLabel={meta.codeLabel}
+    />
+  );
+}
+
+function Label({
+  children,
+  info,
+  htmlFor,
 }: {
-  icon: typeof Zap;
-  label: string;
+  children: React.ReactNode;
+  info?: React.ReactNode;
+  htmlFor?: string;
 }) {
   return (
-    <div className="flex items-center gap-2 mb-3">
-      <Icon className="h-3.5 w-3.5 text-zinc-400" />
-      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-        {label}
-      </span>
+    <div className="mb-1.5 flex h-6 items-center gap-0.5">
+      <label
+        htmlFor={htmlFor}
+        className="text-[12px] font-medium text-muted-foreground"
+      >
+        {children}
+      </label>
+      {info}
     </div>
   );
 }
 
-// Industrial toggle switch
-function ToggleSwitch({
-  active,
-  onChange,
-  size = "default",
+/** A titled settings group; optionally collapsible. */
+function Section({
+  icon: Icon,
+  title,
+  meta,
+  actions,
+  collapsible,
+  defaultOpen = true,
+  children,
 }: {
-  active: boolean;
-  onChange: () => void;
-  size?: "sm" | "default";
+  icon: typeof Cpu;
+  title: string;
+  meta?: React.ReactNode;
+  actions?: React.ReactNode;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
 }) {
-  const sizeClasses = size === "sm" ? "h-5 w-9" : "h-6 w-11";
-  const dotClasses = size === "sm" ? "h-3 w-3 top-1" : "h-4 w-4 top-1";
-  const translateClass = size === "sm" ? "left-5" : "left-6";
-
+  const [open, setOpen] = useState(defaultOpen);
+  const id = `section-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
+  const heading = (
+    <>
+      <span className="grid size-7 place-items-center rounded-lg bg-muted text-muted-foreground">
+        <Icon aria-hidden className="size-3.5" />
+      </span>
+      <span className="text-[13px] font-semibold tracking-[-0.01em]">
+        {title}
+      </span>
+      {meta ? (
+        <span className="num truncate text-[11px] font-normal text-faint">
+          {meta}
+        </span>
+      ) : null}
+    </>
+  );
   return (
-    <button
-      onClick={onChange}
-      className={`relative ${sizeClasses} rounded-full transition-all duration-200 ${active ? "bg-emerald-500/20 ring-1 ring-emerald-500/50" : "bg-zinc-200 dark:bg-zinc-800 ring-1 ring-zinc-300 dark:ring-zinc-700"}`}
-    >
-      <span
-        className={`absolute ${dotClasses} rounded-full transition-all duration-200 ${active ? `${translateClass} bg-emerald-500 shadow-lg shadow-emerald-500/50` : "left-1 bg-zinc-400 dark:bg-zinc-500"}`}
-      />
-    </button>
+    <section aria-labelledby={id} className="panel">
+      <div className="flex min-h-12 items-center justify-between gap-3 px-4 py-2">
+        {collapsible ? (
+          <button
+            id={id}
+            type="button"
+            aria-expanded={open}
+            onClick={() => setOpen(!open)}
+            className="group flex min-w-0 flex-1 items-center gap-2.5 text-left"
+          >
+            {heading}
+            <ChevronDown
+              aria-hidden
+              className={cn(
+                "ml-auto size-4 text-faint transition-transform duration-200 ease-out-strong group-hover:text-foreground",
+                open && "rotate-180",
+              )}
+            />
+          </button>
+        ) : (
+          <h2 id={id} className="flex min-w-0 items-center gap-2.5">
+            {heading}
+          </h2>
+        )}
+        {actions ? (
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>
+        ) : null}
+      </div>
+      {open ? (
+        <div className={cn("border-t border-line p-4", collapsible && "enter")}>
+          {children}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
-// OpenRouter Model Selector Component with shadcn Combobox
+// OpenRouter model picker: live list from OpenRouter, grouped by provider.
 function OpenRouterModelSelector({
   selectedModel,
   onModelChange,
@@ -172,7 +233,7 @@ function OpenRouterModelSelector({
     customModel !== "" || (!isPresetModel && selectedModel !== "");
 
   const groupedModels = useMemo(() => {
-    // Define popular providers order
+    // Popular providers first, then alphabetical
     const popularProviders = [
       "openrouter",
       "openai",
@@ -184,93 +245,88 @@ function OpenRouterModelSelector({
       "mistralai",
       "qwen",
     ];
-
     const groups: Record<string, typeof availableModels> = {};
     for (const model of availableModels) {
       if (!groups[model.provider]) groups[model.provider] = [];
       groups[model.provider].push(model);
     }
-
-    // Sort providers: popular first, then alphabetically
     const sortedGroups: Record<string, typeof availableModels> = {};
-
-    // Add popular providers first
     for (const provider of popularProviders) {
-      if (groups[provider]) {
-        sortedGroups[provider] = groups[provider];
-      }
+      if (groups[provider]) sortedGroups[provider] = groups[provider];
     }
-
-    // Add remaining providers alphabetically
-    const remainingProviders = Object.keys(groups)
+    for (const provider of Object.keys(groups)
       .filter((p) => !popularProviders.includes(p))
-      .sort();
-
-    for (const provider of remainingProviders) {
+      .sort()) {
       sortedGroups[provider] = groups[provider];
     }
-
     return sortedGroups;
   }, [availableModels]);
 
-  // Custom Input
   if (useCustom) {
     return (
       <div className="flex gap-1.5">
         <input
           type="text"
+          aria-label="Custom OpenRouter model ID"
           value={customModel || selectedModel}
           onChange={(e) => {
             setCustomModel(e.target.value);
             if (e.target.value.trim()) onModelChange(e.target.value.trim());
           }}
-          placeholder="model-id"
-          className="flex-1 h-9 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg px-3 text-xs font-mono text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 placeholder:text-zinc-400"
+          placeholder="vendor/model-id"
+          className="control num h-8 px-2.5 text-[12px]"
         />
-        <button
+        <Btn
+          size="icon"
+          variant="ghost"
+          aria-label="Back to model list"
           onClick={() => {
             setCustomModel("");
             onModelChange(availableModels[0]?.id || "openrouter/auto");
           }}
-          className="px-2 h-9 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-500 transition-colors"
         >
-          <X className="h-3.5 w-3.5" />
-        </button>
+          <X aria-hidden />
+        </Btn>
       </div>
     );
   }
 
-  // Combobox
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
+          type="button"
           role="combobox"
           aria-expanded={open}
-          className="w-full flex items-center justify-between h-9 px-3 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg hover:border-zinc-300 dark:hover:border-zinc-600 transition-all text-left"
+          aria-label="OpenRouter model"
+          className="control press flex h-8 items-center justify-between gap-2 px-2.5 text-left"
         >
-          <span className="text-xs font-mono text-zinc-700 dark:text-zinc-300 truncate">
-            {selectedModel}
-          </span>
+          <span className="num truncate text-[12px]">{selectedModel}</span>
           {isLoading ? (
-            <CircleDot className="h-3.5 w-3.5 shrink-0 opacity-50 animate-spin" />
+            <LoaderCircle
+              aria-hidden
+              className="size-3.5 shrink-0 animate-spin text-faint"
+            />
           ) : (
-            <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+            <ChevronsUpDown
+              aria-hidden
+              className="size-3.5 shrink-0 text-faint"
+            />
           )}
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[--radix-popover-trigger-width] p-0"
+        className="w-[--radix-popover-trigger-width] min-w-[280px] p-0"
         align="start"
       >
         <Command>
           <CommandInput
-            placeholder="Search models..."
-            className="h-8 text-xs"
+            placeholder="Search models…"
+            className="h-9 text-[12.5px]"
           />
-          <CommandList className="max-h-[200px]">
+          <CommandList className="max-h-[260px]">
             <CommandEmpty>
-              {isLoading ? "Loading models..." : "No model found."}
+              {isLoading ? "Loading models…" : "No model found."}
             </CommandEmpty>
             {Object.entries(groupedModels).map(([provider, models]) => (
               <CommandGroup key={provider} heading={provider}>
@@ -282,11 +338,17 @@ function OpenRouterModelSelector({
                       onModelChange(model.id);
                       setOpen(false);
                     }}
-                    className="text-xs py-1.5 justify-between font-mono"
+                    className="num justify-between py-1.5 text-[12px]"
                   >
                     {model.id}
                     <Check
-                      className={`h-3 w-3 ${selectedModel === model.id ? "opacity-100" : "opacity-0"}`}
+                      aria-hidden
+                      className={cn(
+                        "size-3 text-brand",
+                        selectedModel === model.id
+                          ? "opacity-100"
+                          : "opacity-0",
+                      )}
                     />
                   </CommandItem>
                 ))}
@@ -298,16 +360,115 @@ function OpenRouterModelSelector({
                   setCustomModel(" ");
                   setOpen(false);
                 }}
-                className="text-xs py-1.5 text-indigo-500"
+                className="py-1.5 text-[12px] text-brand"
               >
-                <Plus className="mr-2 h-3 w-3" />
-                Custom model ID...
+                <Plus aria-hidden className="mr-2 size-3" />
+                Custom model ID…
               </CommandItem>
             </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** One registered tool with its on/off switch and the state it acts on. */
+function ToolTile({
+  toolKey,
+  icon: Icon,
+  name,
+  builtin,
+  on,
+  onToggle,
+  children,
+}: {
+  toolKey: ToolKey;
+  icon: typeof Gauge;
+  name: string;
+  builtin?: boolean;
+  on: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-[118px] flex-col rounded-xl p-3 transition-[background-color,box-shadow] duration-200",
+        on
+          ? "bg-card shadow-[inset_0_0_0_1px_var(--line-strong)]"
+          : "bg-surface shadow-[inset_0_0_0_1px_var(--line)]",
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Icon
+          aria-hidden
+          className={cn("size-4", on ? "text-brand" : "text-faint")}
+        />
+        <span className="text-[12.5px] font-medium">{name}</span>
+        <ToolInfoHoverCard metadata={toolMetadata[toolKey]} />
+        <Switch
+          className="ml-auto"
+          checked={on}
+          onCheckedChange={onToggle}
+          aria-label={`${name} tool`}
+        />
+      </div>
+      <p className="num mt-0.5 flex items-center gap-1.5 text-[10.5px] text-faint">
+        <Led tone={on ? "ready" : "idle"} className="!size-1.5 !shadow-none" />
+        {on ? "registered" : "off"}
+        {builtin ? " · built-in" : ""}
+      </p>
+      <div
+        className={cn("mt-auto pt-3 transition-opacity", !on && "opacity-60")}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function Stepper({
+  value,
+  onMinus,
+  onPlus,
+  minusLabel,
+  plusLabel,
+  minusIcon: MinusIcon = Minus,
+}: {
+  value: number;
+  onMinus: () => void;
+  onPlus: () => void;
+  minusLabel: string;
+  plusLabel: string;
+  minusIcon?: typeof Minus;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span className="num text-[22px] leading-none font-medium tracking-tight">
+        {value}
+      </span>
+      <div className="flex gap-1">
+        <Btn
+          size="icon"
+          variant="outline"
+          className="size-7"
+          aria-label={minusLabel}
+          onClick={onMinus}
+        >
+          <MinusIcon aria-hidden />
+        </Btn>
+        <Btn
+          size="icon"
+          variant="outline"
+          className="size-7"
+          aria-label={plusLabel}
+          onClick={onPlus}
+        >
+          <Plus aria-hidden />
+        </Btn>
+      </div>
+    </div>
   );
 }
 
@@ -375,745 +536,433 @@ function ControlPanelComponent({
   onUpdateAlpha,
 }: ControlPanelProps) {
   const activeToolCount = Object.values(toolsEnabled).filter(Boolean).length;
-  const selectedTheme = themes.find((t) => t.id === copilotTheme);
-  const selectedLayout = layoutTemplates.find((l) => l.id === layoutTemplate);
   const currentProvider = providers.find((p) => p.id === selectedProvider);
+  const activeGenerative = generativeUIKeys.filter(
+    (k) => generativeUI[k],
+  ).length;
 
   return (
-    <div className="space-y-6 relative">
-      {/* Header */}
-      {/* <header className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-zinc-900 dark:bg-zinc-800 ring-1 ring-zinc-700">
-              <Settings2 className="h-5 w-5 text-zinc-300" />
-            </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-zinc-100 dark:ring-zinc-950" />
-          </div>
+    <div className="space-y-4">
+      {/* Model & appearance */}
+      <Section
+        icon={Cpu}
+        title="Model & appearance"
+        meta="CopilotProvider · CopilotChat"
+      >
+        <div className="grid gap-x-4 gap-y-4 sm:grid-cols-2">
           <div>
-            <h1 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              Control Panel
-            </h1>
-            <p className="text-[11px] text-zinc-500 font-mono">
-              SDK Configuration
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800/50 ring-1 ring-zinc-200 dark:ring-zinc-700">
-          <CircleDot className="h-3 w-3 text-emerald-500" />
-          <span className="text-[10px] font-mono text-zinc-600 dark:text-zinc-400">
-            {activeToolCount} Tools
-          </span>
-        </div>
-      </header> */}
-
-      {/* Configuration - Always Visible */}
-      <section className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900/50">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-500/10 ring-1 ring-indigo-500/20">
-            <Terminal className="h-4 w-4 text-indigo-500" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              Configuration
-            </p>
-            <p className="text-[10px] text-zinc-500 font-mono">
-              theme · prompt · sdk options
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-5">
-          {/* Row 1: Theme + Layout Select */}
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="w-36">
-              <div className="flex items-center gap-1 mb-3">
-                <Palette className="h-3.5 w-3.5 text-zinc-400" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                  Theme
-                </span>
-                <ConfigInfoHoverCard
-                  description={configMetadata.theme.description}
-                  tip={configMetadata.theme.tip}
-                  codeSnippet={configMetadata.theme.codeSnippet}
-                  codeLabel={configMetadata.theme.codeLabel}
-                />
-              </div>
-              <Select
-                value={copilotTheme}
-                onValueChange={(v) => onThemeChange(v as CopilotTheme)}
-              >
-                <SelectTrigger className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700">
-                  <SelectValue>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full ring-1 ring-black/10"
-                        style={{ backgroundColor: selectedTheme?.accent }}
-                      />
-                      <span className="text-xs">{selectedTheme?.label}</span>
-                    </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {themes.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full ring-1 ring-black/10"
-                          style={{ backgroundColor: t.accent }}
-                        />
-                        <span>{t.label}</span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-40">
-              <div className="flex items-center gap-1 mb-3">
-                <Layout className="h-3.5 w-3.5 text-zinc-400" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                  Layout
-                </span>
-                <ConfigInfoHoverCard
-                  description={configMetadata.layout.description}
-                  tip={configMetadata.layout.tip}
-                  codeSnippet={configMetadata.layout.codeSnippet}
-                  codeLabel={configMetadata.layout.codeLabel}
-                />
-              </div>
-              <Select
-                value={layoutTemplate}
-                onValueChange={(v) => onLayoutChange(v as LayoutTemplate)}
-              >
-                <SelectTrigger className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700">
-                  <SelectValue>
-                    <span className="text-xs">{selectedLayout?.name}</span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {layoutTemplates.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      <div className="flex flex-col">
-                        <span>{l.name}</span>
-                        <span className="text-[10px] text-zinc-400">
-                          {l.description}
-                        </span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-44">
-              <div className="flex items-center gap-1 mb-3">
-                <Cpu className="h-3.5 w-3.5 text-zinc-400" />
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                  Provider
-                </span>
-                <ConfigInfoHoverCard
-                  description={configMetadata.model.description}
-                  tip={configMetadata.model.tip}
-                  codeSnippet={configMetadata.model.codeSnippet}
-                  codeLabel={configMetadata.model.codeLabel}
-                />
-              </div>
-              <Select
-                value={selectedProvider}
-                onValueChange={(v) => onProviderChange(v as ProviderId)}
-              >
-                <SelectTrigger className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700">
-                  <SelectValue>
-                    <span className="flex items-center gap-2">
-                      <span
-                        className="h-2 w-2 rounded-full"
-                        style={{ backgroundColor: currentProvider?.color }}
-                      />
-                      <span className="text-xs truncate">
-                        {currentProvider?.name} ·{" "}
+            <Label info={<Info k="model" />}>Provider</Label>
+            <Select
+              value={selectedProvider}
+              onValueChange={(v) => onProviderChange(v as ProviderId)}
+            >
+              <SelectTrigger aria-label="Provider" className={triggerClass}>
+                <SelectValue>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: currentProvider?.color }}
+                    />
+                    <span className="truncate">
+                      {currentProvider?.name}
+                      <span className="num ml-1.5 text-[11px] text-faint">
                         {selectedProvider === "openrouter"
-                          ? "500+"
+                          ? "500+ models"
                           : currentProvider?.model}
                       </span>
                     </span>
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {providers.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: p.color }}
-                        />
-                        <span>{p.name}</span>
-                        <span className="text-zinc-400 text-[10px]">
-                          · {p.id === "openrouter" ? "500+ models" : p.model}
-                        </span>
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* OpenRouter Model - Only shows when OpenRouter is selected */}
-            {selectedProvider === "openrouter" && (
-              <div className="w-56">
-                <div className="flex items-center gap-1 mb-3">
-                  <Sparkles className="h-3.5 w-3.5 text-indigo-400" />
-                  <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                    Model
                   </span>
-                </div>
-                <OpenRouterModelSelector
-                  selectedModel={selectedOpenRouterModel}
-                  onModelChange={onOpenRouterModelChange}
-                />
-              </div>
-            )}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {providers.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: p.color }}
+                      />
+                      <span>{p.name}</span>
+                      <span className="num text-[11px] text-faint">
+                        {p.id === "openrouter" ? "500+ models" : p.model}
+                      </span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Row 2: System Prompt - Full width */}
-          <div>
-            <div className="flex items-center gap-1 mb-3">
-              <MessageSquare className="h-3.5 w-3.5 text-zinc-400" />
-              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                System Prompt
-              </span>
-              <ConfigInfoHoverCard
-                description={configMetadata.systemPrompt.description}
-                tip={configMetadata.systemPrompt.tip}
-                codeSnippet={configMetadata.systemPrompt.codeSnippet}
-                codeLabel={configMetadata.systemPrompt.codeLabel}
+          {selectedProvider === "openrouter" ? (
+            <div>
+              <Label>Model</Label>
+              <OpenRouterModelSelector
+                selectedModel={selectedOpenRouterModel}
+                onModelChange={onOpenRouterModelChange}
               />
             </div>
-            <textarea
-              value={systemPrompt}
-              onChange={(e) => onSystemPromptChange(e.target.value)}
-              className="w-full h-20 bg-zinc-50 dark:bg-zinc-800/50 ring-1 ring-zinc-200 dark:ring-zinc-700 rounded-lg px-3 py-2.5 text-xs font-mono text-zinc-700 dark:text-zinc-300 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500/50 placeholder:text-zinc-400 leading-relaxed"
-              placeholder="// Define AI behavior..."
-            />
+          ) : (
+            <div>
+              <Label>Loader</Label>
+              <LoaderSelect
+                sdkConfig={sdkConfig}
+                onUpdateSDKConfig={onUpdateSDKConfig}
+              />
+            </div>
+          )}
+
+          <div className="sm:col-span-2">
+            <Label info={<Info k="theme" />}>Theme</Label>
+            <div
+              role="radiogroup"
+              aria-label="Theme"
+              className="grid grid-cols-3 gap-1.5 md:grid-cols-5 xl:grid-cols-9"
+            >
+              {themes.map((t) => {
+                const active = t.id === copilotTheme;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => onThemeChange(t.id)}
+                    className={cn(
+                      "press flex h-14 flex-col items-start justify-between rounded-lg px-2.5 py-2 text-left",
+                      active
+                        ? "bg-card shadow-[0_0_0_1.5px_var(--brand),0_4px_12px_-6px_var(--brand)]"
+                        : "bg-surface shadow-[inset_0_0_0_1px_var(--line)] hover:shadow-[inset_0_0_0_1px_var(--line-strong)]",
+                    )}
+                  >
+                    <span className="flex gap-0.5">
+                      <span
+                        className="size-3 rounded-full ring-1 ring-black/10 dark:ring-white/10"
+                        style={{ backgroundColor: t.accent }}
+                      />
+                      <span className="size-3 rounded-full bg-foreground/10" />
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[11.5px]",
+                        active ? "font-medium" : "text-muted-foreground",
+                      )}
+                    >
+                      {t.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Row 3: More Settings - Bare collapsible */}
-          <Accordion type="single" collapsible className="w-full">
-            <AccordionItem value="more" className="border-none">
-              <AccordionTrigger className="py-0 hover:no-underline">
-                <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
-                  More Settings
-                </span>
-              </AccordionTrigger>
-              <AccordionContent className="pt-4 pb-0">
-                <div className="flex flex-wrap items-end gap-4">
-                  {/* Loader Variant */}
-                  <div className="w-40">
-                    <div className="flex items-center gap-1 mb-3">
-                      <CircleDot className="h-3.5 w-3.5 text-zinc-400" />
-                      <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                        Loader
-                      </span>
-                    </div>
-                    <Select
-                      value={sdkConfig.loaderVariant}
-                      onValueChange={(v) =>
-                        onUpdateSDKConfig("loaderVariant", v as LoaderVariant)
-                      }
-                    >
-                      <SelectTrigger className="h-9 bg-zinc-50 dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700">
-                        <SelectValue>
-                          <span className="text-xs">
-                            {
-                              LOADER_VARIANTS.find(
-                                (l) => l.id === sdkConfig.loaderVariant,
-                              )?.label
-                            }
-                          </span>
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {LOADER_VARIANTS.map((variant) => (
-                          <SelectItem key={variant.id} value={variant.id}>
-                            <div className="flex flex-col">
-                              <span>{variant.label}</span>
-                              <span className="text-[10px] text-zinc-400">
-                                {variant.description}
-                              </span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
+          <div className="sm:col-span-2">
+            <Label info={<Info k="layout" />}>Layout</Label>
+            <Segmented
+              label="Layout"
+              className="flex w-full"
+              value={layoutTemplate}
+              onChange={(v) => onLayoutChange(v)}
+              options={layoutTemplates.map((l) => ({
+                value: l.id,
+                label: l.name,
+              }))}
+            />
+            <p className="mt-1.5 text-[11.5px] text-faint">
+              {
+                layoutTemplates.find((l) => l.id === layoutTemplate)
+                  ?.description
+              }
+            </p>
+          </div>
+
+          {selectedProvider === "openrouter" ? (
+            <div>
+              <Label>Loader</Label>
+              <LoaderSelect
+                sdkConfig={sdkConfig}
+                onUpdateSDKConfig={onUpdateSDKConfig}
+              />
+            </div>
+          ) : null}
+
+          <div className="sm:col-span-2">
+            <Label htmlFor="system-prompt" info={<Info k="systemPrompt" />}>
+              System prompt
+            </Label>
+            <textarea
+              id="system-prompt"
+              value={systemPrompt}
+              onChange={(e) => onSystemPromptChange(e.target.value)}
+              rows={3}
+              className="control num min-h-[76px] text-[12px]"
+              placeholder="// Define AI behavior…"
+            />
+          </div>
         </div>
-      </section>
+      </Section>
 
-      {/* Collapsible Sections */}
-      <Accordion
-        type="multiple"
-        defaultValue={["tools", "generative", "context"]}
-        className="space-y-3"
+      {/* Tools & live state */}
+      <Section
+        icon={Wrench}
+        title="Tools & live state"
+        meta={`${activeToolCount}/5 registered`}
+        actions={
+          <Btn size="xs" variant="ghost" onClick={onReset}>
+            <RotateCcw aria-hidden />
+            Reset all
+          </Btn>
+        }
       >
-        {/* Tools & State */}
-        <AccordionItem
-          value="tools"
-          className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50"
-        >
-          <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-500/10 ring-1 ring-emerald-500/20">
-                <Zap className="h-4 w-4 text-emerald-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  Tools & State
-                </p>
-                <p className="text-[10px] text-zinc-500 font-mono">
-                  {activeToolCount}/5 tools active
-                </p>
-              </div>
+        <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+          <ToolTile
+            toolKey="updateCounter"
+            icon={Gauge}
+            name="Counter"
+            on={toolsEnabled.updateCounter}
+            onToggle={() => onToggleTool("updateCounter")}
+          >
+            <Stepper
+              value={dashboardState.counter}
+              onMinus={onDecrementCounter}
+              onPlus={onIncrementCounter}
+              minusLabel="Decrease counter"
+              plusLabel="Increase counter"
+            />
+          </ToolTile>
+          <ToolTile
+            toolKey="updatePreference"
+            icon={Settings2}
+            name="Preference"
+            on={toolsEnabled.updatePreference}
+            onToggle={() => onToggleTool("updatePreference")}
+          >
+            <p className="num text-[18px] leading-none font-medium text-brand">
+              {dashboardState.userPreference}
+            </p>
+            <p className="mt-1.5 text-[11px] text-faint">
+              Set by the AI through a tool
+            </p>
+          </ToolTile>
+          <ToolTile
+            toolKey="updateCart"
+            icon={ShoppingCart}
+            name="Cart"
+            on={toolsEnabled.updateCart}
+            onToggle={() => onToggleTool("updateCart")}
+          >
+            <Stepper
+              value={dashboardState.cartItems}
+              onMinus={onClearCart}
+              onPlus={onAddToCart}
+              minusLabel="Clear cart"
+              plusLabel="Add to cart"
+              minusIcon={Trash2}
+            />
+          </ToolTile>
+          <ToolTile
+            toolKey="captureScreenshot"
+            icon={Camera}
+            name="Screenshot"
+            builtin
+            on={toolsEnabled.captureScreenshot}
+            onToggle={() => onToggleTool("captureScreenshot")}
+          >
+            <p className="text-[12px] text-muted-foreground">
+              Captures the current page with consent.
+            </p>
+          </ToolTile>
+          <ToolTile
+            toolKey="getConsoleLogs"
+            icon={ScrollText}
+            name="Console"
+            builtin
+            on={toolsEnabled.getConsoleLogs}
+            onToggle={() => onToggleTool("getConsoleLogs")}
+          >
+            <p className="text-[12px] text-muted-foreground">
+              Reads recent browser console logs.
+            </p>
+          </ToolTile>
+        </div>
+      </Section>
+
+      {/* Generative UI */}
+      <Section
+        icon={Layers}
+        title="Generative UI"
+        meta={`${activeGenerative}/3 renderers`}
+      >
+        <div className="mb-4 flex flex-wrap gap-x-5 gap-y-2">
+          {generativeUIKeys.map((key) => (
+            <div key={key} className="flex items-center gap-1">
+              <label className="flex cursor-pointer items-center gap-2 text-[12.5px] capitalize">
+                <Switch
+                  checked={generativeUI[key]}
+                  onCheckedChange={() => onToggleGenerativeUI(key)}
+                />
+                {key}
+              </label>
+              <ConfigInfoHoverCard
+                description={configMetadata.generativeUI[key].description}
+                tip={configMetadata.generativeUI[key].tip}
+                codeSnippet={configMetadata.generativeUI[key].codeSnippet}
+                codeLabel={configMetadata.generativeUI[key].codeLabel}
+              />
             </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-5 pt-1 pb-5">
-            <div className="space-y-4">
-              {/* Reset button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={onReset}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-100 dark:bg-zinc-800 ring-1 ring-zinc-200 dark:ring-zinc-700 text-[9px] font-mono text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition-all"
-                >
-                  <RotateCcw className="h-3 w-3" />
-                  Reset All
-                </button>
-              </div>
+          ))}
+        </div>
+        {activeGenerative ? (
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <WeatherModule show={generativeUI.weather} />
+            <StockModule show={generativeUI.stock} />
+            <AlertModule show={generativeUI.notification} />
+          </div>
+        ) : (
+          <p className="text-[12px] text-faint">
+            All renderers are off; tool results show as plain text.
+          </p>
+        )}
+      </Section>
 
-              {/* Unified Tool + State Cards */}
-              <div className="grid grid-cols-5 gap-3">
-                {/* Counter Tool + State */}
-                <div
-                  className={`rounded-xl ring-1 overflow-hidden ${toolsEnabled.updateCounter ? "ring-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10" : "ring-zinc-200 dark:ring-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/30"}`}
-                >
-                  <div className="flex items-center justify-between p-3">
-                    <button
-                      onClick={() => onToggleTool("updateCounter")}
-                      className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded-md px-1 -ml-1"
+      {/* App context */}
+      <Section icon={UserRound} title="App context" meta="useAIContext">
+        <div className="grid gap-5 md:grid-cols-2">
+          <div>
+            <Label info={<Info k="context" />}>Signed-in user</Label>
+            <div
+              role="radiogroup"
+              aria-label="Signed-in user"
+              className="space-y-1.5"
+            >
+              {samplePersons.map((person) => {
+                const active = selectedPerson.id === person.id;
+                return (
+                  <button
+                    key={person.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={active}
+                    onClick={() => onSelectPerson(person)}
+                    className={cn(
+                      "press flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left",
+                      active
+                        ? "bg-card shadow-[0_0_0_1.5px_var(--brand)]"
+                        : "bg-surface shadow-[inset_0_0_0_1px_var(--line)] hover:shadow-[inset_0_0_0_1px_var(--line-strong)]",
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-semibold",
+                        active
+                          ? "bg-brand text-brand-foreground"
+                          : "bg-muted text-muted-foreground",
+                      )}
                     >
-                      <Gauge
-                        className={`h-4 w-4 ${toolsEnabled.updateCounter ? "text-emerald-500" : "text-zinc-400"}`}
-                      />
-                      <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                        Counter
+                      {person.name
+                        .split(" ")
+                        .map((part) => part[0])
+                        .join("")}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[12.5px] font-medium">
+                        {person.name}
                       </span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <ToolInfoHoverCard
-                        metadata={toolMetadata.updateCounter}
-                      />
-                      <button
-                        onClick={() => onToggleTool("updateCounter")}
-                        className={`relative text-[9px] font-mono font-semibold uppercase tracking-wider px-2 py-1 rounded-md transition-all ${
-                          toolsEnabled.updateCounter
-                            ? "bg-emerald-500/20 text-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                            : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
-                        }`}
-                      >
-                        {toolsEnabled.updateCounter ? "ON" : "OFF"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-3 pb-3 pt-1">
-                    <p className="text-2xl font-light text-zinc-900 dark:text-white tabular-nums mb-2">
-                      {dashboardState.counter}
-                    </p>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={onDecrementCounter}
-                        className="flex-1 flex items-center justify-center py-1.5 rounded-lg bg-white dark:bg-zinc-800 ring-1 ring-zinc-200 dark:ring-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                      >
-                        <Minus className="h-3.5 w-3.5 text-zinc-500" />
-                      </button>
-                      <button
-                        onClick={onIncrementCounter}
-                        className="flex-1 flex items-center justify-center py-1.5 rounded-lg bg-white dark:bg-zinc-800 ring-1 ring-zinc-200 dark:ring-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                      >
-                        <Plus className="h-3.5 w-3.5 text-zinc-500" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Preference Tool + State */}
-                <div
-                  className={`rounded-xl ring-1 overflow-hidden ${toolsEnabled.updatePreference ? "ring-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10" : "ring-zinc-200 dark:ring-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/30"}`}
-                >
-                  <div className="flex items-center justify-between p-3">
-                    <button
-                      onClick={() => onToggleTool("updatePreference")}
-                      className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded-md px-1 -ml-1"
-                    >
-                      <Settings2
-                        className={`h-4 w-4 ${toolsEnabled.updatePreference ? "text-emerald-500" : "text-zinc-400"}`}
-                      />
-                      <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                        Preference
-                      </span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <ToolInfoHoverCard
-                        metadata={toolMetadata.updatePreference}
-                      />
-                      <button
-                        onClick={() => onToggleTool("updatePreference")}
-                        className={`relative text-[9px] font-mono font-semibold uppercase tracking-wider px-2 py-1 rounded-md transition-all ${
-                          toolsEnabled.updatePreference
-                            ? "bg-emerald-500/20 text-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                            : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
-                        }`}
-                      >
-                        {toolsEnabled.updatePreference ? "ON" : "OFF"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-3 pb-3 pt-1">
-                    <p className="text-xl font-mono font-medium text-indigo-600 dark:text-indigo-400">
-                      {dashboardState.userPreference}
-                    </p>
-                    <p className="text-[9px] text-zinc-400 font-mono mt-1">
-                      set via AI tool
-                    </p>
-                  </div>
-                </div>
-
-                {/* Cart Tool + State */}
-                <div
-                  className={`rounded-xl ring-1 overflow-hidden ${toolsEnabled.updateCart ? "ring-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10" : "ring-zinc-200 dark:ring-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/30"}`}
-                >
-                  <div className="flex items-center justify-between p-3">
-                    <button
-                      onClick={() => onToggleTool("updateCart")}
-                      className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded-md px-1 -ml-1"
-                    >
-                      <ShoppingCart
-                        className={`h-4 w-4 ${toolsEnabled.updateCart ? "text-emerald-500" : "text-zinc-400"}`}
-                      />
-                      <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                        Cart
-                      </span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <ToolInfoHoverCard metadata={toolMetadata.updateCart} />
-                      <button
-                        onClick={() => onToggleTool("updateCart")}
-                        className={`relative text-[9px] font-mono font-semibold uppercase tracking-wider px-2 py-1 rounded-md transition-all ${
-                          toolsEnabled.updateCart
-                            ? "bg-emerald-500/20 text-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                            : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
-                        }`}
-                      >
-                        {toolsEnabled.updateCart ? "ON" : "OFF"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-3 pb-3 pt-1">
-                    <p className="text-2xl font-light text-zinc-900 dark:text-white tabular-nums mb-2">
-                      {dashboardState.cartItems}
-                    </p>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={onAddToCart}
-                        className="flex-1 flex items-center justify-center py-1.5 rounded-lg bg-white dark:bg-zinc-800 ring-1 ring-zinc-200 dark:ring-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                      >
-                        <Plus className="h-3.5 w-3.5 text-zinc-500" />
-                      </button>
-                      <button
-                        onClick={onClearCart}
-                        className="flex items-center justify-center px-3 py-1.5 rounded-lg bg-white dark:bg-zinc-800 ring-1 ring-zinc-200 dark:ring-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-zinc-400" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Screenshot Tool (Built-in) */}
-                <div
-                  className={`rounded-xl ring-1 overflow-hidden ${toolsEnabled.captureScreenshot ? "ring-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10" : "ring-zinc-200 dark:ring-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/30"}`}
-                >
-                  <div className="flex items-center justify-between p-3">
-                    <button
-                      onClick={() => onToggleTool("captureScreenshot")}
-                      className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded-md px-1 -ml-1"
-                    >
-                      <Camera
-                        className={`h-4 w-4 ${toolsEnabled.captureScreenshot ? "text-emerald-500" : "text-zinc-400"}`}
-                      />
-                      <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                        Screenshot
-                      </span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <ToolInfoHoverCard
-                        metadata={toolMetadata.captureScreenshot}
-                      />
-                      <button
-                        onClick={() => onToggleTool("captureScreenshot")}
-                        className={`relative text-[9px] font-mono font-semibold uppercase tracking-wider px-2 py-1 rounded-md transition-all ${
-                          toolsEnabled.captureScreenshot
-                            ? "bg-emerald-500/20 text-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                            : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
-                        }`}
-                      >
-                        {toolsEnabled.captureScreenshot ? "ON" : "OFF"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-3 pb-3 pt-1">
-                    <p className="text-[10px] text-zinc-500 font-mono">
-                      Captures current page
-                    </p>
-                    <p className="text-[9px] text-zinc-400 font-mono mt-1">
-                      built-in tool
-                    </p>
-                  </div>
-                </div>
-
-                {/* Console Logs Tool (Built-in) */}
-                <div
-                  className={`rounded-xl ring-1 overflow-hidden ${toolsEnabled.getConsoleLogs ? "ring-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-500/10" : "ring-zinc-200 dark:ring-zinc-700/50 bg-zinc-50 dark:bg-zinc-800/30"}`}
-                >
-                  <div className="flex items-center justify-between p-3">
-                    <button
-                      onClick={() => onToggleTool("getConsoleLogs")}
-                      className="flex items-center gap-2 hover:bg-black/5 dark:hover:bg-white/5 transition-colors rounded-md px-1 -ml-1"
-                    >
-                      <ScrollText
-                        className={`h-4 w-4 ${toolsEnabled.getConsoleLogs ? "text-emerald-500" : "text-zinc-400"}`}
-                      />
-                      <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                        Console
-                      </span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <ToolInfoHoverCard
-                        metadata={toolMetadata.getConsoleLogs}
-                      />
-                      <button
-                        onClick={() => onToggleTool("getConsoleLogs")}
-                        className={`relative text-[9px] font-mono font-semibold uppercase tracking-wider px-2 py-1 rounded-md transition-all ${
-                          toolsEnabled.getConsoleLogs
-                            ? "bg-emerald-500/20 text-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.4)]"
-                            : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
-                        }`}
-                      >
-                        {toolsEnabled.getConsoleLogs ? "ON" : "OFF"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-3 pb-3 pt-1">
-                    <p className="text-[10px] text-zinc-500 font-mono">
-                      Gets browser logs
-                    </p>
-                    <p className="text-[9px] text-zinc-400 font-mono mt-1">
-                      built-in tool
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Generative UI */}
-        <AccordionItem
-          value="generative"
-          className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50"
-        >
-          <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-violet-500/10 ring-1 ring-violet-500/20">
-                <Layers className="h-4 w-4 text-violet-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  Generative UI
-                </p>
-                <p className="text-[10px] text-zinc-500 font-mono">
-                  dynamic components
-                </p>
-              </div>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-5 pt-1 pb-5">
-            <div className="space-y-4">
-              <div className="flex items-center gap-5">
-                {generativeUIKeys.map((key) => (
-                  <div key={key} className="flex items-center gap-2.5">
-                    <label className="flex items-center gap-2.5 cursor-pointer group">
-                      <ToggleSwitch
-                        size="sm"
-                        active={generativeUI[key]}
-                        onChange={() => onToggleGenerativeUI(key)}
-                      />
-                      <span className="text-xs font-mono text-zinc-500 group-hover:text-zinc-700 dark:group-hover:text-zinc-300 capitalize transition-colors">
-                        {key}
-                      </span>
-                    </label>
-                    <ConfigInfoHoverCard
-                      description={configMetadata.generativeUI[key].description}
-                      tip={configMetadata.generativeUI[key].tip}
-                      codeSnippet={configMetadata.generativeUI[key].codeSnippet}
-                      codeLabel={configMetadata.generativeUI[key].codeLabel}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                <WeatherModule show={generativeUI.weather} />
-                <StockModule show={generativeUI.stock} />
-                <AlertModule show={generativeUI.notification} />
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Context Demo */}
-        <AccordionItem
-          value="context"
-          className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50"
-        >
-          <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500/10 ring-1 ring-cyan-500/20">
-                <Sparkles className="h-4 w-4 text-cyan-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  Context Demo
-                </p>
-                <p className="text-[10px] text-zinc-500 font-mono">
-                  useAIContext hook
-                </p>
-              </div>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-5 pt-1 pb-5">
-            <div className="grid grid-cols-2 gap-5">
-              <div>
-                <div className="flex items-center gap-1 mb-3">
-                  <User className="h-3.5 w-3.5 text-zinc-400" />
-                  <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">
-                    User Profile
-                  </span>
-                  <ConfigInfoHoverCard
-                    description={configMetadata.context.description}
-                    tip={configMetadata.context.tip}
-                    codeSnippet={configMetadata.context.codeSnippet}
-                    codeLabel={configMetadata.context.codeLabel}
-                  />
-                </div>
-                <div className="space-y-2">
-                  {samplePersons.map((person) => (
-                    <button
-                      key={person.id}
-                      onClick={() => onSelectPerson(person)}
-                      className={`w-full text-left p-3 rounded-xl transition-all ${
-                        selectedPerson.id === person.id
-                          ? "bg-cyan-500/10 ring-2 ring-cyan-500/50"
-                          : "bg-zinc-50 dark:bg-zinc-800/30 ring-1 ring-zinc-200 dark:ring-zinc-700/50 hover:ring-zinc-300"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-xs font-medium text-zinc-900 dark:text-zinc-100">
-                          {person.name}
-                        </span>
-                        <span
-                          className={`text-[8px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
-                            person.plan === "enterprise"
-                              ? "bg-violet-500/20 text-violet-600 dark:text-violet-400"
-                              : person.plan === "pro"
-                                ? "bg-blue-500/20 text-blue-600 dark:text-blue-400"
-                                : "bg-zinc-200 dark:bg-zinc-700 text-zinc-500"
-                          }`}
-                        >
-                          {person.plan}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-zinc-500 font-mono">
+                      <span className="num block truncate text-[10.5px] text-faint">
                         {person.role} · {person.credits.toLocaleString()}{" "}
                         credits
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <SectionLabel icon={Terminal} label="AI Context" />
-                  <div className="rounded-xl bg-zinc-950 p-3 ring-1 ring-zinc-800">
-                    <pre className="text-[10px] font-mono text-cyan-400 leading-relaxed overflow-x-auto">
-                      {`{
-  "name": "${selectedPerson.name}",
-  "plan": "${selectedPerson.plan}",
-  "credits": ${selectedPerson.credits}
-}`}
-                    </pre>
-                  </div>
-                </div>
-
-                <div>
-                  <SectionLabel icon={Sparkles} label="Try Asking" />
-                  <div className="space-y-1.5">
-                    {exampleQuestions.map((q, i) => (
-                      <div
-                        key={i}
-                        className="px-3 py-2 rounded-lg bg-zinc-50 dark:bg-zinc-800/50 ring-1 ring-zinc-200 dark:ring-zinc-700/50 text-[10px] font-mono text-zinc-600 dark:text-zinc-400"
-                      >
-                        &quot;{q}&quot;
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                      </span>
+                    </span>
+                    <span className="num text-[10px] tracking-wide text-muted-foreground uppercase">
+                      {person.plan}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Alpha Features */}
-        <AccordionItem
-          value="alpha"
-          className="border border-zinc-200 dark:border-zinc-800 rounded-xl bg-white dark:bg-zinc-900/50"
-        >
-          <AccordionTrigger className="px-5 py-4 hover:no-underline hover:bg-zinc-50 dark:hover:bg-zinc-800/30">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-orange-500/10 ring-1 ring-orange-500/20">
-                <FlaskConical className="h-4 w-4 text-orange-500" />
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                  Alpha Features
-                </p>
-                <p className="text-[10px] text-zinc-500 font-mono">
-                  experimental · in development
-                </p>
-              </div>
+          </div>
+          <div className="space-y-4">
+            <div>
+              <Label>What the AI sees</Label>
+              <CodeView
+                code={JSON.stringify(
+                  {
+                    name: selectedPerson.name,
+                    plan: selectedPerson.plan,
+                    credits: selectedPerson.credits,
+                  },
+                  null,
+                  2,
+                )}
+                className="rounded-lg bg-surface px-3 py-2.5 text-[11.5px] shadow-[inset_0_0_0_1px_var(--line)]"
+              />
             </div>
-          </AccordionTrigger>
-          <AccordionContent className="px-5 pt-1 pb-5">
-            <AlphaFeaturesSection
-              alphaConfig={alphaConfig}
-              onUpdate={onUpdateAlpha}
-            />
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+            <div>
+              <Label>Try asking</Label>
+              <ul className="space-y-1">
+                {exampleQuestions.map((q) => (
+                  <li
+                    key={q}
+                    className="rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground shadow-[inset_0_0_0_1px_var(--line)]"
+                  >
+                    “{q}”
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Alpha features */}
+      <Section
+        icon={FlaskConical}
+        title="Alpha features"
+        meta="experimental · in development"
+        collapsible
+        defaultOpen={false}
+      >
+        <AlphaFeaturesSection
+          alphaConfig={alphaConfig}
+          onUpdate={onUpdateAlpha}
+        />
+      </Section>
     </div>
+  );
+}
+
+function LoaderSelect({
+  sdkConfig,
+  onUpdateSDKConfig,
+}: {
+  sdkConfig: SDKConfig;
+  onUpdateSDKConfig: ControlPanelProps["onUpdateSDKConfig"];
+}) {
+  return (
+    <Select
+      value={sdkConfig.loaderVariant}
+      onValueChange={(v) =>
+        onUpdateSDKConfig("loaderVariant", v as LoaderVariant)
+      }
+    >
+      <SelectTrigger aria-label="Loader" className={triggerClass}>
+        <SelectValue>
+          {LOADER_VARIANTS.find((l) => l.id === sdkConfig.loaderVariant)?.label}
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {LOADER_VARIANTS.map((variant) => (
+          <SelectItem key={variant.id} value={variant.id}>
+            <div className="flex flex-col">
+              <span>{variant.label}</span>
+              <span className="text-[11px] text-faint">
+                {variant.description}
+              </span>
+            </div>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
