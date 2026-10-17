@@ -3,7 +3,9 @@
 Prepared on `codex/playground-revamp` from reconciliation commit
 `73b0002dedf8ef6743703761c622206c6e370fb7`. This checkpoint adds deployment
 configuration and verification to the combined SDK, examples, playground and docs.
-It does not record a remote push, main merge, new deployment or npm publication.
+The initial checkpoint did not record a remote push, main merge, new deployment
+or npm publication. The preview follow-up below records the subsequent approved
+push and PR, including the deployment failure and its local correction.
 
 ## What is included
 
@@ -92,15 +94,33 @@ test each new preview directly before merging.
   reconciliation and this deployment checkpoint.
 
 See [sanitized checkpoint evidence](2026-10-17-production-readiness.json).
-Local commands reproduce deployment builds from their corresponding app roots:
+The corrected commands find the workspace root from either the repository root
+or an app directory:
 
 ```sh
-cd ../..
-npx --yes pnpm@11.5.1 install --frozen-lockfile
-npx --yes pnpm@11.5.1 exec turbo run build --filter=@yourgpt/copilot-sdk-docs
-npx --yes pnpm@11.5.1 exec turbo run build --filter=playground...
+npx --yes pnpm@11.5.1 --workspace-root install --frozen-lockfile
+npx --yes pnpm@11.5.1 --workspace-root exec turbo run build --filter=@yourgpt/copilot-sdk-docs
+npx --yes pnpm@11.5.1 --workspace-root exec turbo run build --filter=playground...
+# Run the test command from the repository root.
 node --test packages/llm-sdk/test/*.test.cjs test/*.test.cjs
 ```
+
+## PR preview follow-up
+
+The user approved pushing `38fe77c` and creating the combined
+[PR #131](https://github.com/YourGPT/copilot-sdk/pull/131). The docs preview reached
+`READY`; the playground preview failed during installation with
+`ERR_PNPM_NO_PKG_MANIFEST`. Vercel started that install at the workspace root, so
+the original `cd ../..` moved to `/`. The local checks had only tested that
+command from an app directory and did not expose this difference.
+
+Both configs now use pnpm's explicit `--workspace-root` option instead of fixed
+directory traversal. Frozen installs pass from the repository root, docs app and
+playground app. Uncached builds pass on Node 24.22.0 using the corrected commands
+from the docs app and repository root respectively. This follow-up changes no
+SDK source, dependencies or package versions. A fresh push authorization is
+required to update PR #131; the failed remote playground check is not resolved
+until that corrected commit is pushed and its new preview succeeds.
 
 ## Merge and deployment checklist
 

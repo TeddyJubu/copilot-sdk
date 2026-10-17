@@ -169,5 +169,52 @@
       "path": "/tmp/copilot-production-browser-keys.log",
       "sha256": "63000318fc0a215190c0db67f8d73ef3ae302b27ce951d78fb98cbd5bf44ec44"
     }
-  ]
+  ],
+  "previewFollowUp": {
+    "pr": "https://github.com/YourGPT/copilot-sdk/pull/131",
+    "approvedPushedCommit": "38fe77c4559f29576a3025b4c3b5922a12b30255",
+    "docs": {
+      "deploymentId": "dpl_JCFNnfVkqK6JeUqhCb4EP8Tk8qGy",
+      "state": "READY",
+      "url": "https://copilot-sdk-docs-nh59ooghv-delta4-infotech.vercel.app"
+    },
+    "playground": {
+      "deploymentId": "dpl_6virqLYFgUXKNQC4kpXM2fYwG5GZ",
+      "state": "ERROR",
+      "errorCode": "ERR_PNPM_NO_PKG_MANIFEST",
+      "cause": "Vercel started install from repository root; cd ../.. left repository"
+    },
+    "localCorrection": "Use pnpm --workspace-root instead of relative cd in both install/build commands",
+    "verification": {
+      "installFromRepositoryRoot": "passed",
+      "installFromDocsApp": "passed",
+      "installFromPlaygroundApp": "passed",
+      "uncachedDocsBuildFromApp": "passed",
+      "uncachedPlaygroundBuildFromRepositoryRoot": "passed",
+      "node": "24.22.0"
+    },
+    "pending": "Fresh authorization to push correction, then successful new preview",
+    "logs": [
+      {
+        "path": "/tmp/copilot-vercel-workspace-install-root.log",
+        "sha256": "8032546372843508fafb0bc5e9b22f353f1ab2eb8c7f7594cc9a3016877ee999"
+      },
+      {
+        "path": "/tmp/copilot-vercel-workspace-install-docs.log",
+        "sha256": "2c2da9a072612650dc564c3c0347a3c31e0bf8cda7096cbdd056f8ac6034176a"
+      },
+      {
+        "path": "/tmp/copilot-vercel-workspace-install-playground.log",
+        "sha256": "fea8847597c74a8d48cef54c4834429bb8222eea2c18afcd6ee9ae52608e187b"
+      },
+      {
+        "path": "/tmp/copilot-vercel-workspace-build-docs.log",
+        "sha256": "d9a4ca771906c10753c916678fc7ef342b186d04669c736e46571c9f4986ecaa"
+      },
+      {
+        "path": "/tmp/copilot-vercel-workspace-build-playground.log",
+        "sha256": "56b2cb56dd1532d14300f6595f6ca37cdbcc3f577f9c2d43006e450c77e5df49"
+      }
+    ]
+  }
 }
