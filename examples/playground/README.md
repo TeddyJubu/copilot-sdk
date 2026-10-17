@@ -1,6 +1,12 @@
 # Copilot SDK Playground
 
-The existing dashboard compares providers and exercises Copilot tools. The **Feature Lab** adds focused, runnable examples for the next beta. Both use the local workspace SDK packages, so tests run against the code on your branch.
+This is the existing [deployed Copilot playground](https://copilot-sdk.yourgpt.ai/playground). The dashboard compares providers and exercises Copilot tools. Its **Feature lab** link adds focused examples for the next beta, sharing the same **API keys** dialog and saved keys. Both pages use the workspace SDK packages built from this repository.
+
+## Use the hosted playground
+
+After deploying this branch to the existing playground project, open **Feature lab** from the dashboard, choose **API keys**, and select an example. Existing saved OpenAI, Anthropic and OpenRouter keys work on both pages. The same dialog also accepts direct TypeSafe/Jev and Cloudflare credentials, including the Cloudflare account ID.
+
+Hosted requests use your selected provider's key. Keys are saved in browser storage and forwarded in request headers to the playground server for the selected provider call; they are not placed in URLs, example reports or server configuration. Hosted feature routes never fall back to shared server keys.
 
 ## Run locally
 
@@ -14,7 +20,7 @@ pnpm --filter playground dev:features
 
 Open [the Feature Lab](http://127.0.0.1:3035/playground/features), or follow **Feature lab** from [the playground](http://127.0.0.1:3035/playground).
 
-Provide keys to the server process through your local secret runner or an ignored `examples/playground/.env.local`. The lab reads server environment variables; the existing dashboard's browser API key setting is separate. Keys are never returned by the lab's status endpoint. Do not commit credentials.
+The same API-key dialog works locally. Alternatively, `dev:features` enables local server credentials from your secret runner or an ignored `examples/playground/.env.local`. These keys are never returned to the browser. A key entered in the dialog takes precedence. Do not commit credentials.
 
 | Variable                                          | Enables                                                                                                  |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
@@ -51,9 +57,17 @@ The image tool example supplies a blue fixture by default. Uploads are limited t
 
 **Export results** downloads a JSON report with checks, answers and timing. Audio/image bytes are excluded. Reports can contain your prompts and model outputs. Run history stays in this page's memory and clears when you reload. Realtime has its own transcript/event panel and is not included in the report.
 
-## Local-only routes
+## Deployment and local credentials
 
-`dev:features` enables `PLAYGROUND_FEATURE_LAB=1` and binds to `127.0.0.1:3035`. Lab routes require that flag, loopback hostnames and matching request origins. They are disabled on a public deployment. This is a local development harness using server credentials; adding a hosted version requires application authentication and quota controls.
+`dev:features` enables `PLAYGROUND_FEATURE_LAB=1` and binds to `127.0.0.1:3035`. Shared environment keys require that flag, loopback hostnames, a matching browser origin and a development build. A production build always requires caller-supplied keys, even if the flag is set. Public status responses do not expose whether server keys are configured. Requests with foreign browser origins are rejected; the existing docs proxy origin is supported explicitly.
+
+Build the SDK dependencies and playground together from the repository root:
+
+```bash
+pnpm exec turbo run build --filter=playground...
+```
+
+Deploy the existing `examples/playground` project using that workspace build. The docs application's existing `/playground/:path*` rewrite also covers the new `/features` page and API routes. No second application is needed. The deployed site changes only after the branch is deployed.
 
 The main dashboard still runs with `pnpm --filter playground dev` at `/playground`. Its provider routes are unchanged.
 
@@ -71,8 +85,11 @@ RUN_FEATURE_LAB_LIVE=1 node test/live/feature-lab-integration.cjs
 
 # Realtime UI lifecycle checks using fixtures, without provider credentials.
 node test/browser/feature-lab.cjs
+node test/browser/feature-lab-keys.cjs
 ```
 
 The first live script makes real provider requests, verifies core results, exercises media playback/uploads and checks desktop/mobile layout. The integration script tests Copilot chat with OpenAI and Anthropic over JSON and SSE, browser recording with synthetic speech, and a real WebRTC call with tool approval and cleanup. It never opens a physical microphone. Both write reports to `/tmp/copilot-feature-lab` by default; use `FEATURE_LAB_REPORT_DIR` to choose another directory. Missing core-provider keys are recorded as skips; media requires OpenAI access, and the integration script requires both OpenAI and Anthropic. Physical microphone quality and other browsers need separate manual testing.
+
+For production-mode verification, start the built app locally with `pnpm --filter playground start --hostname 127.0.0.1 --port 3036`. Run the live scripts with `FEATURE_LAB_URL=http://127.0.0.1:3036/playground/features` and `FEATURE_LAB_CALLER_KEYS=1`, supplying only the required provider keys privately to the test runner. This opt-in seeds those caller keys in an ephemeral browser context and exercises the same header flow as the hosted playground. Chromium's process environment receives no API keys. The fixture-only key test checks the shared dialog, saved-key reuse, provider headers and dashboard navigation without real credentials.
 
 For standalone examples, see the [Decisions CLI and realtime/image demo](../skills-demo/README.md). For broader Copilot UI scenarios, see the [experimental examples](../experimental/README.md). SDK contract tests and the provider audit remain separate from this interactive lab.

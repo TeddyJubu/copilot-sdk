@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useCallback, memo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -26,11 +26,13 @@ function ApiKeyModalComponent({
   onSave,
 }: ApiKeyModalProps) {
   const [localKeys, setLocalKeys] = useState(apiKeys);
+  const [sourceKeys, setSourceKeys] = useState(apiKeys);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
+  if (sourceKeys !== apiKeys) {
+    setSourceKeys(apiKeys);
     setLocalKeys(apiKeys);
-  }, [apiKeys]);
+  }
 
   const handleSave = useCallback(() => {
     onSave(localKeys);
@@ -66,8 +68,9 @@ function ApiKeyModalComponent({
           <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
             <Shield className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
             <p className="text-[11px] text-amber-800 dark:text-amber-300">
-              Keys are stored locally in your browser only. We never send or
-              store your keys on any server.
+              Keys are saved in this browser and sent to the playground server
+              for your requests to the selected provider. They are not added to
+              the server configuration.
             </p>
           </div>
 
@@ -75,7 +78,10 @@ function ApiKeyModalComponent({
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
             {providers.map((provider) => (
               <div key={provider.id} className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
+                <label
+                  htmlFor={`api-key-${provider.id}`}
+                  className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2"
+                >
                   <span
                     className="h-2 w-2 rounded-full"
                     style={{ backgroundColor: provider.color }}
@@ -86,6 +92,7 @@ function ApiKeyModalComponent({
                   ) : null}
                 </label>
                 <input
+                  id={`api-key-${provider.id}`}
                   type="password"
                   value={localKeys[provider.id]}
                   onChange={(e) => handleKeyChange(provider.id, e.target.value)}
@@ -103,6 +110,33 @@ function ApiKeyModalComponent({
                     {provider.keyLinkText}
                   </a>
                 </p>
+              </div>
+            ))}
+            <p className="text-xs font-medium pt-2">
+              Additional Decisions providers
+            </p>
+            {(
+              [
+                ["typesafe", "TypeSafe / Jev API key", "password"],
+                ["cloudflare", "Cloudflare API token", "password"],
+                ["cloudflareAccountId", "Cloudflare account ID", "text"],
+              ] as const
+            ).map(([id, label, type]) => (
+              <div key={id} className="space-y-1.5">
+                <label
+                  htmlFor={`api-key-${id}`}
+                  className="text-xs font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  {label}
+                </label>
+                <input
+                  id={`api-key-${id}`}
+                  type={type}
+                  autoComplete="off"
+                  value={localKeys[id] ?? ""}
+                  onChange={(event) => handleKeyChange(id, event.target.value)}
+                  className="w-full h-8 px-3 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-mono"
+                />
               </div>
             ))}
           </div>

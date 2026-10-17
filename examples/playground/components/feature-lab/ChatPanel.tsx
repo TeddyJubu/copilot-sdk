@@ -5,9 +5,11 @@ import "@yourgpt/copilot-sdk/ui/styles.css";
 export default function ChatPanel({
   provider,
   streaming,
+  headers,
 }: {
   provider: "openai" | "anthropic";
   streaming: boolean;
+  headers: Record<string, string>;
 }) {
   return (
     <div style={{ height: 520 }} data-testid="lab-chat">
@@ -15,6 +17,7 @@ export default function ChatPanel({
         key={`${provider}-${streaming}`}
         runtimeUrl={`/playground/api/features/chat?provider=${provider}`}
         streaming={streaming}
+        headers={headers}
       >
         <CopilotChat
           className="h-full"

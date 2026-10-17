@@ -1,7 +1,10 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
+import { useApiKeys } from "@/hooks/useApiKeys";
+import { ApiKeyModal } from "@/components/modals/ApiKeyModal";
+import { featureHeaders, hasFeatureKey } from "@/lib/feature-lab/credentials";
 import {
   VoiceRecorder,
   type VoiceRecordingState,
@@ -129,10 +132,13 @@ function MediaResult({ result }: { result: LabResult }) {
   );
 }
 export default function FeatureLab() {
+  const { keys: apiKeys, updateKeys } = useApiKeys();
+  const [keysOpen, setKeysOpen] = useState(false);
   const [selected, setSelected] = useState<FeatureId>("parameters");
   const feature = features.find((item) => item.id === selected)!;
   const [provider, setProvider] = useState<LabProvider>("openai");
   const [availability, setAvailability] = useState<Availability>({});
+  const [localCredentials, setLocalCredentials] = useState(false);
   const [setupError, setSetupError] = useState<string>();
   const [text, setText] = useState(feature.defaultText ?? "");
   const [streaming, setStreaming] = useState(true);
@@ -152,6 +158,7 @@ export default function FeatureLab() {
         const data = await response.json();
         if (!response.ok) throw new Error(data.error);
         setAvailability(data.providers);
+        setLocalCredentials(!!data.localCredentials);
       })
       .catch((e) => {
         if (!controller.signal.aborted) setSetupError(e.message);
@@ -183,7 +190,10 @@ export default function FeatureLab() {
   ) {
     const response = await fetch(`/playground/api/features/${id}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...featureHeaders(apiKeys, input.provider),
+      },
       body: JSON.stringify(input),
       signal: controller.signal,
     });
@@ -244,13 +254,13 @@ export default function FeatureLab() {
     setChat(false);
     for (const item of coreChecks) {
       if (controller.signal.aborted) break;
-      if (!availability[item.provider]?.configured) {
+      if (!providerReady(item.provider)) {
         setRuns((previous) => [
           ...previous,
           {
             ...item,
             status: "skipped",
-            error: "Server credential not configured",
+            error: "Provider key not configured",
             timestamp: new Date().toISOString(),
           },
         ]);
@@ -319,7 +329,17 @@ export default function FeatureLab() {
       setError(e instanceof Error ? e.message : "Recording failed");
     }
   }
-  const ready = !!availability[provider]?.configured;
+  function providerReady(id: LabProvider) {
+    // Gate browser storage behind the status fetch so SSR and hydration agree.
+    if (!availability[id]) return false;
+    if (apiKeys[id]?.trim()) return hasFeatureKey(apiKeys, id);
+    return !!availability[id]?.configured;
+  }
+  const ready = providerReady(provider);
+  const runtimeHeaders = useMemo(
+    () => featureHeaders(apiKeys, provider),
+    [apiKeys, provider],
+  );
   const current = [...runs]
     .reverse()
     .find((run) => run.feature === selected && run.provider === provider);
@@ -335,6 +355,13 @@ export default function FeatureLab() {
         <div className={styles.actions}>
           <button
             className={styles.button}
+            onClick={() => setKeysOpen(true)}
+            disabled={!!busy}
+          >
+            API keys
+          </button>
+          <button
+            className={styles.button}
             disabled={!runs.length || !!busy}
             onClick={() => saveReport(runs)}
           >
@@ -344,7 +371,9 @@ export default function FeatureLab() {
             className={styles.primary}
             disabled={
               !!busy ||
-              !Object.values(availability).some((a) => a?.configured) ||
+              !Object.keys(availability).some((id) =>
+                providerReady(id as LabProvider),
+              ) ||
               selected === "realtime"
             }
             onClick={runCoreChecks}
@@ -428,7 +457,11 @@ export default function FeatureLab() {
               </select>
             </label>
             <span className={ready ? styles.ready : styles.unavailable}>
-              {ready ? "● Server key ready" : "○ Key not configured"}
+              {ready
+                ? hasFeatureKey(apiKeys, provider)
+                  ? "● Your key ready"
+                  : "● Local server key ready"
+                : "○ Key not configured"}
             </span>
             {feature.streaming ? (
               <label className={styles.checkbox}>
@@ -444,14 +477,19 @@ export default function FeatureLab() {
           </div>
           {!ready ? (
             <p className={styles.notice}>
-              Configure{" "}
-              {availability[provider]?.requires.join(" and ") ??
-                "this provider’s credentials"}{" "}
-              in the server environment, then restart. Keys stay on the server.
+              Add your {provider === "typesafe" ? "TypeSafe / Jev" : provider}{" "}
+              key in API keys
+              {provider === "cloudflare"
+                ? " together with your account ID"
+                : ""}
+              .
+              {localCredentials
+                ? " Local development also supports server environment keys."
+                : " The playground uses your key for these requests."}
             </p>
           ) : null}
           {selected === "realtime" ? (
-            <RealtimePanel enabled={ready} />
+            <RealtimePanel enabled={ready} headers={runtimeHeaders} />
           ) : (
             <div className={styles.columns}>
               <div className={styles.stack}>
@@ -702,6 +740,7 @@ export default function FeatureLab() {
                 <ChatPanel
                   provider={provider === "anthropic" ? "anthropic" : "openai"}
                   streaming={streaming}
+                  headers={runtimeHeaders}
                 />
               ) : null}
             </section>
@@ -756,6 +795,12 @@ export default function FeatureLab() {
           </p>
         )}
       </section>
+      <ApiKeyModal
+        open={keysOpen}
+        onOpenChange={setKeysOpen}
+        apiKeys={apiKeys}
+        onSave={updateKeys}
+      />
     </main>
   );
 }

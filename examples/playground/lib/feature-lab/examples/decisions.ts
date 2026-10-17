@@ -13,6 +13,7 @@ export async function decisionsExample(
   input: LabInput,
   apiKey: string,
   signal: AbortSignal,
+  accountId?: string,
 ): Promise<LabResult> {
   let model: DecisionModel;
   switch (input.provider) {
@@ -26,7 +27,7 @@ export async function decisionsExample(
       model = typesafeDecision(undefined, { apiKey });
       break;
     case "cloudflare":
-      model = cloudflareDecision(undefined, { apiKey });
+      model = cloudflareDecision(undefined, { apiKey, accountId });
       break;
     default:
       throw new Error("Unsupported Decisions provider");

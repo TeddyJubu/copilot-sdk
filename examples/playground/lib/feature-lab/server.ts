@@ -55,24 +55,38 @@ class LabError extends Error {
   }
 }
 const noStore = { "Cache-Control": "no-store" };
-export function assertLabAccess(request: Request) {
+function requestOrigins(request: Request) {
   const url = new URL(request.url);
-  // Next can normalize request.url to localhost while the browser uses 127.0.0.1.
-  // Match Origin to the actual Host header, validating both hosts as loopback.
   const publicUrl = new URL(
     `${url.protocol}//${request.headers.get("host") ?? url.host}`,
   );
+  return { url, publicUrl };
+}
+function allowsServerCredentials(request: Request) {
+  const { url, publicUrl } = requestOrigins(request);
   const local = [url.hostname, publicUrl.hostname].every((hostname) =>
     ["localhost", "127.0.0.1", "[::1]"].includes(hostname),
   );
-  if (process.env.PLAYGROUND_FEATURE_LAB !== "1" || !local)
-    throw new LabError(
-      "Start the local lab with pnpm --filter playground dev:features.",
-      403,
-    );
   const origin = request.headers.get("origin");
+  return (
+    process.env.NODE_ENV !== "production" &&
+    process.env.PLAYGROUND_FEATURE_LAB === "1" &&
+    local &&
+    (!origin || origin === publicUrl.origin)
+  );
+}
+export function assertLabAccess(request: Request) {
+  const { url, publicUrl } = requestOrigins(request);
+  const origin = request.headers.get("origin");
+  // The docs deployment proxies /playground to this Next app. Its browser origin
+  // can differ from the upstream Host; never use forwarded headers to authorize keys.
+  const allowedOrigins = [
+    url.origin,
+    publicUrl.origin,
+    "https://copilot-sdk.yourgpt.ai",
+  ];
   if (
-    (origin && origin !== publicUrl.origin) ||
+    (origin && !allowedOrigins.includes(origin)) ||
     request.headers.get("sec-fetch-site") === "cross-site"
   )
     throw new LabError(
@@ -80,12 +94,14 @@ export function assertLabAccess(request: Request) {
       403,
     );
 }
-export function labAvailability() {
+export function labAvailability(request: Request) {
+  const local = allowsServerCredentials(request);
   return Object.fromEntries(
     providers.map((provider) => [
       provider,
       {
         configured:
+          local &&
           !!process.env[keyNames[provider]]?.trim() &&
           (provider !== "cloudflare" ||
             !!process.env.CLOUDFLARE_ACCOUNT_ID?.trim()),
@@ -167,19 +183,44 @@ async function readBody(request: Request): Promise<unknown> {
     throw new LabError("Invalid JSON body.", 400);
   }
 }
-function keyFor(provider: LabProvider) {
-  const configured = labAvailability()[provider];
-  if (!configured?.configured)
+function credentialsFor(request: Request, provider: LabProvider) {
+  const supplied = request.headers.has("x-api-key");
+  const local = !supplied && allowsServerCredentials(request);
+  const apiKey = (
+    supplied
+      ? request.headers.get("x-api-key")
+      : local
+        ? process.env[keyNames[provider]]
+        : ""
+  )?.trim();
+  if (!apiKey || apiKey.length > 16_384)
     throw new LabError(
-      `Configure ${configured?.requires.join(" and ")} on the server.`,
+      "Add your provider key in API keys to run this example.",
       401,
     );
-  return process.env[keyNames[provider]]!;
+  const accountId =
+    provider === "cloudflare"
+      ? (local
+          ? process.env.CLOUDFLARE_ACCOUNT_ID
+          : request.headers.get("x-cloudflare-account-id")
+        )?.trim()
+      : undefined;
+  if (
+    provider === "cloudflare" &&
+    (!accountId || !/^[a-fA-F0-9]{32}$/.test(accountId))
+  )
+    throw new LabError("Add a valid Cloudflare account ID in API keys.", 400);
+  return { apiKey, accountId };
 }
 const examples: Partial<
   Record<
     FeatureId,
-    (input: LabInput, key: string, signal: AbortSignal) => Promise<LabResult>
+    (
+      input: LabInput,
+      key: string,
+      signal: AbortSignal,
+      accountId?: string,
+    ) => Promise<LabResult>
   >
 > = {
   parameters: parametersExample,
@@ -192,8 +233,8 @@ const examples: Partial<
   transcription: transcriptionExample,
   image: imageExample,
 };
-// Local examples can use server credentials. The flag, loopback and origin checks keep
-// these unauthenticated demo routes off the public playground deployment.
+// Hosted requests use only caller-supplied keys. Server credentials are available
+// solely in explicitly enabled local development, never in a production build.
 export async function handleLabRequest(
   request: Request,
   action: string,
@@ -202,7 +243,10 @@ export async function handleLabRequest(
     assertLabAccess(request);
     if (request.method === "GET" && action === "status")
       return Response.json(
-        { providers: labAvailability() },
+        {
+          providers: labAvailability(request),
+          localCredentials: allowsServerCredentials(request),
+        },
         { headers: noStore },
       );
     if (request.method !== "POST")
@@ -226,7 +270,7 @@ export async function handleLabRequest(
       });
       const response = await createLabRuntime(
         provider,
-        keyFor(provider),
+        credentialsFor(request, provider).apiKey,
       ).handleRequest(boundedRequest);
       response.headers.set("Cache-Control", "no-store");
       return response;
@@ -238,14 +282,19 @@ export async function handleLabRequest(
         .strict()
         .parse(raw);
       return Response.json(
-        await realtimeExample(sdp, keyFor("openai"), signal),
+        await realtimeExample(
+          sdp,
+          credentialsFor(request, "openai").apiKey,
+          signal,
+        ),
         { headers: noStore },
       );
     }
     const input = parseInput(raw, action);
     const run = examples[action as FeatureId];
     if (!run) throw new LabError("Unknown feature example.", 404);
-    const result = await run(input, keyFor(input.provider), signal);
+    const { apiKey, accountId } = credentialsFor(request, input.provider);
+    const result = await run(input, apiKey, signal, accountId);
     return Response.json(
       { ...result, durationMs: Date.now() - start },
       { headers: noStore },

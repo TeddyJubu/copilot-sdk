@@ -7,7 +7,13 @@ import {
 } from "@yourgpt/copilot-sdk/react";
 import styles from "./feature-lab.module.css";
 const schema = { type: "object", properties: {}, additionalProperties: false };
-function Session({ enabled }: { enabled: boolean }) {
+function Session({
+  enabled,
+  headers,
+}: {
+  enabled: boolean;
+  headers: Record<string, string>;
+}) {
   const [executions, setExecutions] = useState(0);
   const [error, setError] = useState<string>();
   const [events, setEvents] = useState<string[]>([]);
@@ -25,7 +31,7 @@ function Session({ enabled }: { enabled: boolean }) {
     createCall: async ({ sdp, signal }) => {
       const response = await fetch("/playground/api/features/realtime", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({ sdp }),
         signal,
       });
@@ -157,10 +163,16 @@ function Session({ enabled }: { enabled: boolean }) {
     </div>
   );
 }
-export default function RealtimePanel({ enabled }: { enabled: boolean }) {
+export default function RealtimePanel({
+  enabled,
+  headers,
+}: {
+  enabled: boolean;
+  headers: Record<string, string>;
+}) {
   return (
     <CopilotProvider runtimeUrl="/playground/api/features/chat">
-      <Session enabled={enabled} />
+      <Session enabled={enabled} headers={headers} />
     </CopilotProvider>
   );
 }

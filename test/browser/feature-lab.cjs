@@ -8,6 +8,10 @@ const assert = require("node:assert/strict");
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.addInitScript(() => {
+      localStorage.setItem(
+        "copilot-playground-api-keys",
+        JSON.stringify({ openai: "fixture-openai" }),
+      );
       window.tracksStopped = 0;
       window.commands = [];
       window.callSeq = 0;
@@ -97,12 +101,13 @@ const assert = require("node:assert/strict");
         }
       };
     });
-    await page.route("**/playground/api/features/realtime", (r) =>
-      r.fulfill({ json: { sdp: "v=0\r\no=answer" } }),
-    );
+    await page.route("**/playground/api/features/realtime", (r) => {
+      assert.equal(r.request().headers()["x-api-key"], "fixture-openai");
+      return r.fulfill({ json: { sdp: "v=0\r\no=answer" } });
+    });
     await page.route("**/playground/api/features/status", (r) =>
       r.fulfill({
-        json: { providers: { openai: { configured: true, requires: [] } } },
+        json: { providers: { openai: { configured: false, requires: [] } } },
       }),
     );
     await page.goto(

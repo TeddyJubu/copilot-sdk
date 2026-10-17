@@ -2,6 +2,10 @@
 // RUN_FEATURE_LAB_LIVE=1 PLAYWRIGHT_MODULE=/path/to/playwright node test/live/feature-lab-browser.cjs
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const {
+  browserEnvironment,
+  installCallerKeys,
+} = require("./feature-lab-credentials.cjs");
 if (process.env.RUN_FEATURE_LAB_LIVE !== "1")
   throw new Error("Live opt-in required");
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
@@ -35,6 +39,7 @@ async function check(name, fn) {
 }
 (async () => {
   const browser = await chromium.launch({
+    env: browserEnvironment(),
     headless: true,
     args: ["--autoplay-policy=no-user-gesture-required"],
   });
@@ -42,6 +47,7 @@ async function check(name, fn) {
     const page = await browser.newPage({
       viewport: { width: 1440, height: 1000 },
     });
+    await installCallerKeys(page, url);
     page.setDefaultTimeout(180000);
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
