@@ -123,9 +123,9 @@ export function streamStateToMessage(state: StreamingMessageState): UIMessage {
 
   // Native image results must retain their originating calls on providers that
   // do not expose an opaque replay envelope (for example Anthropic).
-  if (
-    Array.from(state.toolResults.values()).some((result) => result.modelOutput)
-  ) {
+  // Every completed server tool needs a call/result pair on the next request,
+  // including ordinary JSON results (not only image modelOutput).
+  if (state.toolResults.size > 0) {
     const calls = new Map((toolCalls ?? []).map((call) => [call.id, call]));
     for (const result of state.toolResults.values()) {
       if (!calls.has(result.id))

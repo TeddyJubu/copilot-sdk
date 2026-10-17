@@ -111,6 +111,8 @@ export interface ChatWithToolsCallbacks extends ChatCallbacks<UIMessage> {
  * ```
  */
 export class ChatWithTools {
+  private toolRun = 0;
+  private pendingToolCalls = new Set<string>();
   private chat: AbstractChat<UIMessage>;
   private agentLoop: AbstractAgentLoop;
   private config: ChatWithToolsConfig;
@@ -274,10 +276,15 @@ export class ChatWithTools {
         return { id: tc.id, name, args };
       });
 
+      const toolRun = this.toolRun;
+      for (const call of toolCallInfos) this.pendingToolCalls.add(call.id);
       // Execute tools
       try {
         const results = await this.agentLoop.executeToolCalls(toolCallInfos);
         this.debug("Tool results:", results);
+
+        if (toolRun !== this.toolRun || this.agentLoop.isCancelled) return;
+        for (const call of toolCallInfos) this.pendingToolCalls.delete(call.id);
 
         // Continue chat with tool results
         if (results.length > 0) {
@@ -421,6 +428,18 @@ export class ChatWithTools {
    * Stop generation and cancel any running tools
    */
   stop(): void {
+    this.toolRun++;
+    // Close pending calls before a new user turn can start. Late handler results
+    // belong to the cancelled run and must never resume or mutate the new turn.
+    const cancelled = [...this.pendingToolCalls].map((toolCallId) => ({
+      toolCallId,
+      result: { success: false, error: "Tool execution cancelled" },
+    }));
+    this.pendingToolCalls.clear();
+    if (cancelled.length)
+      void this.chat.addToolResultMessages(cancelled, undefined, {
+        skipModelOutput: true,
+      });
     // 1. Cancel all pending/executing tools
     this.agentLoop.cancel();
 

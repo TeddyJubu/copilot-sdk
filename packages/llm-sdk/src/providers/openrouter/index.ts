@@ -22,7 +22,11 @@ export {
   fetchOpenRouterModels,
   searchOpenRouterModels,
 } from "./provider";
-export type { OpenRouterProviderOptions, OpenRouterModel } from "./provider";
+export type {
+  OpenRouterProviderOptions,
+  OpenRouterReasoningOptions,
+  OpenRouterModel,
+} from "./provider";
 
 import { createOpenAIAdapter } from "../../adapters/openai";
 import {

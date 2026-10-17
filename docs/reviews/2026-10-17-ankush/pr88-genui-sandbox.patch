@@ -1,0 +1,18 @@
+--- a/packages/copilot-sdk/src/experimental/renderers/GenUIFrame.tsx
++++ b/packages/copilot-sdk/src/experimental/renderers/GenUIFrame.tsx
+@@ -102,5 +102,6 @@
+ // ── Message handler ──
+ window.addEventListener('message',function(e){
++  if(e.source!==window.parent)return;
+   if(!e.data||e.data.id!==FRAME_ID)return;
+   if(e.data.action==='theme'){
+     var css=':root{';
+@@ -284,7 +285,7 @@
+     <iframe
+       ref={iframeRef}
+       srcDoc={shell}
+-      sandbox="allow-scripts allow-same-origin"
++      sandbox="allow-scripts"
+       style={{
+         height: height > 0 ? `${height}px` : "40px",
+         width: "100%",

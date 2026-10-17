@@ -150,6 +150,9 @@ export async function generateText(
     // Record step
     steps.push({
       text: result.text,
+      ...(result.reasoningText !== undefined
+        ? { reasoningText: result.reasoningText }
+        : {}),
       toolCalls,
       toolResults: stepToolResults,
       finishReason: result.finishReason,
@@ -188,6 +191,9 @@ export async function generateText(
 
   return {
     text: lastStep?.text ?? "",
+    ...(lastStep?.reasoningText !== undefined
+      ? { reasoningText: lastStep.reasoningText }
+      : {}),
     providerMetadata: lastStep?.providerMetadata,
     usage: sumUsage(steps),
     finishReason: lastStep?.finishReason ?? "stop",

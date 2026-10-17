@@ -516,6 +516,9 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
       // is not enough for React 18 to render the loading state.
       await new Promise((resolve) => setTimeout(resolve, 0));
 
+      // A stop during the render yield must not restart generation.
+      if (this.status !== "submitted") return;
+
       // Continue request
       await this.processRequest();
     } catch (error) {
@@ -533,6 +536,7 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
   async addToolResultMessages(
     toolResults: Array<{ toolCallId: string; result: unknown }>,
     finalAssistantContent?: string,
+    options?: { skipModelOutput?: boolean },
   ): Promise<void> {
     const visibleMessages = this.state.messages;
     let chainParentId: string | undefined =
@@ -547,7 +551,9 @@ export class AbstractChat<T extends UIMessage = UIMessage> {
       const tool = this.config.tools?.find(
         (tool) => tool.name === call?.function.name,
       );
-      const mapped = tool?.toModelOutput?.(result);
+      const mapped = options?.skipModelOutput
+        ? undefined
+        : tool?.toModelOutput?.(result);
       const modelOutput = mapped
         ? serializeToolModelOutput(mapped)
         : resultModelOutput(result);

@@ -233,6 +233,8 @@ export interface DoGenerateParams {
  * Result from model.doGenerate()
  */
 export interface DoGenerateResult {
+  /** Provider-supplied reasoning text or summary, when available. */
+  reasoningText?: string;
   /** Provider state retained for continuation and inspection. */
   providerMetadata?: ProviderMetadata;
   /** Generated text content */
@@ -276,6 +278,7 @@ export interface TokenUsage {
  */
 export type StreamChunk =
   | TextDeltaChunk
+  | { type: "reasoning-delta"; text: string }
   | ToolCallChunk
   | ToolResultChunk
   | FinishChunk
@@ -349,6 +352,8 @@ export interface GenerateTextParams {
  * Result from generateText()
  */
 export interface GenerateTextResult {
+  /** Provider-supplied reasoning text or summary, when available. */
+  reasoningText?: string;
   /** Provider state retained for continuation and inspection. */
   providerMetadata?: ProviderMetadata;
   /** Final text output */
@@ -373,6 +378,8 @@ export interface GenerateTextResult {
  * A single step in the generation process
  */
 export interface GenerateStep {
+  /** Provider-supplied reasoning text or summary, when available. */
+  reasoningText?: string;
   /** Provider state retained for continuation and inspection. */
   providerMetadata?: ProviderMetadata;
   /** Text generated in this step */
@@ -429,6 +436,7 @@ export interface StreamTextResult {
  * Stream part for fullStream
  */
 export type StreamPart =
+  | { type: "reasoning-delta"; text: string }
   | { type: "text-delta"; text: string }
   | { type: "tool-call-start"; toolCallId: string; toolName: string }
   | { type: "tool-call-delta"; toolCallId: string; argsText: string }

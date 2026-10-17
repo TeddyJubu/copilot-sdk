@@ -822,12 +822,15 @@ export function CopilotProvider(props: CopilotProviderProps) {
     setSessionStatus("idle");
   }, []);
 
+  const [toolsRevision, setToolsRevision] = useState(0);
   const registerTool = useCallback((tool: ToolDefinition) => {
     chatRef.current?.registerTool(tool);
+    setToolsRevision((value) => value + 1);
   }, []);
 
   const unregisterTool = useCallback((name: string) => {
     chatRef.current?.unregisterTool(name);
+    setToolsRevision((value) => value + 1);
   }, []);
 
   const approveToolExecution = useCallback(
@@ -851,7 +854,7 @@ export function CopilotProvider(props: CopilotProviderProps) {
   const registeredTools = useMemo(
     () => chatRef.current?.tools ?? [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [toolExecutions], // re-derive when tool executions change (tools change alongside)
+    [toolExecutions, toolsRevision],
   );
   const getRegisteredTools = useCallback(
     () => chatRef.current?.tools ?? [],
