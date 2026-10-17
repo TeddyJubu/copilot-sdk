@@ -1,0 +1,51 @@
+---
+title: Prompt caching
+description: OpenAI Responses cache options available in beta and the remaining cross-provider work
+---
+
+**LLM SDK `2.6.0-beta.2` forwards OpenAI Responses cache options.** It does not yet provide unified cache controls, normalized cache-read/write usage, or verified cache-aware pricing across providers. This is provider prompt caching, not an application cache of generated answers.
+
+## OpenAI Responses options
+
+Configure only the options supported by your selected model and endpoint:
+
+```ts
+import { generateText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+
+const model = openai("gpt-5.2", {
+  api: "responses",
+  responses: {
+    store: false,
+    promptCacheKey: "support-assistant-v2",
+    promptCacheRetention: "in_memory",
+  },
+});
+
+const result = await generateText({
+  model,
+  system: "You answer questions about our product.",
+  prompt: "How can I change my settings?",
+});
+```
+
+The legacy retention values are `in_memory` and `24h`. Newer endpoints also accept the SDK's `promptCacheOptions` shape:
+
+```ts
+const model = openai("gpt-6-luna", {
+  api: "responses",
+  responses: {
+    promptCacheOptions: { mode: "implicit", ttl: "30m" },
+  },
+});
+```
+
+`mode` can be `implicit` or `explicit`; the exposed TTL is `30m`. Treat these as alternative model-specific configurations, not options to combine indiscriminately. Consult [OpenAI's prompt caching guide](https://developers.openai.com/api/docs/guides/prompt-caching) for model support, minimum prompt sizes, retention, and provider-side behavior. Short examples do not demonstrate a cache hit.
+
+The same options can be supplied through Runtime's `config.openai.responses`. See [Responses configuration](/docs/llm-sdk/responses). Use application-scoped cache keys; never put credentials or private prompt text into a cache-key label.
+
+## Usage and validation limits
+
+OpenAI Responses raw usage is retained in `result.providerMetadata?.openai?.response?.usage`. The normalized `result.usage` still contains only `promptTokens`, `completionTokens`, and `totalTokens`; it has no normalized cache-read or cache-write counters. Do not calculate guaranteed savings from these three totals.
+
+Request forwarding has fixture coverage. The beta release did not certify live cache hits, retention, or cost savings. OpenAI Chat-specific cache controls, Anthropic cache breakpoints/TTL, Google explicit cache resources, and consistent usage/cost reporting remain follow-ups in [#114](https://github.com/YourGPT/copilot-sdk/issues/114) and [#104](https://github.com/YourGPT/copilot-sdk/issues/104). A provider automatically caching requests does not mean the SDK exposes all its controls.

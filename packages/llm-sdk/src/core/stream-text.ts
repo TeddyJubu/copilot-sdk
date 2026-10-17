@@ -1,3 +1,8 @@
+import { resolveToolOutput } from "./tool-output";
+import {
+  responseReplayMetadata,
+  type ProviderMetadata,
+} from "./openai-responses";
 /**
  * streamText - Stream text from a language model
  *
@@ -38,6 +43,7 @@ import type {
   StreamChunk,
 } from "./types";
 import { formatToolsForOpenAI, formatToolsForAnthropic } from "./tool";
+import { throwIfAborted } from "./provider-error";
 
 /**
  * Stream text from a language model
@@ -50,7 +56,15 @@ export async function streamText(
 ): Promise<StreamTextResult> {
   const { model, tools, maxSteps = 1, signal } = params;
 
+  if (params.responseFormat && model.capabilities.supportsJsonMode === false) {
+    console.warn(
+      `[llm-sdk] ${model.provider}/${model.modelId} does not support structured output (responseFormat); the request will be sent but the provider may ignore it.`,
+    );
+  }
+
   // State for collecting results
+  let messages = buildMessages(params);
+  let finalProviderMetadata: ProviderMetadata | undefined;
   let fullText = "";
   let finalUsage: TokenUsage = {
     promptTokens: 0,
@@ -61,8 +75,6 @@ export async function streamText(
 
   // Create the stream generator
   async function* createFullStream(): AsyncGenerator<StreamPart> {
-    let messages = buildMessages(params);
-
     for (let step = 0; step < maxSteps; step++) {
       yield { type: "step-start", step };
 
@@ -79,6 +91,7 @@ export async function streamText(
 
       // Collect data from this step
       let stepText = "";
+      let stepProviderMetadata: ProviderMetadata | undefined;
       const toolCalls: ToolCall[] = [];
       let currentToolCall: Partial<ToolCall> | null = null;
       let stepFinishReason: FinishReason = "stop";
@@ -87,12 +100,19 @@ export async function streamText(
         // Stream from model
         for await (const chunk of model.doStream({
           messages,
+          openai: params.openai,
           tools: formattedTools,
           temperature: params.temperature,
+          reasoningEffort: params.reasoningEffort,
           maxTokens: params.maxTokens,
+          responseFormat: params.responseFormat,
           signal,
         })) {
+          throwIfAborted(signal);
           switch (chunk.type) {
+            case "reasoning-delta":
+              yield chunk;
+              break;
             case "text-delta":
               stepText += chunk.text;
               fullText += chunk.text;
@@ -108,6 +128,8 @@ export async function streamText(
               break;
 
             case "finish":
+              stepProviderMetadata = chunk.providerMetadata;
+              finalProviderMetadata = chunk.providerMetadata;
               stepFinishReason = chunk.finishReason;
               finalFinishReason = chunk.finishReason;
               if (chunk.usage) {
@@ -134,23 +156,28 @@ export async function streamText(
         return;
       }
 
-      yield { type: "step-finish", step, finishReason: stepFinishReason };
-
-      // If no tool calls, we're done
-      if (toolCalls.length === 0 || !tools) {
-        break;
-      }
-
-      // Execute tools and continue
-      const assistantMessage: CoreMessage = {
-        role: "assistant",
-        content: stepText || null,
-        toolCalls,
+      yield {
+        type: "step-finish",
+        step,
+        finishReason: stepFinishReason,
+        providerMetadata: stepProviderMetadata,
       };
-      messages = [...messages, assistantMessage];
+      messages = [
+        ...messages,
+        {
+          role: "assistant",
+          content: stepText || null,
+          ...(toolCalls.length ? { toolCalls } : {}),
+          ...(stepProviderMetadata
+            ? { providerMetadata: responseReplayMetadata(stepProviderMetadata) }
+            : {}),
+        },
+      ];
+      if (toolCalls.length === 0 || !tools) break;
 
       // Execute each tool
       for (const call of toolCalls) {
+        throwIfAborted(signal);
         const toolDef = tools[call.name];
         if (!toolDef) {
           const errorResult = { error: `Tool not found: ${call.name}` };
@@ -177,17 +204,31 @@ export async function streamText(
             abortSignal: signal,
             messages,
           });
+          throwIfAborted(signal);
 
-          yield { type: "tool-result", toolCallId: call.id, result };
+          const modelOutput = resolveToolOutput(
+            result,
+            toolDef.toModelOutput?.(result),
+          );
+          yield {
+            type: "tool-result",
+            toolCallId: call.id,
+            result,
+            modelOutput,
+          };
           messages = [
             ...messages,
             {
               role: "tool",
               toolCallId: call.id,
-              content: JSON.stringify(result),
+              content: modelOutput
+                ? "[Tool returned content]"
+                : JSON.stringify(result),
+              ...(modelOutput ? { modelOutput } : {}),
             },
           ];
         } catch (error) {
+          throwIfAborted(signal);
           const errorResult = {
             error:
               error instanceof Error ? error.message : "Tool execution failed",
@@ -214,53 +255,81 @@ export async function streamText(
       type: "finish",
       finishReason: finalFinishReason,
       usage: finalUsage,
+      providerMetadata: finalProviderMetadata,
     };
   }
 
-  // Create text-only stream
-  async function* createTextStream(): AsyncIterable<string> {
-    for await (const part of createFullStream()) {
-      if (part.type === "text-delta") {
-        yield part.text;
-      }
+  // All readers share one execution. Retain parts for later/concurrent readers;
+  // a result getter must never start another model request or run a tool again.
+  const source = createFullStream();
+  const parts: StreamPart[] = [];
+  let finished = false;
+  let failure: unknown;
+  let pending: Promise<void> | undefined;
+
+  async function advance(): Promise<void> {
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const next = await source.next();
+          if (next.done) finished = true;
+          else parts.push(next.value);
+        } catch (error) {
+          failure = error;
+          finished = true;
+        }
+      })();
+    }
+    const current = pending;
+    await current;
+    if (pending === current) pending = undefined;
+  }
+
+  async function* sharedStream(): AsyncGenerator<StreamPart> {
+    let index = 0;
+    while (true) {
+      if (index < parts.length) yield parts[index++];
+      else if (finished) {
+        if (failure) throw failure;
+        return;
+      } else await advance();
     }
   }
 
-  // Promises for lazy evaluation
-  let textPromise: Promise<string> | undefined;
-  let usagePromise: Promise<TokenUsage> | undefined;
-  let finishReasonPromise: Promise<FinishReason> | undefined;
-
-  // Consume stream to get final values
-  async function consumeStream(): Promise<void> {
-    for await (const _ of createFullStream()) {
-      // Just consume to completion
+  async function* createTextStream(): AsyncIterable<string> {
+    for await (const part of sharedStream()) {
+      if (part.type === "error") throw part.error;
+      if (part.type === "text-delta") yield part.text;
     }
+  }
+
+  let completion: Promise<void> | undefined;
+  function consumeStream(): Promise<void> {
+    return (completion ??= (async () => {
+      for await (const part of sharedStream()) {
+        if (part.type === "error") throw part.error;
+      }
+    })());
   }
 
   return {
     textStream: createTextStream(),
-    fullStream: createFullStream(),
+    fullStream: sharedStream(),
 
+    get response(): Promise<{ messages: CoreMessage[] }> {
+      return consumeStream().then(() => ({ messages }));
+    },
+    get providerMetadata(): Promise<ProviderMetadata | undefined> {
+      return consumeStream().then(() => finalProviderMetadata);
+    },
     get text(): Promise<string> {
-      if (!textPromise) {
-        textPromise = consumeStream().then(() => fullText);
-      }
-      return textPromise;
+      return consumeStream().then(() => fullText);
     },
-
     get usage(): Promise<TokenUsage> {
-      if (!usagePromise) {
-        usagePromise = consumeStream().then(() => finalUsage);
-      }
-      return usagePromise;
+      return consumeStream().then(() => finalUsage);
     },
-
     get finishReason(): Promise<FinishReason> {
-      if (!finishReasonPromise) {
-        finishReasonPromise = consumeStream().then(() => finalFinishReason);
-      }
-      return finishReasonPromise;
+      return consumeStream().then(() => finalFinishReason);
     },
 
     toTextStreamResponse(options?: ResponseOptions): Response {
@@ -277,7 +346,7 @@ export async function streamText(
     },
 
     toDataStreamResponse(options?: ResponseOptions): Response {
-      const stream = createDataStreamReadable(createFullStream());
+      const stream = createDataStreamReadable(sharedStream());
       return new Response(stream, {
         status: options?.status ?? 200,
         headers: {
@@ -320,7 +389,7 @@ function buildMessages(params: StreamTextParams): CoreMessage[] {
  * Format tools based on provider
  */
 function formatToolsForProvider(
-  tools: Record<string, Tool>,
+  tools: Record<string, Tool<any, any>>,
   provider: string,
 ): unknown[] {
   switch (provider) {

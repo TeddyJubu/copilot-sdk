@@ -9,6 +9,7 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 Automatically retry failed requests with backup models. When your primary provider returns a `5xx` error, rate limit (`429`), or times out — the SDK silently tries the next model in your chain. Your application code doesn't change.
 
 ```ts
+import { createRuntime } from '@yourgpt/llm-sdk';
 import { createFallbackChain } from '@yourgpt/llm-sdk/fallback';
 import { createOpenAI } from '@yourgpt/llm-sdk/openai';
 import { createAnthropic } from '@yourgpt/llm-sdk/anthropic';
@@ -71,7 +72,7 @@ app.post('/api/chat', async (req, res) => {
 | `5xx` server errors | ✅ Yes |
 | `429` rate limit | ✅ Yes |
 | Network timeout / connection refused | ✅ Yes |
-| `4xx` client errors (bad key, bad request) | ❌ No — these are your bugs, not provider failures |
+| `4xx` client errors (bad key, bad request) | No by default; a narrow `fallbackErrors` policy can advance on a known compatibility error |
 
 <Callout type="info">
 Once content has started streaming to the client, fallback is not attempted. You cannot restart a stream mid-flight.
@@ -189,23 +190,38 @@ try {
 
 ---
 
-## Custom Error Filtering
+## Compatibility fallback without retries
 
-By default the chain uses sensible rules (5xx, 429, network errors trigger fallback; 4xx does not). Override with `retryableErrors` for custom logic.
+Available in **LLM SDK `2.6.0-beta.2`**. Use `fallbackErrors` for a known non-retryable compatibility error. It advances to the next model without retrying the same invalid request. The default retry rules still handle rate limits, server failures, and network errors.
 
 ```ts
-createFallbackChain({
-  models: [openaiModel, anthropicModel],
+import { createRuntime } from '@yourgpt/llm-sdk';
+import { createFallbackChain } from '@yourgpt/llm-sdk/fallback';
+import { createOpenAI } from '@yourgpt/llm-sdk/openai';
+import { createAnthropic } from '@yourgpt/llm-sdk/anthropic';
 
-  // Fall back on any error at all
-  retryableErrors: () => true,
-
-  // Or — only fall back on rate limits
-  retryableErrors: (err) => {
-    return err instanceof Error && /429|rate.?limit/i.test(err.message);
-  },
+const runtime = createRuntime({
+  adapter: createFallbackChain({
+    models: [
+      createOpenAI({ apiKey: process.env.OPENAI_API_KEY }).languageModel('gpt-6-luna'),
+      createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY }).languageModel('claude-sonnet-4-5'),
+    ],
+    retries: 1,
+    fallbackErrors: (error: unknown) => {
+      if (!error || typeof error !== 'object') return false;
+      const e = error as { status?: number; code?: string; param?: string };
+      return e.status === 400 && e.code === 'unsupported_parameter' &&
+        ['temperature', 'max_tokens', 'max_completion_tokens'].includes(e.param ?? '');
+    },
+  }),
 });
 ```
+
+Match the actual structured error shape returned by your provider. Do not enable every `400` or authentication error: many represent invalid application input. OpenAI [parameter normalization](/docs/providers/openai#reasoning-model-parameters) should prevent the known temperature problem before fallback is needed.
+
+`retryableErrors` changes which errors receive retries and can advance after those retries. Keep it for transient errors; `fallbackErrors` is the separate predicate for advancing without retries. Abort requests do not fall back, and a stream is not replayed once text or tool-call events have been emitted.
+
+For the backend's `TRAINING_CONFLICT` workflow, the SDK supplies these controls but does not choose the application's decision. Validate the returned decision/schema, and keep an explicit application error path if all models fail or output is invalid. Do not silently treat an API or parsing failure as a successful `respond` decision. Backend adoption and end-to-end guardrail evaluation remain tracked in [#122](https://github.com/YourGPT/copilot-sdk/issues/122).
 
 ---
 
@@ -300,8 +316,11 @@ createFallbackChain({
   // Called when a model is abandoned and next one is tried
   onFallback?: (info: FallbackInfo) => void,
 
-  // Custom predicate to decide which errors trigger fallback/retry
+  // Transient errors: retry, then advance after retries
   retryableErrors?: (error: unknown) => boolean,
+
+  // Non-retryable compatibility errors: advance without retrying
+  fallbackErrors?: (error: unknown) => boolean,
 })
 ```
 

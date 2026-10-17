@@ -1,3 +1,4 @@
+import { textToolOutput } from "../core/tool-output";
 /**
  * Google Gemini LLM Adapter
  *
@@ -18,7 +19,12 @@ import type {
   ChatCompletionRequest,
   CompletionResult,
 } from "./base";
-import { formatTools, logProviderPayload } from "./base";
+import {
+  formatTools,
+  logProviderPayload,
+  toGeminiSchema,
+  parameterToGeminiSchema,
+} from "./base";
 
 // ============================================
 // Types
@@ -151,6 +157,10 @@ function messageToGeminiContent(msg: Message): GeminiContent | null {
 
   // Handle tool messages - convert to function response
   if (msg.role === "tool" && msg.tool_call_id) {
+    msg = {
+      ...msg,
+      content: textToolOutput(msg.modelOutput, msg.content ?? ""),
+    };
     // Tool results need to be sent as functionResponse
     let responseData: Record<string, unknown>;
     try {
@@ -234,11 +244,7 @@ function formatToolsForGemini(
             properties: Object.fromEntries(
               Object.entries(action.parameters).map(([key, param]) => [
                 key,
-                {
-                  type: param.type,
-                  description: param.description,
-                  enum: param.enum,
-                },
+                parameterToGeminiSchema(param),
               ]),
             ),
             required: Object.entries(action.parameters)
@@ -372,6 +378,15 @@ export class GoogleAdapter implements LLMAdapter {
     // Emit message start
     yield { type: "message:start", id: messageId };
 
+    const responseFormat = request.config?.responseFormat;
+    const geminiSchema = toGeminiSchema(responseFormat);
+    const responseFormatGenConfig: Record<string, unknown> = responseFormat
+      ? {
+          responseMimeType: "application/json",
+          ...(geminiSchema ? { responseJsonSchema: geminiSchema } : {}),
+        }
+      : {};
+
     try {
       logProviderPayload(
         "google",
@@ -386,6 +401,7 @@ export class GoogleAdapter implements LLMAdapter {
           generationConfig: {
             temperature: request.config?.temperature ?? this.config.temperature,
             maxOutputTokens: request.config?.maxTokens ?? this.config.maxTokens,
+            ...responseFormatGenConfig,
           },
           messageParts: mergedContents[mergedContents.length - 1]?.parts,
         },
@@ -401,6 +417,7 @@ export class GoogleAdapter implements LLMAdapter {
         generationConfig: {
           temperature: request.config?.temperature ?? this.config.temperature,
           maxOutputTokens: request.config?.maxTokens ?? this.config.maxTokens,
+          ...responseFormatGenConfig,
         },
       });
 
@@ -647,6 +664,15 @@ export class GoogleAdapter implements LLMAdapter {
 
     const tools = formatToolsForGemini(request.actions);
 
+    const responseFormat = request.config?.responseFormat;
+    const geminiSchema = toGeminiSchema(responseFormat);
+    const responseFormatGenConfig: Record<string, unknown> = responseFormat
+      ? {
+          responseMimeType: "application/json",
+          ...(geminiSchema ? { responseJsonSchema: geminiSchema } : {}),
+        }
+      : {};
+
     const payload = {
       model: modelId,
       history: mergedContents.slice(0, -1),
@@ -657,6 +683,7 @@ export class GoogleAdapter implements LLMAdapter {
       generationConfig: {
         temperature: request.config?.temperature ?? this.config.temperature,
         maxOutputTokens: request.config?.maxTokens ?? this.config.maxTokens,
+        ...responseFormatGenConfig,
       },
       messageParts: mergedContents[mergedContents.length - 1]?.parts,
     };
@@ -670,6 +697,7 @@ export class GoogleAdapter implements LLMAdapter {
       generationConfig: {
         temperature: request.config?.temperature ?? this.config.temperature,
         maxOutputTokens: request.config?.maxTokens ?? this.config.maxTokens,
+        ...responseFormatGenConfig,
       },
     });
 
@@ -698,9 +726,25 @@ export class GoogleAdapter implements LLMAdapter {
       }
     }
 
+    // Map Google's usageMetadata to the SDK's camelCase shape, matching the
+    // streaming path above and the other adapters' complete(). Without this,
+    // complete() returned no usage, so the non-streaming agent loop accumulated
+    // zero tokens and credit deduction was skipped entirely for Gemini models.
+    // candidatesTokenCount excludes thinking tokens (Gemini reports those in
+    // thoughtsTokenCount), so completion = candidates + thoughts — otherwise
+    // thinking-model output is undercounted and prompt+completion != total.
     return {
       content: textContent,
       toolCalls,
+      usage: response.usageMetadata
+        ? {
+            promptTokens: response.usageMetadata.promptTokenCount ?? 0,
+            completionTokens:
+              (response.usageMetadata.candidatesTokenCount ?? 0) +
+              (response.usageMetadata.thoughtsTokenCount ?? 0),
+            totalTokens: response.usageMetadata.totalTokenCount ?? 0,
+          }
+        : undefined,
       rawResponse: response as Record<string, unknown>,
     };
   }

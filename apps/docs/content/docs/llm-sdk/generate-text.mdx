@@ -8,6 +8,10 @@ import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
 
 Generate complete text responses in a single call. Supports tools and multi-step reasoning.
 
+For reasoning models, see [parameter handling](/docs/llm-sdk/parameters-and-fallback).
+Use the [Responses guide](/docs/llm-sdk/responses) for continuation, caching and
+the distinction between saved message state and server diagnostics.
+
 ```ts
 import { generateText } from '@yourgpt/llm-sdk';
 import { openai } from '@yourgpt/llm-sdk/openai';
@@ -42,8 +46,22 @@ const result = await generateText({
   temperature: 0.7,
   maxTokens: 4096,
   signal: abortController.signal,
+
+  // Optional: Structured JSON output (provider-translated)
+  responseFormat: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'response',
+      schema: { type: 'object', properties: { ... }, required: [...] },
+      strict: true,
+    },
+  },
 });
 ```
+
+<Callout>
+  `responseFormat` works across OpenAI, Anthropic, Google, Azure, xAI, Together, Fireworks, OpenRouter, and Ollama — each adapter translates to the provider's native field. See [Structured Output](/docs/llm-sdk/structured-output) for per-provider details and gotchas.
+</Callout>
 
 ---
 
@@ -59,6 +77,7 @@ result.toolCalls      // ToolCall[] - All tool calls made
 result.toolResults    // ToolResult[] - All tool results
 result.steps          // GenerateStep[] - Step-by-step breakdown
 result.response       // { messages } - Full message history
+result.providerMetadata // Provider-specific response state (beta)
 ```
 
 ---
@@ -216,6 +235,14 @@ for (const step of result.steps) {
 | Batch operations | `generateText()` |
 | Simple API endpoints | `generateText()` |
 | When you need full response at once | `generateText()` |
+
+---
+
+## Beta transport and history
+
+The optional `openai` request setting selects Chat/Responses and overrides provider transport defaults. See [Responses](/docs/llm-sdk/responses) for full examples, `store`, and `previousResponseId`.
+
+Preserve `result.response.messages` intact for stateless continuation, including provider metadata and native image tool outputs. `result.providerMetadata` retains the final provider response state. Do not rebuild a conversation from `result.text` alone. [System instructions](/docs/server/system-prompts) use `system` in this API; Runtime uses `systemPrompt`.
 
 ---
 

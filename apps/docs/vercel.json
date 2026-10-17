@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npx --yes pnpm@11.5.1 install --recursive --frozen-lockfile",
+  "buildCommand": "npx --yes pnpm@11.5.1 --workspace-root exec turbo run build --filter=@yourgpt/copilot-sdk-docs"
+}

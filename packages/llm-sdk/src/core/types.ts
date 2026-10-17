@@ -1,3 +1,4 @@
+import type { ToolModelOutput } from "./tool-output";
 /**
  * Core Types for @yourgpt/llm-sdk
  *
@@ -5,6 +6,10 @@
  */
 
 import type { z } from "zod";
+import type {
+  OpenAITransportOptions,
+  ProviderMetadata,
+} from "./openai-responses";
 
 // ============================================
 // Language Model Types
@@ -97,12 +102,15 @@ export interface UserMessage {
 }
 
 export interface AssistantMessage {
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   role: "assistant";
   content: string | null;
   toolCalls?: ToolCall[];
 }
 
 export interface ToolMessage {
+  modelOutput?: ToolModelOutput;
   role: "tool";
   toolCallId: string;
   content: string;
@@ -127,6 +135,7 @@ export interface ImagePart {
 }
 
 export interface FilePart {
+  filename?: string;
   type: "file";
   /** Base64 data or URL */
   data: string;
@@ -148,6 +157,8 @@ export interface Tool<TParams = unknown, TResult = unknown> {
   parameters: z.ZodType<TParams>;
   /** Execute function */
   execute: (params: TParams, context: ToolContext) => Promise<TResult>;
+  /** Map the raw result to explicit text/image content for the model. */
+  toModelOutput?: (result: TResult) => ToolModelOutput | undefined;
   /**
    * Hide this tool's execution from the chat UI.
    * When true, tool calls and results won't be displayed to the user,
@@ -185,6 +196,7 @@ export interface ToolCall {
  * Tool execution result
  */
 export interface ToolResult {
+  modelOutput?: ToolModelOutput;
   /** Tool call ID this result corresponds to */
   toolCallId: string;
   /** Result data (will be JSON stringified for LLM) */
@@ -199,14 +211,20 @@ export interface ToolResult {
  * Parameters for model.doGenerate() and model.doStream()
  */
 export interface DoGenerateParams {
+  /** OpenAI endpoint and Responses options. */
+  openai?: OpenAITransportOptions;
   /** Messages to send to LLM */
   messages: CoreMessage[];
   /** Tools available to the LLM (already formatted for provider) */
   tools?: unknown[];
+  /** OpenAI reasoning effort. Omit to preserve the model default. */
+  reasoningEffort?: import("./openai-parameters").OpenAIReasoningEffort;
   /** Temperature (0-2) */
   temperature?: number;
   /** Maximum tokens to generate */
   maxTokens?: number;
+  /** Structured-output / JSON-mode request format (provider-translated) */
+  responseFormat?: import("./stream-events").ResponseFormat;
   /** Abort signal */
   signal?: AbortSignal;
 }
@@ -215,6 +233,10 @@ export interface DoGenerateParams {
  * Result from model.doGenerate()
  */
 export interface DoGenerateResult {
+  /** Provider-supplied reasoning text or summary, when available. */
+  reasoningText?: string;
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   /** Generated text content */
   text: string;
   /** Tool calls requested by the LLM */
@@ -256,6 +278,7 @@ export interface TokenUsage {
  */
 export type StreamChunk =
   | TextDeltaChunk
+  | { type: "reasoning-delta"; text: string }
   | ToolCallChunk
   | ToolResultChunk
   | FinishChunk
@@ -272,12 +295,15 @@ export interface ToolCallChunk {
 }
 
 export interface ToolResultChunk {
+  modelOutput?: ToolModelOutput;
   type: "tool-result";
   toolCallId: string;
   result: unknown;
 }
 
 export interface FinishChunk {
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   type: "finish";
   finishReason: FinishReason;
   usage?: TokenUsage;
@@ -296,6 +322,8 @@ export interface ErrorChunk {
  * Parameters for generateText()
  */
 export interface GenerateTextParams {
+  /** OpenAI endpoint and Responses options. */
+  openai?: OpenAITransportOptions;
   /** Language model to use */
   model: LanguageModel;
   /** Simple prompt (converted to user message) */
@@ -305,13 +333,17 @@ export interface GenerateTextParams {
   /** Full message history */
   messages?: CoreMessage[];
   /** Tools available to the LLM */
-  tools?: Record<string, Tool>;
+  tools?: Record<string, Tool<any, any>>;
   /** Maximum agentic steps (tool call loops) */
   maxSteps?: number;
+  /** OpenAI reasoning effort. Omit to preserve the model default. */
+  reasoningEffort?: import("./openai-parameters").OpenAIReasoningEffort;
   /** Temperature (0-2) */
   temperature?: number;
   /** Maximum tokens to generate */
   maxTokens?: number;
+  /** Structured-output / JSON-mode request format */
+  responseFormat?: import("./stream-events").ResponseFormat;
   /** Abort signal */
   signal?: AbortSignal;
 }
@@ -320,6 +352,10 @@ export interface GenerateTextParams {
  * Result from generateText()
  */
 export interface GenerateTextResult {
+  /** Provider-supplied reasoning text or summary, when available. */
+  reasoningText?: string;
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   /** Final text output */
   text: string;
   /** Token usage */
@@ -342,6 +378,10 @@ export interface GenerateTextResult {
  * A single step in the generation process
  */
 export interface GenerateStep {
+  /** Provider-supplied reasoning text or summary, when available. */
+  reasoningText?: string;
+  /** Provider state retained for continuation and inspection. */
+  providerMetadata?: ProviderMetadata;
   /** Text generated in this step */
   text: string;
   /** Tool calls made in this step */
@@ -367,6 +407,9 @@ export type StreamTextParams = GenerateTextParams;
  * Result from streamText()
  */
 export interface StreamTextResult {
+  /** Final conversation, including opaque provider state for replay. */
+  readonly response: Promise<{ messages: CoreMessage[] }>;
+  readonly providerMetadata: Promise<ProviderMetadata | undefined>;
   /** Async iterable of text chunks only */
   textStream: AsyncIterable<string>;
 
@@ -393,14 +436,30 @@ export interface StreamTextResult {
  * Stream part for fullStream
  */
 export type StreamPart =
+  | { type: "reasoning-delta"; text: string }
   | { type: "text-delta"; text: string }
   | { type: "tool-call-start"; toolCallId: string; toolName: string }
   | { type: "tool-call-delta"; toolCallId: string; argsText: string }
   | { type: "tool-call-complete"; toolCall: ToolCall }
-  | { type: "tool-result"; toolCallId: string; result: unknown }
+  | {
+      type: "tool-result";
+      toolCallId: string;
+      result: unknown;
+      modelOutput?: ToolModelOutput;
+    }
   | { type: "step-start"; step: number }
-  | { type: "step-finish"; step: number; finishReason: FinishReason }
-  | { type: "finish"; finishReason: FinishReason; usage: TokenUsage }
+  | {
+      type: "step-finish";
+      step: number;
+      finishReason: FinishReason;
+      providerMetadata?: ProviderMetadata;
+    }
+  | {
+      type: "finish";
+      finishReason: FinishReason;
+      usage: TokenUsage;
+      providerMetadata?: ProviderMetadata;
+    }
   | { type: "error"; error: Error };
 
 /**

@@ -1,0 +1,108 @@
+---
+title: OpenAI Responses
+description: Select the Responses API, preserve conversation state, and keep diagnostics on the server.
+---
+
+Responses first shipped in LLM SDK `2.6.0-beta.2`; use the compatibility-fixed
+`2.6.0-beta.3` with Copilot SDK `2.5.1-beta.3`. There is no separate
+`runtime.response()` method.
+
+Use `api: "responses"` to select OpenAI Responses, including calls without tools.
+The installed `openai` peer must expose `responses.create`; an older client fails
+with an actionable error. A compatible Chat endpoint does not automatically
+support Responses. See [release availability](/docs/llm-sdk/beta-upgrade) before
+upgrading an existing application.
+
+## Stateless conversation replay
+
+```ts
+import { generateText, streamText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+
+const model = openai("gpt-6-luna", {
+  api: "responses",
+  responses: { store: false },
+});
+
+const first = await generateText({
+  model,
+  prompt: "Remember the project code ORCHID-742.",
+});
+const second = await streamText({
+  model,
+  messages: [
+    ...first.response.messages,
+    { role: "user", content: "What is the project code?" },
+  ],
+});
+
+console.log(await second.text);
+const history = (await second.response).messages;
+```
+
+Preserve complete returned messages, including `providerMetadata`, `modelOutput`
+and tool call IDs. Assistant metadata holds ordered continuation items, encrypted
+reasoning where supplied, and assistant phase. It excludes the raw response
+envelope, native usage and diagnostic extensions. With `store: false`, the SDK
+requests encrypted reasoning automatically. It only replays completed items.
+
+`generateText().response.messages` includes the final assistant turn and tool
+turns. Stream readers and final promises share one execution; reading the result
+does not issue a second request or execute tools twice.
+
+Copilot preserves this state in JSON/SSE continuation and serialized UI messages.
+Custom Runtime storage must retain `StorageMessage.metadata.providerMetadata`
+and `.modelOutput`, then restore them onto each message. The existing YourGPT
+cloud storage adapter does not yet guarantee lossless Responses replay after a
+remote session reload.
+
+## Stored continuation
+
+With `store: true`, read the response ID from the **server-side result** at
+`result.providerMetadata.openai.response.id`. Pass it on the next generation as
+`openai: { responses: { previousResponseId: id } }`, with only new input and the
+system instructions that still apply. Do not also resend the same full history.
+The SDK does not persist or advance response IDs for you. Omitting `store` leaves
+the provider default unchanged. [OpenAI conversation state](https://developers.openai.com/api/docs/guides/conversation-state)
+describes the provider's retention and continuation behavior.
+
+## Configuration and caching
+
+`api` accepts `"auto"`, `"chat"`, or `"responses"`. Responses options also select
+Responses; combining them with `api: "chat"` fails locally. Set defaults on
+`openai`, `createOpenAI` or `OpenAIAdapter`. Per-call overrides go in
+`generateText({ openai: { api, responses }, ... })` or
+`runtime.chat({ config: { openai: { api, responses } }, ... })`.
+
+| Responses option       | Purpose                                           |
+| ---------------------- | ------------------------------------------------- |
+| `store`                | Explicitly control provider-side response storage |
+| `previousResponseId`   | Continue from a stored response                   |
+| `include`              | Request supported extra output fields             |
+| `reasoningSummary`     | Request a provider reasoning summary              |
+| `promptCacheKey`       | Supply a provider cache-routing key               |
+| `promptCacheOptions`   | Forward supported `mode` and `ttl` settings       |
+| `promptCacheRetention` | Forward legacy `"in_memory"` or `"24h"` retention |
+
+Cache eligibility depends on the provider, model and prompt. These options do
+not guarantee a hit, savings or a latency improvement. Inspect server-side usage
+to measure results; a zero cached-token count is a valid response. Reasoning
+effort remains a separate setting; see [parameters](/docs/llm-sdk/parameters-and-fallback).
+
+## Public responses and errors
+
+The generation result's top-level `providerMetadata` contains full provider
+output and usage for server diagnostics. Do not serialize that complete result
+to public clients. Runtime still exposes billing `usage` and debug `events`;
+omit them after server-side accounting. Default SSE helpers omit usage;
+`includeUsage: true` is an explicit opt-in. The [upgrade guide](/docs/llm-sdk/beta-upgrade)
+shows the response boundary.
+
+Malformed function calls fail before execution with `502` /
+`INVALID_PROVIDER_RESPONSE`, allowing the configured fallback policy to recover
+before output starts. Failed, cancelled or incomplete streams do not execute
+partial function calls or return a successful final result.
+
+Native image tool results have their own [guide](/docs/llm-sdk/tool-images).
+Background jobs and native MCP approval flows are outside this integration.
+Use the [Feature Lab](/docs/feature-lab) to check streaming and non-streaming replay.

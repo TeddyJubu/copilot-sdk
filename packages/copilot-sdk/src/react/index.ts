@@ -295,3 +295,8 @@ export type {
   StreamEventHandler,
   MessageMetaStore,
 } from "./provider/CopilotProvider";
+export { useRealtimeVoice } from "./hooks/useRealtimeVoice";
+export type {
+  UseRealtimeVoiceOptions,
+  RealtimePendingApproval,
+} from "./hooks/useRealtimeVoice";

@@ -1,3 +1,4 @@
+import type { ToolModelOutput, ToolOutputPart } from "./tool-output";
 /**
  * Tool-related types for the agentic loop
  */
@@ -174,9 +175,7 @@ export type AIResponseMode = "none" | "brief" | "full";
 /**
  * Multimodal content for AI to analyze
  */
-export type AIContent =
-  | { type: "image"; data: string; mediaType: string }
-  | { type: "text"; text: string };
+export type AIContent = ToolOutputPart;
 
 /**
  * How large tool results should be trimmed before they are sent back to the AI.
@@ -507,6 +506,7 @@ export interface ToolRenderProps<TParams = Record<string, unknown>> {
  * Tool definition with JSON Schema
  */
 export interface ToolDefinition<TParams = Record<string, unknown>> {
+  toModelOutput?: (result: unknown) => ToolModelOutput | undefined;
   /** Unique tool name */
   name: string;
   /** Tool description for LLM */
@@ -907,6 +907,7 @@ export type ToolSet = Record<string, ToolSetEntry>;
  * Configuration for creating a tool
  */
 export interface ToolConfig<TParams = Record<string, unknown>> {
+  toModelOutput?: (result: unknown) => ToolModelOutput | undefined;
   /** Tool description for LLM */
   description: string;
   /** Where the tool executes (default: 'client') */
@@ -1003,6 +1004,7 @@ export function tool<TParams = Record<string, unknown>>(
       required: [],
     },
     handler: config.handler,
+    toModelOutput: config.toModelOutput,
     render: config.render,
     available: config.available,
     hidden: config.hidden,

@@ -1,3 +1,5 @@
+import type { OpenAITransportOptions } from "../core/openai-responses";
+import type { OpenAIParameterOptions } from "../core/openai-parameters";
 /**
  * Provider Types
  *
@@ -347,7 +349,8 @@ export interface BaseProviderConfig {
 /**
  * OpenAI provider configuration
  */
-export interface OpenAIProviderConfig extends BaseProviderConfig {
+export interface OpenAIProviderConfig
+  extends BaseProviderConfig, OpenAIParameterOptions, OpenAITransportOptions {
   /** OpenAI organization ID */
   organization?: string;
   /** OpenAI project ID */

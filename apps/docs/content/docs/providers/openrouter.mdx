@@ -187,3 +187,43 @@ export function Providers({ children }: { children: React.ReactNode }) {
 - [Fireworks](/docs/providers/fireworks) - Fast open-source model inference
 - [Fallback Chain](/docs/providers/fallback) - Automatic failover between providers
 - [generateText()](/docs/llm-sdk) - Full LLM SDK reference
+
+## Next beta: reasoning controls
+
+The following additions are on the unreleased compatibility branch. Existing
+OpenRouter calls keep Chat Completions and the model's reasoning defaults.
+
+```ts
+import { generateText, streamText } from "@yourgpt/llm-sdk";
+import { openrouter } from "@yourgpt/llm-sdk/openrouter";
+
+const model = openrouter("anthropic/claude-sonnet-4.5", {
+  reasoning: { maxTokens: 1024 },
+});
+const result = await generateText({
+  model,
+  prompt: "Explain the result briefly.",
+  maxTokens: 2048,
+});
+console.log(result.text);
+console.log(result.reasoningText); // Optional provider-supplied summary/text
+
+const stream = await streamText({
+  model,
+  prompt: "Continue.",
+  maxTokens: 2048,
+});
+for await (const part of stream.fullStream) {
+  if (part.type === "reasoning-delta") console.log(part.text);
+}
+```
+
+Use `reasoning.effort` **or** `reasoning.maxTokens`, not both. Supported controls
+vary by model. `enabled` and `exclude` are also optional. Reasoning consumes the
+provider's output budget. The normal text stream remains answer-only.
+
+For continuation, pass `result.response.messages` back as messages. The SDK keeps
+opaque `providerMetadata.openrouter.reasoningDetails` for replay; do not edit or
+reorder these blocks. Usage and the raw response are not part of that replay
+state. This option belongs to the modern `openrouter()` factory; it does not add
+reasoning controls to the legacy `createOpenRouter()` Runtime factory.

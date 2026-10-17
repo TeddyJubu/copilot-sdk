@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useCallback, memo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -8,9 +8,11 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Key, Shield, Check, BookOpen, ExternalLink } from "lucide-react";
+import { ArrowUpRight, Check, KeyRound } from "lucide-react";
 import type { ApiKeys } from "@/lib/types";
 import { providers } from "@/lib/constants";
+import { Btn, Note } from "@/components/bench/ui";
+import { cn } from "@/lib/utils";
 
 interface ApiKeyModalProps {
   open: boolean;
@@ -19,6 +21,12 @@ interface ApiKeyModalProps {
   onSave: (keys: ApiKeys) => void;
 }
 
+const decisionFields = [
+  ["typesafe", "TypeSafe / Jev API key", "password"],
+  ["cloudflare", "Cloudflare API token", "password"],
+  ["cloudflareAccountId", "Cloudflare account ID", "text"],
+] as const;
+
 function ApiKeyModalComponent({
   open,
   onOpenChange,
@@ -26,11 +34,13 @@ function ApiKeyModalComponent({
   onSave,
 }: ApiKeyModalProps) {
   const [localKeys, setLocalKeys] = useState(apiKeys);
+  const [sourceKeys, setSourceKeys] = useState(apiKeys);
   const [saved, setSaved] = useState(false);
 
-  useEffect(() => {
+  if (sourceKeys !== apiKeys) {
+    setSourceKeys(apiKeys);
     setLocalKeys(apiKeys);
-  }, [apiKeys]);
+  }
 
   const handleSave = useCallback(() => {
     onSave(localKeys);
@@ -38,7 +48,7 @@ function ApiKeyModalComponent({
     setTimeout(() => {
       setSaved(false);
       onOpenChange(false);
-    }, 1000);
+    }, 900);
   }, [localKeys, onSave, onOpenChange]);
 
   const handleKeyChange = useCallback(
@@ -48,100 +58,131 @@ function ApiKeyModalComponent({
     [],
   );
 
+  const inputClass = "control num h-8 px-2.5 text-[12px]";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Key className="h-4 w-4" />
-            API Configuration
+      <DialogContent className="gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-[var(--shadow-panel),0_24px_60px_-20px_oklch(0_0_0/45%)] sm:max-w-[520px]">
+        <DialogHeader className="border-b border-line px-5 pt-5 pb-4 text-left">
+          <DialogTitle className="flex items-center gap-2.5 text-[15px] font-semibold tracking-[-0.01em]">
+            <span className="grid size-7 place-items-center rounded-lg bg-brand-soft text-brand">
+              <KeyRound aria-hidden className="size-3.5" />
+            </span>
+            API keys
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            Configure your API keys for different providers.
+          <DialogDescription className="text-[12.5px] text-muted-foreground">
+            One set of keys for the Copilot chat and every Feature lab example.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {/* Security Notice */}
-          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20">
-            <Shield className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-            <p className="text-[11px] text-amber-800 dark:text-amber-300">
-              Keys are stored locally in your browser only. We never send or
-              store your keys on any server.
-            </p>
-          </div>
+        <div className="max-h-[min(560px,70dvh)] space-y-5 overflow-y-auto px-5 py-4">
+          <Note>
+            Keys are saved in this browser and sent to the playground server
+            only for requests to the selected provider. They are never added to
+            the server configuration.
+          </Note>
 
-          {/* Provider Keys */}
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
-            {providers.map((provider) => (
-              <div key={provider.id} className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-700 dark:text-zinc-300 flex items-center gap-2">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: provider.color }}
+          <fieldset className="space-y-3">
+            <legend className="eyebrow mb-2">Chat providers</legend>
+            {providers.map((provider) => {
+              const set = !!localKeys[provider.id]?.trim();
+              return (
+                <div key={provider.id}>
+                  <div className="mb-1 flex items-center justify-between gap-3">
+                    <label
+                      htmlFor={`api-key-${provider.id}`}
+                      className="flex items-center gap-2 text-[12.5px] font-medium"
+                    >
+                      <span
+                        aria-hidden
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: provider.color }}
+                      />
+                      {provider.name}
+                      {set ? (
+                        <Check aria-hidden className="size-3 text-success" />
+                      ) : null}
+                    </label>
+                    <a
+                      href={provider.keyLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="num inline-flex items-center gap-0.5 text-[11px] text-faint hover:text-foreground"
+                    >
+                      {provider.keyLinkText}
+                      <ArrowUpRight aria-hidden className="size-3" />
+                    </a>
+                  </div>
+                  <input
+                    id={`api-key-${provider.id}`}
+                    type="password"
+                    autoComplete="off"
+                    value={localKeys[provider.id]}
+                    onChange={(e) =>
+                      handleKeyChange(provider.id, e.target.value)
+                    }
+                    placeholder={provider.keyPlaceholder}
+                    className={inputClass}
                   />
-                  {provider.name}
-                  {localKeys[provider.id] ? (
-                    <Check className="h-3 w-3 text-emerald-500 ml-auto" />
-                  ) : null}
+                </div>
+              );
+            })}
+          </fieldset>
+
+          <fieldset className="space-y-3">
+            <legend className="eyebrow mb-2">
+              Additional Decisions providers
+            </legend>
+            {decisionFields.map(([id, label, type]) => (
+              <div key={id}>
+                <label
+                  htmlFor={`api-key-${id}`}
+                  className="mb-1 block text-[12.5px] font-medium"
+                >
+                  {label}
                 </label>
                 <input
-                  type="password"
-                  value={localKeys[provider.id]}
-                  onChange={(e) => handleKeyChange(provider.id, e.target.value)}
-                  placeholder={provider.keyPlaceholder}
-                  className="w-full h-8 px-3 rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-mono placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  id={`api-key-${id}`}
+                  type={type}
+                  autoComplete="off"
+                  value={localKeys[id] ?? ""}
+                  onChange={(event) => handleKeyChange(id, event.target.value)}
+                  className={inputClass}
                 />
-                <p className="text-[10px] text-zinc-500">
-                  Get your key from{" "}
-                  <a
-                    href={provider.keyLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-indigo-600 dark:text-indigo-400 hover:underline"
-                  >
-                    {provider.keyLinkText}
-                  </a>
-                </p>
               </div>
             ))}
-          </div>
-
-          {/* Explore more link */}
-          <div className="pt-2 border-t border-zinc-200 dark:border-zinc-800">
-            <a
-              href="https://copilot-sdk.yourgpt.ai/docs/providers"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-            >
-              <BookOpen className="h-3.5 w-3.5" />
-              Explore more providers in Copilot SDK docs
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
+          </fieldset>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={() => onOpenChange(false)}
-            className="px-3 py-1.5 text-xs font-medium rounded-md border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+        <div className="flex items-center justify-between gap-3 border-t border-line bg-surface px-5 py-3">
+          <a
+            href="https://copilot-sdk.yourgpt.ai/docs/providers"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            className="px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
-          >
-            {saved ? (
-              <>
-                <Check className="h-3 w-3" />
-                Saved
-              </>
-            ) : (
-              "Save Keys"
-            )}
-          </button>
+            More providers in the docs
+            <ArrowUpRight aria-hidden className="size-3" />
+          </a>
+          <div className="flex gap-2">
+            <Btn variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Btn>
+            <Btn
+              variant="primary"
+              onClick={handleSave}
+              className={cn("min-w-[92px]", saved && "brightness-110")}
+            >
+              {saved ? (
+                <>
+                  <Check aria-hidden />
+                  Saved
+                </>
+              ) : (
+                "Save Keys"
+              )}
+            </Btn>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

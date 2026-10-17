@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchOpenRouterModels } from "@yourgpt/llm-sdk/openrouter";
 
-export const runtime = "edge";
+// The SDK provider bundle includes Node-only modules.
+export const runtime = "nodejs";
 
 /**
  * GET /api/openrouter/models

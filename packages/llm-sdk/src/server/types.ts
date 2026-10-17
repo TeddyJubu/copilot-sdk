@@ -1,6 +1,7 @@
 import type {
   ActionDefinition,
   KnowledgeBaseConfig,
+  ResponseFormat,
   ToolDefinition,
   ToolProfile,
   WebSearchConfig,
@@ -204,6 +205,8 @@ export interface MessageAttachment {
 export interface ChatRequest {
   /** Conversation messages */
   messages: Array<{
+    modelOutput?: import("../core/tool-output").ToolModelOutput;
+    providerMetadata?: import("../core/openai-responses").ProviderMetadata;
     role: string;
     content: string;
     /** Attachments like images (for vision support) */
@@ -222,7 +225,13 @@ export interface ChatRequest {
   /** Bot ID (for cloud) */
   botId?: string;
   /** LLM config overrides */
-  config?: { temperature?: number; maxTokens?: number };
+  config?: {
+    openai?: import("../core/openai-responses").OpenAITransportOptions;
+    reasoningEffort?: import("../core/openai-parameters").OpenAIReasoningEffort;
+    temperature?: number;
+    maxTokens?: number;
+    responseFormat?: ResponseFormat;
+  };
   /** System prompt override */
   systemPrompt?: string;
   /** Actions from client (legacy) */

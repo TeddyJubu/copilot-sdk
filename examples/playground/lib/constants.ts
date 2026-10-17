@@ -161,6 +161,9 @@ export const INITIAL_API_KEYS: ApiKeys = {
   google: "",
   xai: "",
   openrouter: "",
+  typesafe: "",
+  cloudflare: "",
+  cloudflareAccountId: "",
 };
 
 // OpenRouter model options for the model selector (static fallback)

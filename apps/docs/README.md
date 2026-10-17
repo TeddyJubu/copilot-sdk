@@ -1,36 +1,67 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Copilot SDK documentation
 
-## Getting Started
+This is the dedicated SDK documentation application for
+[copilot-sdk.yourgpt.ai](https://copilot-sdk.yourgpt.ai). It uses Next.js and
+Fumadocs. MDX pages live in `content/docs`; each folder's `meta.json` controls
+navigation. This app is separate from the YourGPT hosted-widget documentation
+project in `yourgpt-docs`.
 
-First, run the development server:
+## Develop and validate
+
+Use Node.js 22 or newer and the pinned pnpm 11.5.1 for this workspace.
+Published SDK packages retain Node.js 18+ support. From the workspace root:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
+pnpm --filter @yourgpt/copilot-sdk-docs dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [localhost:3002](http://localhost:3002/docs).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm --filter @yourgpt/copilot-sdk-docs build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The production build compiles MDX, checks application types and generates the
+static documentation routes. SDK package guides are in `packages/llm-sdk/docs`;
+keep their API contracts consistent with the public pages. Release verification
+records live under the repository's `docs/releases` directory.
 
-## Learn More
+## Beta documentation
 
-To learn more about Next.js, take a look at the following resources:
+Start at [Beta upgrades and compatibility](content/docs/llm-sdk/beta-upgrade.mdx).
+It distinguishes the published hotfix from the unreleased Decisions, realtime
+and image-generation APIs. The next-beta release number is not assigned yet.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Dedicated guides cover parameters/fallback, Responses and caching, system prompt
+compatibility, images in tool results, TTS/STT, Decisions, realtime and image
+generation. The [Feature Lab guide](content/docs/feature-lab.mdx) documents manual
+checks and exact live-versus-fixture coverage.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+These source updates and the Feature Lab have not been deployed. Do not describe
+an npm package, branch push or successful build as a documentation deployment.
 
-## Deploy on Vercel
+## Playground proxy
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The existing `examples/playground` application supplies the playground.
+`next.config.mjs` forwards `/playground` and `/playground/:path*` to
+`PLAYGROUND_URL`, including `/playground/features` and its API routes. To preview
+the local playground through this documentation app, supply
+`PLAYGROUND_URL=http://127.0.0.1:3035` before starting the docs server.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deploy the documentation and existing playground projects separately. After
+both deploy, verify the public documentation routes and the playground's key
+entry, core checks, chat and media controls. Hosted feature calls require the
+caller's provider key; they do not use shared environment keys.
+
+## Release and deployment
+
+The [2.6.0 promotion guide](content/docs/release-2-6.mdx) describes the earlier
+verified beta baseline. This checkout also includes the unreleased next-beta
+features documented above; a website deployment does not publish their npm exports.
+The Release workflow is manual, with publishing disabled by default. Exact npm
+versions and dist-tags must be approved separately.
+
+Machine-readable routes (`/llms.txt`, `/llms-full.txt`, `/llms.mdx/docs/...`)
+derive from the same pages. Keep public API imports, limitations and validation
+status consistent between these pages and package guides.

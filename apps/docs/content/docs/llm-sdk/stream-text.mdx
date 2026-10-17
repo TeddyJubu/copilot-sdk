@@ -54,8 +54,22 @@ const result = await streamText({
   // Optional: Generation settings
   temperature: 0.7,
   maxTokens: 4096,
+
+  // Optional: Structured JSON output (provider-translated)
+  responseFormat: {
+    type: 'json_schema',
+    json_schema: {
+      name: 'response',
+      schema: { type: 'object', properties: { ... }, required: [...] },
+      strict: true,
+    },
+  },
 });
 ```
+
+<Callout>
+  `responseFormat` works across all supported providers — each adapter translates to the provider's native field. See [Structured Output](/docs/llm-sdk/structured-output) for per-provider details and gotchas.
+</Callout>
 
 ---
 
@@ -72,6 +86,8 @@ result.fullStream     // AsyncIterable<StreamPart> - all events
 result.text           // Promise<string> - full text
 result.usage          // Promise<TokenUsage> - token counts
 result.finishReason   // Promise<FinishReason>
+result.response       // Promise<{ messages: CoreMessage[] }> (beta)
+result.providerMetadata // Promise<ProviderMetadata | undefined> (beta)
 
 // HTTP Response helpers
 result.toTextStreamResponse()   // text/plain stream
@@ -293,6 +309,14 @@ export async function POST(req: Request) {
   return result.toDataStreamResponse();
 }
 ```
+
+---
+
+## Beta continuation and shared execution
+
+The optional `openai` request setting selects the [OpenAI transport](/docs/llm-sdk/responses). Stream readers, response helpers, and result promises share one model execution. Reading `textStream` and then awaiting `response` or `providerMetadata` does not send a second request.
+
+Preserve `(await result.response).messages` intact for continuation, including tool outputs and opaque provider metadata. Failed/incomplete Responses streams reject instead of being treated as a successful completed turn. A plain text HTTP response cannot carry all replay fields; use the structured stream/history integration when your client needs them.
 
 ---
 

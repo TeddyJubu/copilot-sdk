@@ -1,0 +1,79 @@
+---
+title: Parameters and fallback
+description: Handle reasoning-model parameters and recover from specific compatibility errors.
+---
+
+The SDK checks sampling and token options for recognized OpenAI model families,
+including GPT-6. With reasoning enabled, an unsupported `temperature` is omitted
+with a warning. Reasoning is not silently disabled to accept a temperature value.
+
+```ts
+import { generateText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+
+const result = await generateText({
+  model: openai("gpt-6-luna", {
+    onWarning: (warning) => console.warn(warning),
+  }),
+  prompt: "Reply with exactly OK.",
+  temperature: 0, // Omitted when the model's default reasoning disallows it.
+});
+```
+
+If the model supports non-reasoning mode and your application needs sampling
+control, explicitly set `reasoningEffort: "none"` on the generation request.
+The SDK then retains `temperature`. Unsupported reasoning settings fail before
+the provider call. Runtime requests can override the setting through
+`config.reasoningEffort`.
+
+## Endpoint selection
+
+On OpenAI's endpoint, recognized GPT-5.4+ and GPT-6 reasoning requests with tools
+use Responses automatically. You can also [select Responses explicitly](/docs/llm-sdk/responses).
+Custom OpenAI-compatible endpoints keep Chat Completions routing unless you opt
+in. `parameterPolicy: "passthrough"` disables normalization for an endpoint with
+different rules; it can cause provider errors if used with unsupported settings.
+
+## Recover from a specific parameter error
+
+Compatibility errors stop by default. `fallbackErrors` lets your application
+switch models for a specific error without retrying the same invalid request:
+
+```ts
+import { createFallbackChain } from "@yourgpt/llm-sdk/fallback";
+import { createOpenAI } from "@yourgpt/llm-sdk/openai";
+
+const provider = createOpenAI();
+const adapter = createFallbackChain({
+  models: [
+    provider.languageModel("gpt-6-luna"),
+    provider.languageModel("gpt-4o"),
+  ],
+  retries: 2,
+  fallbackErrors(error) {
+    const e = error as { status?: number; code?: string; param?: string };
+    return (
+      e?.status === 400 &&
+      ["unsupported_parameter", "unsupported_value"].includes(e.code ?? "") &&
+      e.param === "temperature"
+    );
+  },
+});
+```
+
+Pass the returned adapter to `createRuntime({ adapter })`. Transient failures retain
+their configured retries. Do not match every HTTP 400 or mark compatibility
+errors retryable. Cancellation never triggers a fallback, and a stream cannot
+switch models after it has emitted content or tool events.
+
+## Guardrail decisions
+
+`TRAINING_CONFLICT` belongs to your application's policy. An API failure is not
+a successful classification and must not silently become a `respond` decision.
+Handle an exhausted fallback chain through your application's error or review
+path. [Native Decisions](/docs/llm-sdk/decisions) is a separate API; it does not
+automatically replace existing guardrails or retry failed decisions.
+
+The [Feature Lab](/docs/feature-lab) tests both normal parameter filtering and a
+deliberately invalid request with one explicit fallback. See the
+[beta upgrade guide](/docs/llm-sdk/beta-upgrade) for release availability.

@@ -109,7 +109,7 @@ export function createSystemMessage(content: string): UIMessage {
  */
 export function streamStateToMessage(state: StreamingMessageState): UIMessage {
   // Convert simplified tool calls to ToolCall format
-  const toolCalls: ToolCall[] | undefined =
+  let toolCalls: ToolCall[] | undefined =
     state.toolCalls.length > 0
       ? state.toolCalls.map((tc) => ({
           id: tc.id,
@@ -121,6 +121,26 @@ export function streamStateToMessage(state: StreamingMessageState): UIMessage {
         }))
       : undefined;
 
+  // Native image results must retain their originating calls on providers that
+  // do not expose an opaque replay envelope (for example Anthropic).
+  // Every completed server tool needs a call/result pair on the next request,
+  // including ordinary JSON results (not only image modelOutput).
+  if (state.toolResults.size > 0) {
+    const calls = new Map((toolCalls ?? []).map((call) => [call.id, call]));
+    for (const result of state.toolResults.values()) {
+      if (!calls.has(result.id))
+        calls.set(result.id, {
+          id: result.id,
+          type: "function",
+          function: {
+            name: result.name,
+            arguments: JSON.stringify(result.args ?? {}),
+          },
+        });
+    }
+    toolCalls = Array.from(calls.values());
+  }
+
   // Convert tool results to toolExecutions format for UI
   // This enables server-side tool results to be used by components like SourceGroup
   const toolExecutions =
@@ -131,6 +151,7 @@ export function streamStateToMessage(state: StreamingMessageState): UIMessage {
           args: tr.args ?? {},
           status: tr.status,
           result: tr.result,
+          ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
           error: tr.error,
           timestamp: Date.now(),
         }))
@@ -147,6 +168,9 @@ export function streamStateToMessage(state: StreamingMessageState): UIMessage {
 
   return {
     id: state.messageId,
+    ...(state.providerMetadata
+      ? { providerMetadata: state.providerMetadata }
+      : {}),
     role: "assistant" as const,
     content: state.content,
     thinking: state.thinking || undefined,

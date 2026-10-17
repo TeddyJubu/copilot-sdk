@@ -35,6 +35,9 @@ export interface ApiKeys {
   google: string;
   xai: string;
   openrouter: string;
+  typesafe?: string;
+  cloudflare?: string;
+  cloudflareAccountId?: string;
 }
 
 export type ProviderId =

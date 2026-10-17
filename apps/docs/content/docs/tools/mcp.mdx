@@ -181,3 +181,7 @@ useMCPTools({
 <Callout type="info">
 MCP360 includes web search, scraping, SEO tools, e-commerce data, and more. [Explore all tools →](https://mcp360.ai)
 </Callout>
+
+## MCP image results in beta
+
+Copilot SDK `2.5.1-beta.3` preserves accompanying text when an MCP result contains images. Image-bearing results use the [native image tool-output path](/docs/tools/image-results) on OpenAI Responses and Anthropic; unsupported providers/endpoints fail explicitly. This browser/server MCP client integration is separate from the broader provider-native MCP approval/background lifecycle tracked in [#119](https://github.com/YourGPT/copilot-sdk/issues/119).

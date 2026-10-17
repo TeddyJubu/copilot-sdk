@@ -24,6 +24,33 @@
 // ============================================
 
 export { generateText } from "./core/generate-text";
+export { generateImage, MediaAPIError } from "./core/image";
+export type {
+  ImageFile,
+  ImageOptions,
+  GeneratedImage,
+  ImageResult,
+  ImageModel,
+} from "./core/image";
+export type {
+  RealtimeToolDefinition,
+  RealtimeSessionOptions,
+  RealtimeClientSecret,
+  RealtimeModel,
+} from "./core/realtime";
+export { experimental_decide, DecisionAPIError } from "./core/decisions";
+export type {
+  DecisionJSON,
+  DecisionInput,
+  DecisionQuestion,
+  DecisionQuestions,
+  DecisionImage,
+  DecisionOptions,
+  DecisionAnswer,
+  DecisionResult,
+  DecisionModel,
+  DecisionErrorCode,
+} from "./core/decisions";
 export { streamText } from "./core/stream-text";
 export {
   tool,
@@ -232,3 +259,27 @@ export type {
   FallbackInfo,
   RetryInfo,
 } from "./fallback/types";
+
+export type {
+  OpenAITransportOptions,
+  OpenAIResponsesOptions,
+  OpenAIResponseItem,
+  OpenAIResponseMetadata,
+  ProviderMetadata,
+} from "./core/openai-responses";
+
+export type { ToolOutputPart, ToolModelOutput } from "./core/tool-output";
+
+export { generateSpeech, transcribe, AudioAPIError } from "./core/audio";
+export type {
+  SpeechModel,
+  TranscriptionModel,
+  SpeechOptions,
+  TranscriptionOptions,
+  GeneratedSpeech,
+  TranscriptionResult,
+  SpeechFormat,
+  TranscriptSegment,
+  AudioResponseMetadata,
+  AudioWarning,
+} from "./core/audio";

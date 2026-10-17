@@ -8,8 +8,10 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Key, Github, ExternalLink, Rocket } from "lucide-react";
+import { ArrowUpRight, Github, KeyRound } from "lucide-react";
 import { GITHUB_REPO_URL } from "@/lib/constants";
+import CopilotSDKLogo from "@/components/CopilotSDKLogo";
+import { Btn } from "@/components/bench/ui";
 
 interface WelcomeModalProps {
   open: boolean;
@@ -29,56 +31,51 @@ function WelcomeModalComponent({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Rocket className="h-5 w-5 text-indigo-500" />
-            Welcome to Copilot SDK Playground
+      <DialogContent className="gap-0 overflow-hidden rounded-2xl border-0 p-0 shadow-[var(--shadow-panel),0_24px_60px_-20px_oklch(0_0_0/45%)] sm:max-w-[440px]">
+        <div className="bench-grid h-20 [mask-image:linear-gradient(to_bottom,black,transparent)]" />
+        <DialogHeader className="-mt-12 px-6 pb-2 text-left">
+          <CopilotSDKLogo aria-hidden className="mb-3 size-9" />
+          <DialogTitle className="text-[17px] font-semibold tracking-[-0.02em]">
+            Welcome to the Copilot SDK playground
           </DialogTitle>
-          <DialogDescription className="text-xs">
-            Choose how you want to explore the SDK features.
+          <DialogDescription className="text-[13px] leading-relaxed text-muted-foreground">
+            Chat with a configurable Copilot and test every beta feature against
+            real providers.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-3">
-          {/* Option 1: Run Locally */}
+        <div className="space-y-2 px-6 pt-3 pb-6">
+          <Btn
+            variant="primary"
+            size="lg"
+            className="w-full"
+            onClick={handleTryHere}
+          >
+            <KeyRound aria-hidden />
+            Add API Keys
+          </Btn>
+          <p className="pb-2 text-center text-[11.5px] text-faint">
+            Keys stay in this browser and are sent only with your requests.
+          </p>
           <a
             href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="block p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-emerald-300 dark:hover:border-emerald-700 hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors"
+            className="press flex items-center gap-3 rounded-xl px-3 py-2.5 shadow-[inset_0_0_0_1px_var(--line)] hover:bg-surface"
           >
-            <div className="flex items-center gap-2 mb-2">
-              <Github className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                Run Locally
-              </p>
-              <ExternalLink className="h-3 w-3 text-zinc-400 ml-auto" />
-            </div>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">
-              Clone the repo for full experience with tool execution.
-            </p>
+            <span className="grid size-8 place-items-center rounded-lg bg-muted">
+              <Github aria-hidden className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[12.5px] font-medium">
+                Run locally
+              </span>
+              <span className="block text-[11.5px] text-faint">
+                Clone the repo for the full experience with tool execution.
+              </span>
+            </span>
+            <ArrowUpRight aria-hidden className="size-4 text-faint" />
           </a>
-
-          {/* Option 2: Try Here */}
-          <div className="p-4 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors">
-            <div className="flex items-center gap-2 mb-2">
-              <Key className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                Try Here
-              </p>
-            </div>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 mb-3">
-              Add your API keys to test directly in the browser.
-            </p>
-            <button
-              onClick={handleTryHere}
-              className="w-full px-4 py-2 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center justify-center gap-1.5"
-            >
-              <Key className="h-3.5 w-3.5" />
-              Add API Keys
-            </button>
-          </div>
         </div>
       </DialogContent>
     </Dialog>

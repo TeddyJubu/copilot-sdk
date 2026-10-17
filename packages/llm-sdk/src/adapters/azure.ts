@@ -1,3 +1,4 @@
+import { textToolOutput } from "../core/tool-output";
 /**
  * Azure OpenAI LLM Adapter
  *
@@ -19,6 +20,7 @@ import {
   formatMessagesForOpenAI,
   formatTools,
   logProviderPayload,
+  toOpenAIResponseFormat,
 } from "./base";
 
 // ============================================
@@ -110,6 +112,15 @@ export class AzureAdapter implements LLMAdapter {
     if (request.rawMessages && request.rawMessages.length > 0) {
       // Process raw messages - convert any attachments to OpenAI vision format
       const processedMessages = request.rawMessages.map((msg) => {
+        const { modelOutput, ...rest } = msg;
+        msg = {
+          ...rest,
+          ...(msg.role === "tool"
+            ? {
+                content: textToolOutput(modelOutput, String(msg.content ?? "")),
+              }
+            : {}),
+        };
         // Check if message has attachments (images)
         const hasAttachments =
           msg.attachments &&
@@ -188,6 +199,7 @@ export class AzureAdapter implements LLMAdapter {
         tools,
         temperature: request.config?.temperature ?? this.config.temperature,
         max_tokens: request.config?.maxTokens ?? this.config.maxTokens,
+        response_format: toOpenAIResponseFormat(request.config?.responseFormat),
         stream: true,
       };
       logProviderPayload("azure", "request payload", payload, request.debug);
@@ -289,7 +301,12 @@ export class AzureAdapter implements LLMAdapter {
 
     let messages: Array<Record<string, unknown>>;
     if (request.rawMessages && request.rawMessages.length > 0) {
-      messages = request.rawMessages as Array<Record<string, unknown>>;
+      messages = request.rawMessages.map(({ modelOutput, ...msg }) => ({
+        ...msg,
+        ...(msg.role === "tool"
+          ? { content: textToolOutput(modelOutput, String(msg.content ?? "")) }
+          : {}),
+      }));
       if (request.systemPrompt) {
         const hasSystem = messages.some((m) => m.role === "system");
         if (!hasSystem) {
@@ -316,6 +333,7 @@ export class AzureAdapter implements LLMAdapter {
       tools,
       temperature: request.config?.temperature ?? this.config.temperature,
       max_tokens: request.config?.maxTokens ?? this.config.maxTokens,
+      response_format: toOpenAIResponseFormat(request.config?.responseFormat),
     };
     logProviderPayload("azure", "request payload", payload, request.debug);
     const response = await client.chat.completions.create(payload);
@@ -330,9 +348,23 @@ export class AzureAdapter implements LLMAdapter {
       args: JSON.parse(tc.function.arguments || "{}"),
     }));
 
+    // Map Azure's OpenAI-compatible usage to the SDK's camelCase shape, matching
+    // the OpenAI adapter's complete(). Without this, complete() returned no usage,
+    // so the non-streaming agent loop accumulated zero tokens and credit deduction
+    // was skipped entirely for Azure models.
     return {
       content: message?.content || "",
       toolCalls,
+      usage: response.usage
+        ? {
+            promptTokens: response.usage.prompt_tokens ?? 0,
+            completionTokens: response.usage.completion_tokens ?? 0,
+            totalTokens:
+              response.usage.total_tokens ??
+              (response.usage.prompt_tokens ?? 0) +
+                (response.usage.completion_tokens ?? 0),
+          }
+        : undefined,
       rawResponse: response as Record<string, unknown>,
     };
   }

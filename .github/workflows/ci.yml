@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, beta]
   pull_request:
-    branches: [main]
+    branches: [main, beta]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,15 +21,23 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
+        with:
+          standalone: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: LLM SDK regression tests
+        run: pnpm --filter @yourgpt/llm-sdk test
+
       - name: Build packages
         run: pnpm build
+
+      - name: Copilot integration regressions
+        run: pnpm test:compatibility

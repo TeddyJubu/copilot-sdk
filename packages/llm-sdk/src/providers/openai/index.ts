@@ -7,6 +7,8 @@
 
 // NEW: Modern pattern - openai() function
 export { openai, createOpenAI as createOpenAIModel } from "./provider";
+export { openaiDecision } from "./decisions";
+export type { OpenAIDecisionProviderOptions } from "./decisions";
 export type { OpenAIProviderOptions } from "./provider";
 
 import { createOpenAIAdapter } from "../../adapters/openai";
@@ -176,6 +178,11 @@ export function createOpenAI(config: OpenAIProviderConfig = {}): AIProvider {
       apiKey,
       model: modelId,
       baseUrl: config.baseUrl,
+      reasoningEffort: config.reasoningEffort,
+      api: config.api,
+      responses: config.responses,
+      parameterPolicy: config.parameterPolicy,
+      onWarning: config.onWarning,
     });
   };
 
@@ -212,3 +219,26 @@ export function createOpenAI(config: OpenAIProviderConfig = {}): AIProvider {
 
 // Alias for consistency
 export const createOpenAIProvider = createOpenAI;
+
+export type {
+  OpenAIReasoningEffort,
+  OpenAIParameterOptions,
+} from "../../core/openai-parameters";
+
+export type {
+  OpenAITransportOptions,
+  OpenAIResponsesOptions,
+  OpenAIResponseItem,
+  OpenAIResponseMetadata,
+  ProviderMetadata,
+} from "../../core/openai-responses";
+
+export { openaiSpeech, openaiTranscription } from "./audio";
+export type {
+  OpenAIAudioProviderOptions,
+  OpenAITranscriptionOptions,
+} from "./audio";
+export { openaiImage } from "./image";
+export type { OpenAIImageOptions } from "./image";
+export { openaiRealtime } from "./realtime";
+export type { OpenAIMediaProviderOptions } from "./media-http";

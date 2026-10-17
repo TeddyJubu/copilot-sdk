@@ -18,14 +18,16 @@ export function ToolInfoHoverCard({ metadata }: ToolInfoHoverCardProps) {
     <HoverCard openDelay={200} closeDelay={100}>
       <HoverCardTrigger asChild>
         <button
-          className="p-1 rounded-md hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+          type="button"
+          aria-label="More information"
+          className="press grid size-6 place-items-center rounded-md text-faint hover:bg-accent hover:text-foreground"
           onClick={(e) => e.stopPropagation()}
         >
-          <Info className="h-3.5 w-3.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300" />
+          <Info aria-hidden className="size-3.5" />
         </button>
       </HoverCardTrigger>
       <HoverCardContent
-        className="w-80 p-0 overflow-hidden"
+        className="w-80 overflow-hidden rounded-xl border-0 p-0 shadow-[var(--shadow-panel)]"
         side="right"
         align="start"
         sideOffset={8}
@@ -33,21 +35,17 @@ export function ToolInfoHoverCard({ metadata }: ToolInfoHoverCardProps) {
         <div className="p-4 space-y-3">
           {/* Description */}
           <div>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 mb-1">
-              Description
-            </p>
-            <p className="text-xs text-zinc-700 dark:text-zinc-300 leading-relaxed">
+            <p className="eyebrow mb-1.5">Description</p>
+            <p className="text-[12.5px] leading-relaxed text-foreground/90">
               {metadata.description}
             </p>
           </div>
 
           {/* Suggested Query */}
           <div>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 mb-1">
-              Try asking
-            </p>
-            <div className="px-3 py-2 rounded-lg bg-emerald-500/10 ring-1 ring-emerald-500/20">
-              <p className="text-xs font-mono text-emerald-700 dark:text-emerald-400">
+            <p className="eyebrow mb-1.5">Try asking</p>
+            <div className="rounded-lg border border-line bg-surface px-3 py-2">
+              <p className="num text-[11.5px] text-foreground/90">
                 &quot;{metadata.suggestedQuery}&quot;
               </p>
             </div>
@@ -55,9 +53,7 @@ export function ToolInfoHoverCard({ metadata }: ToolInfoHoverCardProps) {
 
           {/* Code Snippet */}
           <div>
-            <p className="text-[10px] font-medium uppercase tracking-wider text-zinc-500 mb-1">
-              Registration
-            </p>
+            <p className="eyebrow mb-1.5">Registration</p>
             <CodeSnippet code={metadata.codeSnippet} className="max-h-48" />
           </div>
         </div>

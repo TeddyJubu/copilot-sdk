@@ -22,7 +22,11 @@ export {
   fetchOpenRouterModels,
   searchOpenRouterModels,
 } from "./provider";
-export type { OpenRouterProviderOptions, OpenRouterModel } from "./provider";
+export type {
+  OpenRouterProviderOptions,
+  OpenRouterReasoningOptions,
+  OpenRouterModel,
+} from "./provider";
 
 import { createOpenAIAdapter } from "../../adapters/openai";
 import {
@@ -127,3 +131,5 @@ export function createOpenRouter(
 
 // Alias for consistency
 export const createOpenRouterProvider = createOpenRouter;
+export { openrouterDecision } from "./decisions";
+export type { OpenRouterDecisionProviderOptions } from "./decisions";

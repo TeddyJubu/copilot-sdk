@@ -1,3 +1,4 @@
+import { textToolOutput } from "../../core/tool-output";
 /**
  * Together AI Provider
  *
@@ -29,6 +30,7 @@ import type {
   FinishReason,
   CoreMessage,
 } from "../../core/types";
+import { toOpenAIResponseFormat } from "../../adapters/base";
 
 // ============================================
 // Provider Options
@@ -116,6 +118,11 @@ export function togetherai(
         requestBody.tools = params.tools;
       }
 
+      const responseFormat = toOpenAIResponseFormat(params.responseFormat);
+      if (responseFormat) {
+        requestBody.response_format = responseFormat;
+      }
+
       const response = await client.chat.completions.create(requestBody);
       const choice = response.choices[0];
       const message = choice.message;
@@ -155,6 +162,11 @@ export function togetherai(
 
       if (params.tools) {
         requestBody.tools = params.tools;
+      }
+
+      const responseFormat = toOpenAIResponseFormat(params.responseFormat);
+      if (responseFormat) {
+        requestBody.response_format = responseFormat;
       }
 
       const stream = await client.chat.completions.create(requestBody);
@@ -303,7 +315,7 @@ function formatMessages(messages: CoreMessage[]): any[] {
         return {
           role: "tool",
           tool_call_id: msg.toolCallId,
-          content: msg.content,
+          content: textToolOutput(msg.modelOutput, msg.content),
         };
 
       default:

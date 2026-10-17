@@ -4,6 +4,7 @@
   "pages": [
     "frontend-tools",
     "backend-tools",
+    "image-results",
     "built-in",
     "agentic-loop",
     "mcp"

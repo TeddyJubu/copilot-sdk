@@ -9,6 +9,11 @@ import { Accordion, Accordions } from 'fumadocs-ui/components/accordion';
 
 Your server receives messages from the Copilot SDK frontend, calls the LLM, and returns the response.
 
+For existing beta applications, read the [compatibility upgrade guide](/docs/llm-sdk/beta-upgrade).
+It explains `systemPrompt` versus system-role messages, structured tool content,
+and which usage/debug fields to omit from public responses. Preserve the message
+state described in [Responses replay](/docs/llm-sdk/responses) when using custom storage.
+
 ---
 
 ## Quick Start
@@ -511,14 +516,14 @@ For a separate backend server:
     **Option 3: With `chat()` (Non-streaming)**
     ```ts
     // Usage is included in result - strip before sending to client
-    const { usage, ...clientResult } = await runtime.chat(body);
+    const { usage, events: _debugEvents, ...clientResult } = await runtime.chat(body);
 
     if (usage) {
       console.log('Tokens:', usage.total_tokens);
       await billing.recordUsage(userId, usage.total_tokens);
     }
 
-    res.json(clientResult); // Send without usage
+    res.json(clientResult); // Keep billing usage and debug events server-side
     ```
 
     **Option 4: Raw access with `collect()`**
@@ -535,7 +540,7 @@ For a separate backend server:
     | `usage.total_tokens` | `number` | Total tokens used |
 
     <Callout type="info">
-    For `chat()`, usage is **included in the result** - strip the `usage` key before sending to the Copilot client. For streaming, use `onFinish` callback or `{ includeUsage: true }` with `collect()`.
+    For `chat()`, usage is **included in the result**. Strip `usage` and debug `events` before sending the result to the Copilot client, while preserving the reduced message-level continuation metadata. For streaming, use `onFinish` callback or `{ includeUsage: true }` with `collect()`.
     </Callout>
   </Accordion>
 
@@ -638,10 +643,18 @@ return Response.json({ text: result.text });
 
 ---
 
+## Beta request behavior
+
+[System prompts](/docs/server/system-prompts) documents Runtime's `systemPrompt`, default/request precedence, and the Anthropic system-role fix. The modern generation functions use `system` instead.
+
+Use request `config.openai` for [OpenAI transport and Responses options](/docs/llm-sdk/responses). Preserve returned provider metadata and image `modelOutput` when [saving and restoring conversation history](/docs/server/storage#responses-and-image-result-persistence). See the [beta upgrade guide](/docs/beta) for exact package versions and remaining work.
+
+---
+
 ## Next Steps
 
 - [Deploy](/docs/deploy) - Deploy to Vercel, Cloudflare, AWS, Docker, and more
 - [Tools](/docs/tools) - Learn more about frontend and backend tools
 - [Providers](/docs/providers) - Provider-specific configuration
-- [Chat History](/docs/chat-history) - Persist conversations across sessions
+- [Chat History](/docs/chat/storage) - Persist conversations across sessions
 - [LLM SDK](/docs/llm-sdk) - Low-level AI functions

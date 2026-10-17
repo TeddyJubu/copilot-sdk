@@ -1,3 +1,4 @@
+import { toolOutputForProvider } from "../core/tool-output";
 import type {
   LLMConfig,
   StreamEvent,
@@ -12,9 +13,12 @@ import type {
   CompletionResult,
 } from "./base";
 import {
+  extractAnthropicSystemPrompt,
   formatMessagesForAnthropic,
   messageToAnthropicContent,
   logProviderPayload,
+  toAnthropicOutputConfig,
+  parameterToJsonSchema,
   type AnthropicContentBlock,
 } from "./base";
 
@@ -89,8 +93,10 @@ export class AnthropicAdapter implements LLMAdapter {
     rawMessages: Array<Record<string, unknown>>,
   ): Array<Record<string, unknown>> {
     const messages: Array<Record<string, unknown>> = [];
-    const pendingToolResults: Array<{ tool_use_id: string; content: string }> =
-      [];
+    const pendingToolResults: Array<{
+      tool_use_id: string;
+      content: string | Array<Record<string, unknown>>;
+    }> = [];
 
     // Track tool_use ids from assistant messages for inference
     let lastToolCallIds: string[] = [];
@@ -208,8 +214,9 @@ export class AnthropicAdapter implements LLMAdapter {
 
         pendingToolResults.push({
           tool_use_id: toolCallId,
-          content:
-            typeof msg.content === "string"
+          content: msg.modelOutput
+            ? toolOutputForProvider(msg.modelOutput, "anthropic")
+            : typeof msg.content === "string"
               ? msg.content
               : JSON.stringify(msg.content),
         });
@@ -377,19 +384,34 @@ export class AnthropicAdapter implements LLMAdapter {
     options: Record<string, unknown>;
     messages: Array<Record<string, unknown>>;
   } {
-    // Extract system message
-    const systemMessage = request.systemPrompt || "";
+    // Extract system message; Anthropic has no schema-less JSON mode, so for
+    // `responseFormat.type === "json_object"` we coerce via a system suffix.
+    const responseFormat = request.config?.responseFormat;
+    const jsonObjectSuffix =
+      responseFormat?.type === "json_object"
+        ? "\n\nRespond with a single JSON object and no other text."
+        : "";
+    let systemMessage: string;
 
     // Use raw messages if provided (for agent loop with tool calls)
     let messages: Array<Record<string, unknown>>;
     if (request.rawMessages && request.rawMessages.length > 0) {
       // Convert OpenAI-style messages to Anthropic format
+      systemMessage = extractAnthropicSystemPrompt(
+        request.rawMessages,
+        request.systemPrompt,
+      );
       messages = this.convertToAnthropicMessages(request.rawMessages);
     } else {
       // Format from Message[] with multimodal support (images, attachments)
-      const formatted = formatMessagesForAnthropic(request.messages, undefined);
+      const formatted = formatMessagesForAnthropic(
+        request.messages,
+        request.systemPrompt,
+      );
+      systemMessage = formatted.system;
       messages = formatted.messages as Array<Record<string, unknown>>;
     }
+    systemMessage += jsonObjectSuffix;
 
     const anthropicNativeSearch =
       request.providerToolOptions?.anthropic?.nativeToolSearch;
@@ -408,11 +430,7 @@ export class AnthropicAdapter implements LLMAdapter {
               ? Object.fromEntries(
                   Object.entries(action.parameters).map(([key, param]) => [
                     key,
-                    {
-                      type: param.type,
-                      description: param.description,
-                      enum: param.enum,
-                    },
+                    parameterToJsonSchema(param),
                   ]),
                 )
               : {},
@@ -505,6 +523,14 @@ export class AnthropicAdapter implements LLMAdapter {
       options.server_tool_configuration = serverToolConfiguration;
     }
 
+    // Anthropic structured output (`output_config.format`) — GA on Claude API
+    // and Bedrock as of late 2025. Vertex AI does not support it; users on
+    // Vertex should use a forced-tool pattern via `actions` + `toolChoice`.
+    const outputConfig = toAnthropicOutputConfig(responseFormat);
+    if (outputConfig) {
+      options.output_config = outputConfig;
+    }
+
     // Add thinking configuration if enabled
     if (this.config.thinking?.type === "enabled") {
       options.thinking = {
@@ -567,10 +593,23 @@ export class AnthropicAdapter implements LLMAdapter {
         }
       }
 
+      // Map Anthropic's usage (input_tokens/output_tokens) to the SDK's camelCase shape,
+      // matching the OpenAI adapter's complete(). Without this, complete() returned no usage,
+      // so the non-streaming agent loop accumulated zero tokens and credit deduction was
+      // skipped entirely for Anthropic models. Anthropic has no total_tokens, so sum it.
       return {
         content,
         toolCalls,
         thinking: thinking || undefined,
+        usage: response.usage
+          ? {
+              promptTokens: response.usage.input_tokens ?? 0,
+              completionTokens: response.usage.output_tokens ?? 0,
+              totalTokens:
+                (response.usage.input_tokens ?? 0) +
+                (response.usage.output_tokens ?? 0),
+            }
+          : undefined,
         rawResponse: response as Record<string, unknown>,
       };
     } catch (error) {

@@ -55,6 +55,9 @@ export function processStreamChunk(
     case "message:end":
       return {
         ...state,
+        ...(chunk.providerMetadata
+          ? { providerMetadata: chunk.providerMetadata }
+          : {}),
         finishReason: "stop",
       };
 
@@ -108,7 +111,11 @@ export function processStreamChunk(
         name: chunk.name,
         status: chunk.error ? "failed" : "completed",
         args: existing?.args,
+        hidden: existing?.hidden,
         result: chunk.result,
+        ...("modelOutput" in chunk && chunk.modelOutput
+          ? { modelOutput: chunk.modelOutput }
+          : {}),
         error: chunk.error,
       });
       return { ...state, toolResults: newResults };
@@ -122,7 +129,11 @@ export function processStreamChunk(
         name: chunk.name,
         status: chunk.result?.success ? "completed" : "failed",
         args: existing?.args,
+        hidden: existing?.hidden,
         result: chunk.result,
+        ...("modelOutput" in chunk && chunk.modelOutput
+          ? { modelOutput: chunk.modelOutput }
+          : {}),
         error: chunk.result?.error,
       });
       return { ...state, toolResults: newResults };

@@ -1,0 +1,110 @@
+---
+title: Native Decisions (next beta)
+description: Classify and score shared state with native OpenAI, Jev, OpenRouter, and Cloudflare decision models.
+---
+
+This feature is available in workspace source but **unreleased on npm**. It is
+not included in the published `@yourgpt/llm-sdk@2.6.0-beta.3` hotfix. See [release availability](/docs/llm-sdk/beta-upgrade).
+
+Decisions return typed answers without generating a chat reply. Use them for
+ticket routing, classification, or rubric-based scoring.
+
+```ts
+import { experimental_decide } from "@yourgpt/llm-sdk";
+import { openaiDecision } from "@yourgpt/llm-sdk/openai";
+
+const result = await experimental_decide({
+  model: openaiDecision("gpt-6-luna"),
+  state: { ticket: "I was charged twice. Please refund the extra charge." },
+  questions: {
+    team: {
+      type: "choice",
+      instructions: "Which team should handle this ticket?",
+      criteria: {
+        billing: "Payments and refunds",
+        engineering: "Errors and outages",
+      },
+    },
+    outage: {
+      type: "boolean",
+      instructions: "Does the ticket report a service outage?",
+    },
+    impact: {
+      type: "score",
+      instructions: "How much of the service is unavailable?",
+      criteria: ["None", "Some features", "All users blocked"],
+    },
+  },
+});
+
+if (result.answers.team.type === "choice") {
+  console.log(result.answers.team.choice, result.answers.team.probabilities);
+} else {
+  // Handle a refusal using your application's review path.
+}
+```
+
+All keys stay server-side. Boolean answers contain P(true); score answers contain
+a probability-weighted position between zero and the last criterion index.
+Provider confidence is preserved separately when available. Set and evaluate your
+own thresholds before using a result to trigger an action.
+
+| Import                        | Factory                | Credentials                                      |
+| ----------------------------- | ---------------------- | ------------------------------------------------ |
+| `@yourgpt/llm-sdk/openai`     | `openaiDecision()`     | `OPENAI_API_KEY`                                 |
+| `@yourgpt/llm-sdk/typesafe`   | `typesafeDecision()`   | `TYPESAFE_AI_API_KEY`                            |
+| `@yourgpt/llm-sdk/openrouter` | `openrouterDecision()` | `OPENROUTER_API_KEY`                             |
+| `@yourgpt/llm-sdk/cloudflare` | `cloudflareDecision()` | `CLOUDFLARE_AUTH_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
+
+The OpenRouter factory uses its native `/api/alpha/decisions` route. A Jev request
+through OpenRouter does not need a direct TypeSafe key. Cloudflare uses its Workers
+AI REST endpoint and requires an account ID. Anthropic chat and structured output
+remain separate APIs.
+
+`state` accepts text, JSON objects, or arrays. Question instructions and criteria
+can also contain structured JSON. Choices use 2–255 string keys; System One score
+questions use 2–10 ordered levels. OpenAI supports up to 200 questions, Cloudflare
+up to 64 with restricted IDs. Unsupported options fail explicitly.
+
+Pass encoded image bytes in `images` alongside state for OpenAI, Jev, or
+Cloudflare. This SDK currently accepts bytes only, even though OpenAI’s current
+native API also accepts hosted image URLs. OpenRouter image state is unsupported. Jev image support is experimental, with PNG/JPEG dimensions
+between 280 and 1568 pixels; providers validate decoding and dimensions.
+
+Pass `signal` and `timeoutMs` to control cancellation. The default timeout is 60
+seconds, including reading the response. There are no automatic retries, chat
+fallbacks, or changes to existing guardrails. Named refusals stay in their question
+slot; malformed responses and unnamed refusals throw an error.
+
+Run the standalone example with `pnpm demo:decisions openai` in
+`examples/skills-demo` after configuring the provider key in your environment.
+The example does not load `.env` automatically.
+
+The [Feature Lab](/docs/feature-lab) provides the same provider choices, image
+upload and a result inspector. OpenAI and Jev through OpenRouter passed live
+checks. Direct Jev and Cloudflare have transport fixtures but remain unverified
+with real accounts because their credentials were unavailable.
+
+## Provider contracts and Vercel comparison
+
+Jev is TypeSafe's decision model, not a Java SDK. `typesafeDecision()` calls
+TypeSafe directly; `openrouterDecision()` can call Jev through OpenRouter.
+`openaiDecision()` calls OpenAI's native Decisions endpoint. These share our
+`experimental_decide` interface; Responses remains the separate chat/tool API.
+
+Implementation references are the official [OpenAI Decisions API](https://developers.openai.com/api/reference/resources/decisions/methods/create),
+[TypeSafe API](https://docs.typesafe.ai/api), [OpenRouter Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-request),
+and [Cloudflare Clef contract](https://developers.cloudflare.com/workers-ai/models/clef/).
+We compared the design and provider mappings with
+[Vercel's pinned Decisions implementation](https://github.com/vercel/ai/tree/fce9210c6405c0ad8452fee3f50717e8ea910b97/packages/ai/src/decide).
+
+This is a native-provider subset, not full Vercel parity or a drop-in replacement.
+Box questions, language-model decision adapters and broader Responses tools are
+not exposed. Our state arrays remain JSON, images are separate byte inputs, and
+we do not download remote files. OpenAI's newer conversation-shaped Decisions
+input and explicit cache controls are also outside this initial SDK contract.
+The live checks establish transport behavior with synthetic examples; production
+routing thresholds still need evaluation on your own labeled data.
+
+See the [complete Decisions guide](https://github.com/YourGPT/copilot-sdk/blob/main/packages/llm-sdk/docs/decisions.md)
+for provider options, image limits, errors, and opt-in live tests.

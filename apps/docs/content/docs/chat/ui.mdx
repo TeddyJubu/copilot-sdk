@@ -407,6 +407,23 @@ If no `MessageActions` children are declared, the chat UI is identical to before
 
 ---
 
+## Markdown Rendering
+
+Existing applications keep sanitized HTML rendering by default. To display raw
+HTML snippets as literal text, opt in:
+
+```tsx
+<CopilotChat markdown={{ rawHtml: "literal" }} />
+```
+
+`markdown.rawHtml` accepts `"render"` (the default) or `"literal"`. Both modes retain
+normal markdown, fenced code, tables and links. Literal mode also displays tags
+that the sanitizer otherwise removes, such as an unfenced `<script>` snippet.
+The setting applies to user and assistant messages, including `Chat.MessageList`.
+Pass `rawHtml` directly to `Markdown` or `MessageContent` for a single message.
+
+---
+
 ## Next Steps
 
 - [Customizations](/docs/customizations) - Create custom themes, CSS classes, branding

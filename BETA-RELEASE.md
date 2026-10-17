@@ -1,5 +1,7 @@
 # Beta Release Reel
 
+> **Status, 17 October 2026:** This document is an earlier beta feature/reel outline, not the complete October release record. See the [published release](./docs/releases/2026-10-17-beta.md) and [current beta guide](./apps/docs/content/docs/beta.mdx) for released versions, actual APIs, and pending work.
+
 Five headline features shipping in the Copilot SDK beta.
 
 ---

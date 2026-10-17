@@ -1,3 +1,5 @@
+import { responseReplayMetadata } from "./openai-responses";
+import { resolveToolOutput } from "./tool-output";
 /**
  * generateText - Generate text using a language model
  *
@@ -25,6 +27,8 @@
 
 import type {
   GenerateTextParams,
+  AssistantMessage,
+  ToolMessage,
   GenerateTextResult,
   GenerateStep,
   CoreMessage,
@@ -35,6 +39,7 @@ import type {
   FinishReason,
 } from "./types";
 import { formatToolsForOpenAI, formatToolsForAnthropic } from "./tool";
+import { throwIfAborted } from "./provider-error";
 
 /**
  * Generate text using a language model
@@ -47,6 +52,12 @@ export async function generateText(
 ): Promise<GenerateTextResult> {
   const { model, tools, maxSteps = 1, signal } = params;
 
+  if (params.responseFormat && model.capabilities.supportsJsonMode === false) {
+    console.warn(
+      `[llm-sdk] ${model.provider}/${model.modelId} does not support structured output (responseFormat); the request will be sent but the provider may ignore it.`,
+    );
+  }
+
   // Build initial messages
   let messages = buildMessages(params);
   const steps: GenerateStep[] = [];
@@ -56,9 +67,7 @@ export async function generateText(
   // Agent loop - keep going until no more tool calls or max steps reached
   for (let step = 0; step < maxSteps; step++) {
     // Check for abort
-    if (signal?.aborted) {
-      throw new Error("Generation aborted");
-    }
+    throwIfAborted(signal);
 
     // Format tools for this model's provider
     const formattedTools = tools
@@ -68,21 +77,28 @@ export async function generateText(
     // Call model
     const result = await model.doGenerate({
       messages,
+      openai: params.openai,
       tools: formattedTools,
       temperature: params.temperature,
+      reasoningEffort: params.reasoningEffort,
       maxTokens: params.maxTokens,
+      responseFormat: params.responseFormat,
       signal,
     });
+    throwIfAborted(signal);
+
+    const toolCalls = result.toolCalls ?? [];
 
     // Record this step
     const stepToolResults: ToolResult[] = [];
 
     // If there are tool calls, execute them
-    if (result.toolCalls && result.toolCalls.length > 0 && tools) {
-      allToolCalls.push(...result.toolCalls);
+    if (toolCalls.length > 0 && tools) {
+      allToolCalls.push(...toolCalls);
 
       // Execute each tool
-      for (const call of result.toolCalls) {
+      for (const call of toolCalls) {
+        throwIfAborted(signal);
         const toolDef = tools[call.name];
         if (!toolDef) {
           const errorResult: ToolResult = {
@@ -102,14 +118,20 @@ export async function generateText(
             abortSignal: signal,
             messages,
           });
+          throwIfAborted(signal);
 
           const result: ToolResult = {
             toolCallId: call.id,
             result: toolResult,
+            modelOutput: resolveToolOutput(
+              toolResult,
+              toolDef.toModelOutput?.(toolResult),
+            ),
           };
           stepToolResults.push(result);
           allToolResults.push(result);
         } catch (error) {
+          throwIfAborted(signal);
           const errorResult: ToolResult = {
             toolCallId: call.id,
             result: {
@@ -128,31 +150,37 @@ export async function generateText(
     // Record step
     steps.push({
       text: result.text,
-      toolCalls: result.toolCalls,
+      ...(result.reasoningText !== undefined
+        ? { reasoningText: result.reasoningText }
+        : {}),
+      toolCalls,
       toolResults: stepToolResults,
       finishReason: result.finishReason,
       usage: result.usage,
+      providerMetadata: result.providerMetadata,
     });
 
-    // If no tool calls, we're done
-    if (!result.toolCalls || result.toolCalls.length === 0) {
-      break;
-    }
-
-    // Add assistant message with tool calls
+    // Keep every assistant turn, including the final text and opaque replay state.
     const assistantMessage: AssistantMessage = {
       role: "assistant",
       content: result.text || null,
-      toolCalls: result.toolCalls,
+      ...(toolCalls.length ? { toolCalls } : {}),
+      ...(result.providerMetadata
+        ? { providerMetadata: responseReplayMetadata(result.providerMetadata) }
+        : {}),
     };
     messages = [...messages, assistantMessage];
+    if (toolCalls.length === 0) break;
 
     // Add tool result messages
     for (const tr of stepToolResults) {
       const toolMessage: ToolMessage = {
         role: "tool",
         toolCallId: tr.toolCallId,
-        content: JSON.stringify(tr.result),
+        content: tr.modelOutput
+          ? "[Tool returned content]"
+          : JSON.stringify(tr.result),
+        ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
       };
       messages = [...messages, toolMessage];
     }
@@ -163,6 +191,10 @@ export async function generateText(
 
   return {
     text: lastStep?.text ?? "",
+    ...(lastStep?.reasoningText !== undefined
+      ? { reasoningText: lastStep.reasoningText }
+      : {}),
+    providerMetadata: lastStep?.providerMetadata,
     usage: sumUsage(steps),
     finishReason: lastStep?.finishReason ?? "stop",
     steps,
@@ -177,18 +209,6 @@ export async function generateText(
 // ============================================
 // Helper Functions
 // ============================================
-
-interface AssistantMessage {
-  role: "assistant";
-  content: string | null;
-  toolCalls?: ToolCall[];
-}
-
-interface ToolMessage {
-  role: "tool";
-  toolCallId: string;
-  content: string;
-}
 
 /**
  * Build initial messages from params
@@ -218,7 +238,7 @@ function buildMessages(params: GenerateTextParams): CoreMessage[] {
  * Format tools based on provider
  */
 function formatToolsForProvider(
-  tools: Record<string, Tool>,
+  tools: Record<string, Tool<any, any>>,
   provider: string,
 ): unknown[] {
   switch (provider) {

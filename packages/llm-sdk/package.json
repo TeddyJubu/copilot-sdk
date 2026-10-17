@@ -1,89 +1,179 @@
 {
   "name": "@yourgpt/llm-sdk",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "description": "AI SDK for building AI Agents with any LLM",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.js"
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
     },
     "./openai": {
-      "types": "./dist/providers/openai/index.d.mts",
-      "import": "./dist/providers/openai/index.mjs",
-      "require": "./dist/providers/openai/index.js"
+      "import": {
+        "types": "./dist/providers/openai/index.d.mts",
+        "default": "./dist/providers/openai/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/openai/index.d.ts",
+        "default": "./dist/providers/openai/index.js"
+      }
     },
     "./anthropic": {
-      "types": "./dist/providers/anthropic/index.d.mts",
-      "import": "./dist/providers/anthropic/index.mjs",
-      "require": "./dist/providers/anthropic/index.js"
+      "import": {
+        "types": "./dist/providers/anthropic/index.d.mts",
+        "default": "./dist/providers/anthropic/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/anthropic/index.d.ts",
+        "default": "./dist/providers/anthropic/index.js"
+      }
     },
     "./google": {
-      "types": "./dist/providers/google/index.d.mts",
-      "import": "./dist/providers/google/index.mjs",
-      "require": "./dist/providers/google/index.js"
+      "import": {
+        "types": "./dist/providers/google/index.d.mts",
+        "default": "./dist/providers/google/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/google/index.d.ts",
+        "default": "./dist/providers/google/index.js"
+      }
     },
     "./ollama": {
-      "types": "./dist/providers/ollama/index.d.mts",
-      "import": "./dist/providers/ollama/index.mjs",
-      "require": "./dist/providers/ollama/index.js"
+      "import": {
+        "types": "./dist/providers/ollama/index.d.mts",
+        "default": "./dist/providers/ollama/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/ollama/index.d.ts",
+        "default": "./dist/providers/ollama/index.js"
+      }
     },
     "./xai": {
-      "types": "./dist/providers/xai/index.d.mts",
-      "import": "./dist/providers/xai/index.mjs",
-      "require": "./dist/providers/xai/index.js"
+      "import": {
+        "types": "./dist/providers/xai/index.d.mts",
+        "default": "./dist/providers/xai/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/xai/index.d.ts",
+        "default": "./dist/providers/xai/index.js"
+      }
     },
     "./azure": {
-      "types": "./dist/providers/azure/index.d.mts",
-      "import": "./dist/providers/azure/index.mjs",
-      "require": "./dist/providers/azure/index.js"
+      "import": {
+        "types": "./dist/providers/azure/index.d.mts",
+        "default": "./dist/providers/azure/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/azure/index.d.ts",
+        "default": "./dist/providers/azure/index.js"
+      }
     },
     "./openrouter": {
-      "types": "./dist/providers/openrouter/index.d.mts",
-      "import": "./dist/providers/openrouter/index.mjs",
-      "require": "./dist/providers/openrouter/index.js"
+      "import": {
+        "types": "./dist/providers/openrouter/index.d.mts",
+        "default": "./dist/providers/openrouter/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/openrouter/index.d.ts",
+        "default": "./dist/providers/openrouter/index.js"
+      }
     },
     "./fireworks": {
-      "types": "./dist/providers/fireworks/index.d.mts",
-      "import": "./dist/providers/fireworks/index.mjs",
-      "require": "./dist/providers/fireworks/index.js"
+      "import": {
+        "types": "./dist/providers/fireworks/index.d.mts",
+        "default": "./dist/providers/fireworks/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/fireworks/index.d.ts",
+        "default": "./dist/providers/fireworks/index.js"
+      }
     },
     "./togetherai": {
-      "types": "./dist/providers/togetherai/index.d.mts",
-      "import": "./dist/providers/togetherai/index.mjs",
-      "require": "./dist/providers/togetherai/index.js"
+      "import": {
+        "types": "./dist/providers/togetherai/index.d.mts",
+        "default": "./dist/providers/togetherai/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/togetherai/index.d.ts",
+        "default": "./dist/providers/togetherai/index.js"
+      }
     },
     "./adapters": {
-      "types": "./dist/adapters/index.d.ts",
-      "import": "./dist/adapters/index.mjs",
-      "require": "./dist/adapters/index.js"
+      "import": {
+        "types": "./dist/adapters/index.d.mts",
+        "default": "./dist/adapters/index.mjs"
+      },
+      "require": {
+        "types": "./dist/adapters/index.d.ts",
+        "default": "./dist/adapters/index.js"
+      }
     },
     "./yourgpt": {
-      "types": "./dist/yourgpt/index.d.ts",
-      "import": "./dist/yourgpt/index.mjs",
-      "require": "./dist/yourgpt/index.js"
+      "import": {
+        "types": "./dist/yourgpt/index.d.mts",
+        "default": "./dist/yourgpt/index.mjs"
+      },
+      "require": {
+        "types": "./dist/yourgpt/index.d.ts",
+        "default": "./dist/yourgpt/index.js"
+      }
     },
     "./fallback": {
-      "types": "./dist/fallback/index.d.ts",
-      "import": "./dist/fallback/index.mjs",
-      "require": "./dist/fallback/index.js"
+      "import": {
+        "types": "./dist/fallback/index.d.mts",
+        "default": "./dist/fallback/index.mjs"
+      },
+      "require": {
+        "types": "./dist/fallback/index.d.ts",
+        "default": "./dist/fallback/index.js"
+      }
+    },
+    "./typesafe": {
+      "import": {
+        "types": "./dist/providers/typesafe/index.d.mts",
+        "default": "./dist/providers/typesafe/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/typesafe/index.d.ts",
+        "default": "./dist/providers/typesafe/index.js"
+      }
+    },
+    "./cloudflare": {
+      "import": {
+        "types": "./dist/providers/cloudflare/index.d.mts",
+        "default": "./dist/providers/cloudflare/index.mjs"
+      },
+      "require": {
+        "types": "./dist/providers/cloudflare/index.d.ts",
+        "default": "./dist/providers/cloudflare/index.js"
+      }
     }
   },
   "homepage": "https://copilot-sdk.yourgpt.ai",
   "files": [
     "dist",
     "!dist/**/*.map",
-    "README.md"
+    "README.md",
+    "docs/multimodal-and-audio.md",
+    "docs/decisions.md",
+    "docs/media.md"
   ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "clean": "rm -rf dist",
     "lint": "eslint src/",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm build && pnpm test:types && node --test test/*.test.cjs",
+    "test:types": "tsc --noEmit --strict --skipLibCheck --moduleResolution node16 --module Node16 --target ES2020 test/public-types.ts test/public-types.mts"
   },
   "dependencies": {
     "hono": "^4.3.0",

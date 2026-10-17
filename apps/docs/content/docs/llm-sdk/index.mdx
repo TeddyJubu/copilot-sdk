@@ -3,17 +3,22 @@ title: Overview
 description: Unified API for any LLM provider
 ---
 
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
-One API, any provider. Switch between OpenAI, Anthropic, Google, and more with a single line change.
+Use a common generation API with OpenAI, Anthropic, Google, and other supported providers. Model parameters, native tools, caching, and audio support vary by provider. See the [2.6.0 upgrade guide](/docs/release-2-6) for new APIs and compatibility limits.
+
+For the current beta, start with [release availability and compatibility](/docs/llm-sdk/beta-upgrade).
+Decisions, realtime voice and image generation pages describe the unreleased
+next-beta branch. The [Feature Lab guide](/docs/feature-lab) explains how to test
+each feature locally and what has been verified with real provider calls.
 
 ```ts
-import { streamText } from '@yourgpt/llm-sdk';
-import { openai } from '@yourgpt/llm-sdk/openai';
+import { streamText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
 
 const result = await streamText({
-  model: openai('gpt-4o'),
-  prompt: 'Hello!',
+  model: openai("gpt-4o"),
+  prompt: "Hello!",
 });
 ```
 
@@ -21,7 +26,7 @@ const result = await streamText({
 
 ## Switch Providers Instantly
 
-Same code, different provider. No refactoring needed.
+Basic text generation shares the same call shape. Check feature-specific support before switching providers in workflows that use native tools or replay state.
 
 <Tabs items={['OpenAI', 'Anthropic', 'Google', 'xAI']}>
   <Tab value="OpenAI">
@@ -30,6 +35,7 @@ Same code, different provider. No refactoring needed.
 
     const model = openai('gpt-4o');
     ```
+
   </Tab>
   <Tab value="Anthropic">
     ```ts
@@ -37,6 +43,7 @@ Same code, different provider. No refactoring needed.
 
     const model = anthropic('claude-sonnet-4-20250514');
     ```
+
   </Tab>
   <Tab value="Google">
     ```ts
@@ -44,6 +51,7 @@ Same code, different provider. No refactoring needed.
 
     const model = google('gemini-2.0-flash');
     ```
+
   </Tab>
   <Tab value="xAI">
     ```ts
@@ -51,6 +59,7 @@ Same code, different provider. No refactoring needed.
 
     const model = xai('grok-3-fast');
     ```
+
   </Tab>
 </Tabs>
 
@@ -77,6 +86,7 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
       return result.toTextStreamResponse();
     }
     ```
+
   </Tab>
   <Tab value="Express">
     ```ts title="server.ts"
@@ -101,6 +111,7 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
       }));
     });
     ```
+
   </Tab>
   <Tab value="Hono">
     ```ts title="src/index.ts"
@@ -123,6 +134,7 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
 
     export default app;
     ```
+
   </Tab>
   <Tab value="Fastify">
     ```ts title="server.ts"
@@ -143,6 +155,7 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
       return reply.send(response.body);
     });
     ```
+
   </Tab>
 </Tabs>
 
@@ -150,11 +163,18 @@ Works with any HTTP framework. Returns standard Web `Response` objects.
 
 ## Core Functions
 
-| Function | Description |
-|----------|-------------|
-| [`streamText()`](/docs/llm-sdk/stream-text) | Stream responses in real-time |
-| [`generateText()`](/docs/llm-sdk/generate-text) | Generate complete responses |
-| [`tool()`](/docs/llm-sdk/tools) | Define AI-callable functions |
+| Function                                                         | Description                                                   |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| [`streamText()`](/docs/llm-sdk/stream-text)                      | Stream responses in real-time                                 |
+| [`generateText()`](/docs/llm-sdk/generate-text)                  | Generate complete responses                                   |
+| [`tool()`](/docs/llm-sdk/tools)                                  | Define AI-callable functions                                  |
+| [Parameters and fallback](/docs/llm-sdk/parameters-and-fallback) | Handle reasoning settings and specific compatibility failures |
+| [Responses](/docs/llm-sdk/responses)                             | Preserve OpenAI conversation and tool state                   |
+| [Image tool results](/docs/llm-sdk/tool-images)                  | Return native images to supported models                      |
+| [`generateSpeech()` / `transcribe()`](/docs/llm-sdk/audio)       | Generate speech and transcribe recorded audio                 |
+| [`experimental_decide()`](/docs/llm-sdk/decisions)               | Native decisions; next beta, unreleased                       |
+| [`generateImage()`](/docs/llm-sdk/image-generation)              | Image generation and editing; next beta, unreleased           |
+| [Realtime voice](/docs/llm-sdk/realtime)                         | Browser voice calls; next beta, experimental                  |
 
 ---
 

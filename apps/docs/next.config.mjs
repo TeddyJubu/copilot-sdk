@@ -1,7 +1,8 @@
 import { createMDX } from "fumadocs-mdx/next";
 
-// Playground deployment URL - update this after deploying the playground
-const PLAYGROUND_URL = process.env.PLAYGROUND_URL || "https://copilot-playground-git-delta4-infotech.vercel.app";
+// Stable production alias; previews/local development may override this URL.
+const PLAYGROUND_URL =
+  process.env.PLAYGROUND_URL || "https://copilot-sdk-wheat.vercel.app";
 
 /** @type {import('next').NextConfig} */
 const config = {

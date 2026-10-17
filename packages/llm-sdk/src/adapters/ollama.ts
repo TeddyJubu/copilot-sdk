@@ -1,3 +1,4 @@
+import { textToolOutput } from "../core/tool-output";
 import type {
   StreamEvent,
   Message,
@@ -5,7 +6,12 @@ import type {
 } from "../core/stream-events";
 import { generateMessageId, generateToolCallId } from "../core/utils";
 import type { LLMAdapter, ChatCompletionRequest } from "./base";
-import { formatMessages, formatTools, logProviderPayload } from "./base";
+import {
+  formatMessages,
+  formatTools,
+  logProviderPayload,
+  toOllamaFormat,
+} from "./base";
 import type { OllamaModelOptions } from "../providers/types";
 
 /**
@@ -114,7 +120,10 @@ async function formatMessagesForOllama(
   for (const msg of messages) {
     const baseMessage: OllamaMessage = {
       role: msg.role as OllamaMessage["role"],
-      content: msg.content ?? "",
+      content:
+        msg.role === "tool"
+          ? textToolOutput(msg.modelOutput, msg.content ?? "")
+          : (msg.content ?? ""),
     };
 
     // Handle image attachments (vision support)
@@ -174,7 +183,10 @@ async function processRawMessagesForOllama(
   for (const msg of rawMessages) {
     const baseMessage: OllamaMessage = {
       role: msg.role as OllamaMessage["role"],
-      content: (msg.content as string) ?? "",
+      content:
+        msg.role === "tool"
+          ? textToolOutput(msg.modelOutput, String(msg.content ?? ""))
+          : ((msg.content as string) ?? ""),
     };
 
     // Handle attachments for vision
@@ -288,12 +300,14 @@ export class OllamaAdapter implements LLMAdapter {
         Object.assign(ollamaOptions, this.config.options);
       }
 
+      const ollamaFormat = toOllamaFormat(request.config?.responseFormat);
       const payload = {
         model: request.config?.model || this.model,
         messages,
         tools,
         stream: true,
         options: ollamaOptions,
+        ...(ollamaFormat !== undefined ? { format: ollamaFormat } : {}),
       };
       logProviderPayload("ollama", "request payload", payload, request.debug);
       const response = await fetch(`${this.baseUrl}/api/chat`, {

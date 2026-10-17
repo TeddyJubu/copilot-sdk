@@ -61,6 +61,8 @@ interface CopilotChatInternalContext {
   // Messages (for Chat.MessageList primitive)
   messages: import("./types").ChatMessage[];
   registeredTools?: import("../../../../core").ToolDefinition[];
+  /** Raw-HTML policy from ChatProps["markdown"], so Chat.MessageList applies the same one. */
+  rawHtml?: "render" | "literal";
   // Thread management
   onNewChat?: () => void;
   threads?: Thread[];
@@ -547,6 +549,8 @@ function ChatComponent({
   citations,
   // Message Actions
   allowToCopyMessage = false,
+  // Markdown rendering policy
+  markdown,
   // Custom rendering
   messageView,
   renderMessage,
@@ -878,6 +882,8 @@ function ChatComponent({
     [onSendMessage],
   );
 
+  const rawHtml = markdown?.rawHtml;
+
   // Context value for compound components (memoized to prevent unnecessary re-renders)
   const contextValue: CopilotChatInternalContext = React.useMemo(
     () => ({
@@ -890,6 +896,9 @@ function ChatComponent({
       // Messages for Chat.MessageList primitive
       messages,
       registeredTools,
+      // The string, not the `markdown` object: an inline `markdown={{ ... }}` is a new object
+      // every render and would otherwise re-create this value (and re-render every consumer).
+      rawHtml,
       // Thread management - passed from connected-chat
       onNewChat,
       threads,
@@ -907,6 +916,7 @@ function ChatComponent({
       placeholder,
       messages,
       registeredTools,
+      rawHtml,
       onNewChat,
       threads,
       currentThreadId,
@@ -1137,6 +1147,7 @@ function ChatComponent({
                             assistantMessageClassName={
                               classNames.assistantMessage
                             }
+                            markdown={markdown}
                             size={fontSize}
                             isLastMessage={isLastMessage}
                             isLoading={isLoading}

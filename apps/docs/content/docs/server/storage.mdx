@@ -103,6 +103,7 @@ const myStorage: StorageAdapter = {
         content: msg.content,
         toolCalls: msg.toolCalls,
         toolCallId: msg.toolCallId,
+        metadata: msg.metadata, // Includes provider replay state and native tool output
       }))
     );
   },
@@ -240,7 +241,7 @@ Then on the client, use the `upload` prop:
 
 Files are uploaded to the server, which forwards them to the storage adapter. The returned URL is sent with the message instead of base64 data.
 
-See [Attachments](/docs/attachments) for more on file attachments.
+See [Attachments](/docs/chat/attachments) for more on file attachments.
 
 ---
 
@@ -334,3 +335,11 @@ See [Attachments](/docs/attachments) for more on file attachments.
     ```
   </Tab>
 </Tabs>
+
+## Responses and image-result persistence
+
+In the beta, saving only role/text is insufficient for [Responses continuation](/docs/llm-sdk/responses) or [native image tool results](/docs/tools/image-results). Runtime writes provider state into `StorageMessage.metadata.providerMetadata` and native tool output into `StorageMessage.metadata.modelOutput`.
+
+A custom storage adapter must preserve the complete metadata object alongside tool calls and matching `toolCallId` values. Its application-owned loader must restore `providerMetadata` and `modelOutput` to the Runtime message fields when reconstructing history. Keep native item IDs, encrypted reasoning content, tool-result ordering, and media content intact. Do not replace these records with UI display text or a summary.
+
+**Hosted YourGPT adapter limitation:** the current hosted save path does not preserve all this metadata losslessly. Ordinary text/session storage remains available, but hosted replay of Responses/image state is not certified. Use a custom lossless store and test a save/reload/continue turn before relying on those features in production. Persistence work remains tracked in [#115](https://github.com/YourGPT/copilot-sdk/issues/115) and [#123](https://github.com/YourGPT/copilot-sdk/issues/123).

@@ -1,3 +1,4 @@
+import type { ToolModelOutput } from "./tool-output";
 /**
  * Stream event types for llm-sdk
  * These types are used internally by the SDK for streaming responses
@@ -52,6 +53,7 @@ export interface MessageDeltaEvent extends BaseEvent {
  * Message finished streaming
  */
 export interface MessageEndEvent extends BaseEvent {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   type: "message:end";
 }
 
@@ -103,6 +105,7 @@ export interface ActionArgsEvent extends BaseEvent {
  * Action execution completed
  */
 export interface ActionEndEvent extends BaseEvent {
+  modelOutput?: ToolModelOutput;
   type: "action:end";
   id: string;
   name?: string;
@@ -117,6 +120,12 @@ export interface ErrorEvent extends BaseEvent {
   type: "error";
   message: string;
   code?: string;
+  status?: number;
+  providerCode?: string;
+  param?: string;
+  requestId?: string;
+  /** In-process cause, omitted from serialized error events. */
+  cause?: unknown;
 }
 
 /**
@@ -136,6 +145,7 @@ export interface ToolCallInfo {
  * Assistant message with tool calls
  */
 export interface AssistantToolMessage {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   role: "assistant";
   content: string | null;
   tool_calls: Array<{
@@ -218,6 +228,8 @@ export interface CitationEvent extends BaseEvent {
  * Message format for done event (API format with snake_case)
  */
 export interface DoneEventMessage {
+  modelOutput?: ToolModelOutput;
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   role: "assistant" | "tool";
   content: string | null;
   tool_calls?: Array<{
@@ -255,6 +267,7 @@ export interface ThreadCreatedEvent extends BaseEvent {
  * Stream completed
  */
 export interface DoneEvent extends BaseEvent {
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   type: "done";
   requiresAction?: boolean;
   messages?: DoneEventMessage[];
@@ -287,11 +300,31 @@ export type StreamEvent =
   | DoneEvent;
 
 /**
+ * Structured-output / JSON-mode request format.
+ *
+ * Uses OpenAI's `response_format` shape as the unified surface; each adapter
+ * translates to its provider's native field (Anthropic `output_config`,
+ * Gemini `responseJsonSchema`, Ollama `format`, etc.).
+ */
+export type ResponseFormat =
+  | { type: "json_object" }
+  | {
+      type: "json_schema";
+      json_schema: {
+        name: string;
+        schema: Record<string, unknown>;
+        strict?: boolean;
+      };
+    };
+
+/**
  * LLM configuration
  */
 export interface LLMConfig {
+  reasoningEffort?: import("./openai-parameters").OpenAIReasoningEffort;
   temperature?: number;
   maxTokens?: number;
+  responseFormat?: ResponseFormat;
 }
 
 /**
@@ -338,6 +371,8 @@ export interface MessageMetadata {
  * Message type (simplified for llm-sdk)
  */
 export interface Message {
+  modelOutput?: ToolModelOutput;
+  providerMetadata?: import("./openai-responses").ProviderMetadata;
   id: string;
   thread_id?: string;
   role: MessageRole;
@@ -420,7 +455,10 @@ export interface AIContent {
   type?: "text" | "image";
   text?: string;
   mediaType?: string;
-  data?: string;
+  data?: string | Uint8Array;
+  url?: string;
+  fileId?: string;
+  provider?: "openai";
   summary?: string;
   details?: string;
 }
@@ -447,6 +485,7 @@ export interface ToolAIContext {
  * Tool definition
  */
 export interface ToolDefinition<TParams = Record<string, unknown>> {
+  toModelOutput?: (result: unknown) => ToolModelOutput | undefined;
   name: string;
   description: string;
   location: ToolLocation;
@@ -659,6 +698,7 @@ export function createMessage(
     tool_calls: partial.tool_calls,
     tool_call_id: partial.tool_call_id,
     metadata: partial.metadata,
+    providerMetadata: partial.providerMetadata,
     created_at: partial.created_at ?? new Date(),
   };
 }

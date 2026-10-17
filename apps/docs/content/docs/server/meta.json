@@ -1,5 +1,5 @@
 {
   "title": "Server",
   "icon": "Server",
-  "pages": ["storage", "deployment"]
+  "pages": ["storage", "system-prompts", "deployment"]
 }

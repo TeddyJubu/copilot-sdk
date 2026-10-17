@@ -1,3 +1,4 @@
+import { textToolOutput } from "../../core/tool-output";
 /**
  * xAI Provider - Modern Pattern
  *
@@ -25,6 +26,7 @@ import type {
   FinishReason,
   CoreMessage,
 } from "../../core/types";
+import { toOpenAIResponseFormat } from "../../adapters/base";
 
 // ============================================
 // Model Definitions
@@ -136,7 +138,7 @@ export function xai(
       supportsVision: modelConfig.vision,
       supportsTools: modelConfig.tools,
       supportsStreaming: true,
-      supportsJsonMode: false, // xAI doesn't support JSON mode yet
+      supportsJsonMode: true, // OpenAI-compatible `response_format`
       supportsThinking: false,
       supportsPDF: false,
       maxTokens: modelConfig.maxTokens,
@@ -156,6 +158,7 @@ export function xai(
         tools: params.tools as any,
         temperature: params.temperature,
         max_tokens: params.maxTokens,
+        response_format: toOpenAIResponseFormat(params.responseFormat),
       });
 
       const choice = response.choices[0];
@@ -194,6 +197,7 @@ export function xai(
         tools: params.tools as any,
         temperature: params.temperature,
         max_tokens: params.maxTokens,
+        response_format: toOpenAIResponseFormat(params.responseFormat),
         stream: true,
       });
 
@@ -363,7 +367,7 @@ function formatMessagesForXAI(messages: CoreMessage[]): any[] {
         return {
           role: "tool",
           tool_call_id: msg.toolCallId,
-          content: msg.content,
+          content: textToolOutput(msg.modelOutput, msg.content),
         };
 
       default:

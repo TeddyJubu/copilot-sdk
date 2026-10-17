@@ -272,7 +272,8 @@ export class AbstractAgentLoop implements AgentLoopActions {
     }
 
     // Create new abort controller for this batch
-    this.abortController = new AbortController();
+    const batchController = new AbortController();
+    this.abortController = batchController;
     this._isCancelled = false;
     this._isProcessing = true;
 
@@ -294,7 +295,7 @@ export class AbstractAgentLoop implements AgentLoopActions {
       }),
     );
 
-    this._isProcessing = false;
+    if (this.abortController === batchController) this._isProcessing = false;
     return results;
   }
 
@@ -400,11 +401,14 @@ export class AbstractAgentLoop implements AgentLoopActions {
       }
 
       // Pass signal and approvalData to handler via context
+      const signal = this.abortController?.signal;
       const result = await tool.handler(toolCall.args, {
-        signal: this.abortController?.signal,
+        signal,
         data: { toolCallId: toolCall.id },
         approvalData,
       });
+
+      if (signal?.aborted) throw new Error("Tool execution cancelled");
 
       this.updateToolExecution(toolCall.id, {
         status: "completed",

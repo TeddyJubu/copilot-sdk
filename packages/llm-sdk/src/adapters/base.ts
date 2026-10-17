@@ -1,9 +1,11 @@
+import { toolOutputForProvider, textToolOutput } from "../core/tool-output";
 import type {
   Message,
   MessageAttachment,
   ActionDefinition,
   StreamEvent,
   LLMConfig,
+  ResponseFormat,
   ToolDefinition,
   WebSearchConfig,
   ProviderToolRuntimeOptions,
@@ -14,9 +16,12 @@ import type { TokenUsage } from "../core/types";
  * Request-level LLM configuration overrides
  */
 export interface RequestLLMConfig {
+  openai?: import("../core/openai-responses").OpenAITransportOptions;
   model?: string;
+  reasoningEffort?: import("../core/openai-parameters").OpenAIReasoningEffort;
   temperature?: number;
   maxTokens?: number;
+  responseFormat?: ResponseFormat;
 }
 
 /**
@@ -56,6 +61,7 @@ export interface ChatCompletionRequest {
  * Non-streaming completion result
  */
 export interface CompletionResult {
+  providerMetadata?: import("../core/openai-responses").ProviderMetadata;
   /** Text content */
   content: string;
   /** Tool calls */
@@ -177,7 +183,7 @@ export function formatMessages(
 /**
  * Convert ActionParameter to JSON Schema format recursively
  */
-function parameterToJsonSchema(param: {
+export function parameterToJsonSchema(param: {
   type: string;
   description?: string;
   enum?: string[];
@@ -269,9 +275,20 @@ export function normalizeObjectJsonSchema(
       : [];
     normalized.required = Array.from(new Set([...required, ...propertyKeys]));
 
-    if (normalized.additionalProperties === undefined) {
-      normalized.additionalProperties = false;
-    }
+    // Strict mode requires this to be exactly `false` on EVERY object, nested
+    // ones included. An explicit `additionalProperties: true` — what
+    // zodToJsonSchema emits for a free-form `z.record()`/`.passthrough()` field
+    // (e.g. Cal.com create_booking's `metadata`) — is rejected outright:
+    //   "In context=('properties','metadata'), 'additionalProperties' is
+    //    required to be supplied and to be false."
+    // So overwrite unconditionally rather than only filling in the undefined
+    // case; a truthy value is precisely the one that 400s.
+    //
+    // The cost is that genuinely open-ended objects can no longer accept
+    // arbitrary keys. With `properties: {}` that yields an object the model may
+    // only send empty — lossy, but strict mode has no way to express "any keys",
+    // and a degraded field beats a request the API refuses to accept at all.
+    normalized.additionalProperties = false;
   } else if (
     type === "array" &&
     normalized.items &&
@@ -282,7 +299,190 @@ export function normalizeObjectJsonSchema(
     );
   }
 
+  // Composition keywords carry subschemas that are just as subject to the rules
+  // above, and they appear WITHOUT a sibling `type` (so neither branch above
+  // runs). An un-normalized object nested inside a union 400s exactly like a
+  // top-level one, so recurse regardless of `type`.
+  for (const keyword of ["anyOf", "oneOf", "allOf"]) {
+    const branches = normalized[keyword];
+    if (!Array.isArray(branches)) continue;
+    normalized[keyword] = branches.map((branch) =>
+      branch && typeof branch === "object"
+        ? normalizeObjectJsonSchema(branch as Record<string, unknown>)
+        : branch,
+    );
+  }
+
   return normalized;
+}
+
+// Shared by the Runtime adapter and modern provider.
+export { isOpenAIReasoningModel } from "../core/openai-parameters";
+export { buildOpenAIParameters as buildOpenAITokenParams } from "../core/openai-parameters";
+
+/**
+ * Recursively walk a JSON Schema and drop keys the provider rejects.
+ */
+function stripSchemaKeys(
+  schema: unknown,
+  keysToDrop: ReadonlySet<string>,
+  options: {
+    forceAdditionalPropertiesFalse?: boolean;
+    renameKeys?: Record<string, string>;
+  } = {},
+): unknown {
+  if (Array.isArray(schema)) {
+    return schema.map((item) => stripSchemaKeys(item, keysToDrop, options));
+  }
+  if (!schema || typeof schema !== "object") return schema;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(
+    schema as Record<string, unknown>,
+  )) {
+    if (keysToDrop.has(key)) continue;
+    const renamed = options.renameKeys?.[key] ?? key;
+    out[renamed] = stripSchemaKeys(value, keysToDrop, options);
+  }
+
+  if (options.forceAdditionalPropertiesFalse && out.type === "object") {
+    out.additionalProperties = false;
+  }
+  return out;
+}
+
+/** OpenAI Chat Completions `response_format` payload. */
+export function toOpenAIResponseFormat(
+  rf: ResponseFormat | undefined,
+): Record<string, unknown> | undefined {
+  if (!rf) return undefined;
+  if (rf.type === "json_object") return { type: "json_object" };
+  // Defensive: only proceed with json_schema if the field is actually present.
+  // JS callers can pass arbitrary `type` values (e.g. "text") that TS would reject —
+  // dereferencing rf.json_schema.name would otherwise throw "Cannot read properties of undefined (reading 'name')".
+  if (rf.type !== "json_schema" || !rf.json_schema) return undefined;
+  return {
+    type: "json_schema",
+    json_schema: {
+      name: rf.json_schema.name,
+      schema: normalizeObjectJsonSchema(rf.json_schema.schema),
+      strict: rf.json_schema.strict ?? true,
+    },
+  };
+}
+
+/** OpenAI Responses API `text.format` payload (different shape than Chat Completions). */
+export function toOpenAIResponsesTextFormat(
+  rf: ResponseFormat | undefined,
+): Record<string, unknown> | undefined {
+  if (!rf || rf.type !== "json_schema") return undefined;
+  return {
+    type: "json_schema",
+    name: rf.json_schema.name,
+    schema: normalizeObjectJsonSchema(rf.json_schema.schema),
+    strict: rf.json_schema.strict ?? true,
+  };
+}
+
+/**
+ * Anthropic `output_config.format` payload.
+ *
+ * Anthropic's structured-output schema subset is narrower than OpenAI's:
+ * no numeric (minimum/maximum/multipleOf) or length (minLength/maxLength)
+ * constraints, and `additionalProperties: false` is required on every object.
+ */
+const ANTHROPIC_UNSUPPORTED_KEYS: ReadonlySet<string> = new Set([
+  "minimum",
+  "maximum",
+  "exclusiveMinimum",
+  "exclusiveMaximum",
+  "multipleOf",
+  "minLength",
+  "maxLength",
+  "minItems",
+  "maxItems",
+  "minProperties",
+  "maxProperties",
+  "pattern",
+  "$schema",
+]);
+
+export function toAnthropicOutputConfig(
+  rf: ResponseFormat | undefined,
+): Record<string, unknown> | undefined {
+  if (!rf || rf.type !== "json_schema") return undefined;
+  // Anthropic accepts `anyOf` but rejects `oneOf` — convert rather than strip,
+  // otherwise discriminated-union schemas silently lose their union semantics.
+  const schema = stripSchemaKeys(
+    rf.json_schema.schema,
+    ANTHROPIC_UNSUPPORTED_KEYS,
+    {
+      forceAdditionalPropertiesFalse: true,
+      renameKeys: { oneOf: "anyOf" },
+    },
+  ) as Record<string, unknown>;
+  return {
+    format: {
+      type: "json_schema",
+      schema,
+    },
+  };
+}
+
+/**
+ * Gemini `responseJsonSchema` payload.
+ *
+ * Gemini accepts an OpenAPI 3.0 subset and silently ignores unknown keywords;
+ * `oneOf`, `anyOf`, `$ref`, and `pattern` are not supported.
+ */
+const GEMINI_UNSUPPORTED_KEYS: ReadonlySet<string> = new Set([
+  "oneOf",
+  "anyOf",
+  "$ref",
+  "$defs",
+  "definitions",
+  "pattern",
+  "$schema",
+  "additionalProperties",
+]);
+
+export function toGeminiSchema(
+  rf: ResponseFormat | undefined,
+): Record<string, unknown> | undefined {
+  if (!rf || rf.type !== "json_schema") return undefined;
+  return stripSchemaKeys(
+    rf.json_schema.schema,
+    GEMINI_UNSUPPORTED_KEYS,
+  ) as Record<string, unknown>;
+}
+
+/**
+ * Convert an ActionParameter to a Gemini-compatible schema. Recurses into
+ * array `items` / object `properties` (via parameterToJsonSchema) so nested
+ * shapes are preserved, then strips keys Gemini's function-declaration schema
+ * rejects (e.g. `additionalProperties`).
+ */
+export function parameterToGeminiSchema(param: {
+  type: string;
+  description?: string;
+  enum?: string[];
+  items?: unknown;
+  properties?: Record<string, unknown>;
+}): Record<string, unknown> {
+  return stripSchemaKeys(
+    parameterToJsonSchema(param),
+    GEMINI_UNSUPPORTED_KEYS,
+  ) as Record<string, unknown>;
+}
+
+/** Ollama `format` field — `"json"` for free-form, schema object for constrained. */
+export function toOllamaFormat(
+  rf: ResponseFormat | undefined,
+): string | Record<string, unknown> | undefined {
+  if (!rf) return undefined;
+  if (rf.type === "json_object") return "json";
+  if (rf.type !== "json_schema" || !rf.json_schema) return undefined;
+  return rf.json_schema.schema;
 }
 
 /**
@@ -625,7 +825,7 @@ export type AnthropicToolUseBlock = {
 export type AnthropicToolResultBlock = {
   type: "tool_result";
   tool_use_id: string;
-  content: string;
+  content: string | Array<Record<string, unknown>>;
 };
 
 export type AnthropicMessageContent =
@@ -633,6 +833,39 @@ export type AnthropicMessageContent =
   | Array<
       AnthropicContentBlock | AnthropicToolUseBlock | AnthropicToolResultBlock
     >;
+
+/**
+ * Anthropic expects system instructions outside the conversation messages.
+ * Keep supported text in order. Legacy proxy inputs may contain null or non-text
+ * blocks; ignore those rather than turning an otherwise valid chat into an error.
+ */
+export function extractAnthropicSystemPrompt(
+  messages: ReadonlyArray<{ role?: unknown; content?: unknown }>,
+  systemPrompt?: string,
+): string {
+  const explicit = typeof systemPrompt === "string" ? systemPrompt : "";
+  const parts: string[] = explicit ? [explicit] : [];
+  for (const message of messages) {
+    if (message.role !== "system") continue;
+    const text =
+      typeof message.content === "string"
+        ? message.content
+        : Array.isArray(message.content)
+          ? message.content
+              .filter(
+                (block) =>
+                  block?.type === "text" && typeof block.text === "string",
+              )
+              .map((block) => block.text)
+              .filter(Boolean)
+              .join("\n")
+          : "";
+    // Deduplicate only the two ways of supplying the same explicit prompt.
+    // Repeated message-only instructions retain the caller's intended order.
+    if (text && text !== explicit) parts.push(text);
+  }
+  return parts.join("\n");
+}
 
 /**
  * Format messages for Anthropic with full tool support
@@ -652,6 +885,7 @@ export function formatMessagesForAnthropic(
     content: AnthropicMessageContent;
   }>;
 } {
+  const system = extractAnthropicSystemPrompt(messages, systemPrompt);
   const formatted: Array<{
     role: "user" | "assistant";
     content: AnthropicMessageContent;
@@ -660,7 +894,7 @@ export function formatMessagesForAnthropic(
   for (let i = 0; i < messages.length; i++) {
     const msg = messages[i];
 
-    if (msg.role === "system") continue; // System handled separately
+    if (msg.role === "system") continue; // Extracted into `system` above
 
     if (msg.role === "assistant") {
       // Build content array for assistant
@@ -697,7 +931,9 @@ export function formatMessagesForAnthropic(
         {
           type: "tool_result",
           tool_use_id: msg.tool_call_id,
-          content: msg.content ?? "",
+          content: msg.modelOutput
+            ? toolOutputForProvider(msg.modelOutput, "anthropic")
+            : (msg.content ?? ""),
         },
       ];
 
@@ -709,7 +945,9 @@ export function formatMessagesForAnthropic(
           toolResults.push({
             type: "tool_result",
             tool_use_id: nextTool.tool_call_id,
-            content: nextTool.content ?? "",
+            content: nextTool.modelOutput
+              ? toolOutputForProvider(nextTool.modelOutput, "anthropic")
+              : (nextTool.content ?? ""),
           });
         }
       }
@@ -727,7 +965,7 @@ export function formatMessagesForAnthropic(
   }
 
   return {
-    system: systemPrompt || "",
+    system,
     messages: formatted,
   };
 }
@@ -740,6 +978,7 @@ export type OpenAIMessage =
   | { role: "user"; content: string | OpenAIContentBlock[] }
   | {
       role: "assistant";
+      providerMetadata?: import("../core/openai-responses").ProviderMetadata;
       content: string | null;
       tool_calls?: Array<{
         id: string;
@@ -747,7 +986,12 @@ export type OpenAIMessage =
         function: { name: string; arguments: string };
       }>;
     }
-  | { role: "tool"; content: string; tool_call_id: string };
+  | {
+      role: "tool";
+      content: string;
+      tool_call_id: string;
+      modelOutput?: import("../core/tool-output").ToolModelOutput;
+    };
 
 /**
  * Format messages for OpenAI with full tool support
@@ -756,6 +1000,7 @@ export type OpenAIMessage =
 export function formatMessagesForOpenAI(
   messages: Message[],
   systemPrompt?: string,
+  preserveProviderMetadata = false,
 ): OpenAIMessage[] {
   const formatted: OpenAIMessage[] = [];
 
@@ -778,6 +1023,9 @@ export function formatMessagesForOpenAI(
         role: "assistant",
         // Gemini/xAI (OpenAI-compatible) reject content: "" on assistant messages with tool_calls
         content: hasToolCalls ? msg.content || null : msg.content,
+        ...(preserveProviderMetadata && msg.providerMetadata
+          ? { providerMetadata: msg.providerMetadata }
+          : {}),
       };
       if (hasToolCalls) {
         (assistantMsg as { tool_calls: typeof msg.tool_calls }).tool_calls =
@@ -787,7 +1035,12 @@ export function formatMessagesForOpenAI(
     } else if (msg.role === "tool" && msg.tool_call_id) {
       formatted.push({
         role: "tool",
-        content: msg.content ?? "",
+        content: preserveProviderMetadata
+          ? (msg.content ?? "")
+          : textToolOutput(msg.modelOutput, msg.content ?? ""),
+        ...(preserveProviderMetadata && msg.modelOutput
+          ? { modelOutput: msg.modelOutput }
+          : {}),
         tool_call_id: msg.tool_call_id,
       });
     }

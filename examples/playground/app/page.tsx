@@ -1,20 +1,21 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useSyncExternalStore } from "react";
 import type { ProviderId, PersonData } from "@/lib/types";
 import { samplePersons } from "@/lib/constants";
+import { DOCS_URL } from "@/lib/documentation";
 
 // Hooks
-import { useApiKeys } from "@/hooks/useApiKeys";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePlaygroundConfig } from "@/hooks/usePlaygroundConfig";
 
 // Components
-import { Header } from "@/components/playground/Header";
 import { ControlPanel } from "@/components/playground/ControlPanel";
 import { CopilotSidebar } from "@/components/playground/CopilotSidebar";
-import { ApiKeyModal } from "@/components/modals/ApiKeyModal";
 import { WelcomeModal } from "@/components/modals/WelcomeModal";
+import { AppShell, Crumbs } from "@/components/bench/AppShell";
+import { FeatureNav } from "@/components/bench/FeatureNav";
+import { KeysProvider, useKeys } from "@/components/bench/keys";
 
 // Theme CSS imports
 import "@yourgpt/copilot-sdk/ui/styles.css";
@@ -27,9 +28,17 @@ import "@yourgpt/copilot-sdk/ui/themes/supabase.css";
 import "@yourgpt/copilot-sdk/ui/themes/modern-minimal.css";
 import "@yourgpt/copilot-sdk/ui/themes/posthog.css";
 
-export default function PlaygroundPage() {
-  // Hooks
-  const { keys: apiKeys, updateKeys: setApiKeys } = useApiKeys();
+const noopSubscribe = () => () => {};
+
+function Dashboard() {
+  const {
+    keys: apiKeys,
+    hydrated,
+    serverChecked,
+    isReady,
+    openKeys,
+    keysOpen,
+  } = useKeys();
   const { state: dashboardState, actions } = useDashboardState();
   const {
     copilotTheme,
@@ -52,152 +61,161 @@ export default function PlaygroundPage() {
     updateAlphaConfig,
   } = usePlaygroundConfig();
 
-  // Local state
-  const [mounted, setMounted] = useState(false);
+  // Stored configuration is browser-only; render the workspace after hydration.
+  const mounted = useSyncExternalStore(
+    noopSubscribe,
+    () => true,
+    () => false,
+  );
   const [selectedPerson, setSelectedPerson] = useState<PersonData>(
     samplePersons[0],
   );
-  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
 
-  // Initialize on mount
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Check if any API key is set
-  const hasAnyApiKey = Object.values(apiKeys).some((key) => !!key);
-
-  // Welcome modal - show if no API keys are set and not temporarily dismissed
+  // Welcome dialog: first visit with no saved keys.
+  const hasAnyApiKey =
+    Object.values(apiKeys).some((key) => !!key) ||
+    (["openai", "anthropic", "openrouter"] as const).some(isReady);
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const showWelcomeModal =
-    !hasAnyApiKey && !welcomeDismissed && !apiKeyModalOpen;
-
-  // Handlers
-  const handleSaveApiKeys = useCallback(
-    (keys: typeof apiKeys) => {
-      setApiKeys(keys);
-    },
-    [setApiKeys],
-  );
-
-  const handleOpenApiKeyModal = useCallback(() => {
-    setApiKeyModalOpen(true);
-  }, []);
+    hydrated &&
+    serverChecked &&
+    !hasAnyApiKey &&
+    !welcomeDismissed &&
+    !keysOpen;
 
   const handleProviderChange = useCallback(
-    (provider: ProviderId) => {
-      updateProvider(provider);
-    },
+    (provider: ProviderId) => updateProvider(provider),
     [updateProvider],
   );
-
   const handleOpenRouterModelChange = useCallback(
-    (model: string) => {
-      updateOpenRouterModel(model);
-    },
+    (model: string) => updateOpenRouterModel(model),
     [updateOpenRouterModel],
   );
-
   const handleSelectPerson = useCallback((person: PersonData) => {
     setSelectedPerson(person);
   }, []);
-
   const handleIncrementCounter = useCallback(() => {
     actions.incrementCounter();
   }, [actions]);
-
   const handleDecrementCounter = useCallback(() => {
     actions.decrementCounter();
   }, [actions]);
-
   const handleAddToCart = useCallback(() => {
     actions.updateCart("add", 1);
   }, [actions]);
-
   const handleClearCart = useCallback(() => {
     actions.updateCart("clear");
   }, [actions]);
 
-  // Derived state
-  const hasApiKey = !!apiKeys[selectedProvider];
-
-  // Don't render until mounted (avoid hydration issues)
-  if (!mounted) return null;
-
   return (
-    <div className="h-screen flex flex-col bg-zinc-100 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
-      {/* Header */}
-      <Header hasApiKey={hasApiKey} onOpenApiKeyModal={handleOpenApiKeyModal} />
-
-      {/* Main Content */}
-      <div className="flex-1 flex min-h-0">
-        {/* Main Panel */}
-        <div className="flex-1 overflow-auto relative">
-          {/* Top fade gradient */}
-          <div className="sticky top-0 left-0 right-0 h-8 bg-gradient-to-b from-zinc-100 dark:from-zinc-950 to-transparent pointer-events-none z-10" />
-          <div className="p-6 pt-3 -mt-8">
-            <ControlPanel
-              copilotTheme={copilotTheme}
-              onThemeChange={updateTheme}
-              layoutTemplate={layoutTemplate}
-              onLayoutChange={updateLayoutTemplate}
-              selectedProvider={selectedProvider}
-              onProviderChange={handleProviderChange}
-              selectedOpenRouterModel={selectedOpenRouterModel}
-              onOpenRouterModelChange={handleOpenRouterModelChange}
-              systemPrompt={systemPrompt}
-              onSystemPromptChange={updateSystemPrompt}
-              generativeUI={generativeUI}
-              onToggleGenerativeUI={toggleGenerativeUI}
-              toolsEnabled={toolsEnabled}
-              onToggleTool={toggleTool}
-              dashboardState={dashboardState}
-              onIncrementCounter={handleIncrementCounter}
-              onDecrementCounter={handleDecrementCounter}
-              onAddToCart={handleAddToCart}
-              onClearCart={handleClearCart}
-              onReset={actions.reset}
-              selectedPerson={selectedPerson}
-              onSelectPerson={handleSelectPerson}
-              sdkConfig={sdkConfig}
-              onUpdateSDKConfig={updateSDKConfig}
-              alphaConfig={alphaConfig}
-              onUpdateAlpha={updateAlphaConfig}
-            />
+    <AppShell
+      active="chat"
+      docsPath="/getting-started"
+      fixedHeight
+      crumb={<Crumbs items={["Playground", "Copilot chat"]} />}
+      rail={<FeatureNav mode="links" />}
+    >
+      {mounted ? (
+        <div className="lg:grid lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(380px,460px)]">
+          <div className="lg:h-full lg:overflow-y-auto">
+            <div className="mx-auto w-full max-w-[940px] space-y-5 px-4 py-6 sm:px-6 lg:py-8">
+              <header className="max-w-[620px]">
+                <p className="eyebrow">
+                  <span className="text-brand">Copilot SDK</span> · React
+                </p>
+                <h1 className="mt-2 text-[24px] leading-tight font-semibold tracking-[-0.025em]">
+                  Copilot chat
+                </h1>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-muted-foreground">
+                  Configure the provider, theme and tools, then talk to the
+                  Copilot in the live preview. Its tools read and change the
+                  state below.
+                </p>
+                <nav
+                  aria-label="Copilot guides"
+                  className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[12.5px] font-medium text-brand"
+                >
+                  {[
+                    ["Quick start", "/getting-started"],
+                    ["Tool calling", "/tools"],
+                    ["Feature guides", "/feature-lab"],
+                  ].map(([label, path]) => (
+                    <a
+                      key={path}
+                      href={`${DOCS_URL}${path}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline-offset-4 hover:underline"
+                    >
+                      {label}
+                    </a>
+                  ))}
+                </nav>
+              </header>
+              <ControlPanel
+                copilotTheme={copilotTheme}
+                onThemeChange={updateTheme}
+                layoutTemplate={layoutTemplate}
+                onLayoutChange={updateLayoutTemplate}
+                selectedProvider={selectedProvider}
+                onProviderChange={handleProviderChange}
+                selectedOpenRouterModel={selectedOpenRouterModel}
+                onOpenRouterModelChange={handleOpenRouterModelChange}
+                systemPrompt={systemPrompt}
+                onSystemPromptChange={updateSystemPrompt}
+                generativeUI={generativeUI}
+                onToggleGenerativeUI={toggleGenerativeUI}
+                toolsEnabled={toolsEnabled}
+                onToggleTool={toggleTool}
+                dashboardState={dashboardState}
+                onIncrementCounter={handleIncrementCounter}
+                onDecrementCounter={handleDecrementCounter}
+                onAddToCart={handleAddToCart}
+                onClearCart={handleClearCart}
+                onReset={actions.reset}
+                selectedPerson={selectedPerson}
+                onSelectPerson={handleSelectPerson}
+                sdkConfig={sdkConfig}
+                onUpdateSDKConfig={updateSDKConfig}
+                alphaConfig={alphaConfig}
+                onUpdateAlpha={updateAlphaConfig}
+              />
+            </div>
           </div>
+
+          <CopilotSidebar
+            systemPrompt={systemPrompt}
+            copilotTheme={copilotTheme}
+            layoutTemplate={layoutTemplate}
+            dashboardState={dashboardState}
+            actions={actions}
+            selectedPerson={selectedPerson}
+            toolsEnabled={toolsEnabled}
+            generativeUI={generativeUI}
+            selectedProvider={selectedProvider}
+            selectedOpenRouterModel={selectedOpenRouterModel}
+            apiKeys={apiKeys}
+            loaderVariant={sdkConfig.loaderVariant}
+            alphaConfig={alphaConfig}
+            onOpenKeys={openKeys}
+            providerReady={isReady(selectedProvider)}
+          />
         </div>
-
-        {/* Copilot Sidebar */}
-        <CopilotSidebar
-          systemPrompt={systemPrompt}
-          copilotTheme={copilotTheme}
-          layoutTemplate={layoutTemplate}
-          dashboardState={dashboardState}
-          actions={actions}
-          selectedPerson={selectedPerson}
-          toolsEnabled={toolsEnabled}
-          generativeUI={generativeUI}
-          selectedProvider={selectedProvider}
-          selectedOpenRouterModel={selectedOpenRouterModel}
-          apiKeys={apiKeys}
-          loaderVariant={sdkConfig.loaderVariant}
-          alphaConfig={alphaConfig}
-        />
-      </div>
-
-      {/* Modals */}
-      <ApiKeyModal
-        open={apiKeyModalOpen}
-        onOpenChange={setApiKeyModalOpen}
-        apiKeys={apiKeys}
-        onSave={handleSaveApiKeys}
-      />
+      ) : null}
 
       <WelcomeModal
         open={showWelcomeModal}
         onOpenChange={(open) => !open && setWelcomeDismissed(true)}
-        onTryWithApiKeys={handleOpenApiKeyModal}
+        onTryWithApiKeys={openKeys}
       />
-    </div>
+    </AppShell>
+  );
+}
+
+export default function PlaygroundPage() {
+  return (
+    <KeysProvider>
+      <Dashboard />
+    </KeysProvider>
   );
 }

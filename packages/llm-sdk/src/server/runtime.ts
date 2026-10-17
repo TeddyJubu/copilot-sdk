@@ -1,3 +1,5 @@
+import { responseReplayMetadata } from "../core/openai-responses";
+import { resolveToolOutput, type ToolModelOutput } from "../core/tool-output";
 import type {
   Message,
   ActionDefinition,
@@ -9,7 +11,6 @@ import type {
   DoneEventMessage,
   ToolResponse,
   AIResponseMode,
-  AIContent,
   ToolContext,
   WebSearchConfig,
 } from "../core/stream-events";
@@ -79,18 +80,13 @@ function buildToolResultForAI(
   tool: ToolDefinition | undefined,
   result: ToolResponse | unknown,
   args: Record<string, unknown>,
-): string | AIContent[] {
+): string {
   // Type guard for ToolResponse with AI response fields
   const typedResult = result as ToolResponse | undefined;
 
   // Determine response mode (result override > tool config > default 'full')
   const responseMode: AIResponseMode =
     typedResult?._aiResponseMode ?? tool?.aiResponseMode ?? "full";
-
-  // Check for multimodal content (images, etc.) - always include if present
-  if (typedResult?._aiContent && typedResult._aiContent.length > 0) {
-    return typedResult._aiContent;
-  }
 
   // Get AI context (result override > tool config > undefined)
   let aiContext: string | undefined;
@@ -122,35 +118,6 @@ function buildToolResultForAI(
       const fullData = JSON.stringify(result);
       return aiContext ? `${aiContext}\n\nFull data: ${fullData}` : fullData;
   }
-}
-
-/**
- * Serialize tool result content for API message.
- * Handles both string and multimodal (AIContent[]) results.
- */
-function serializeToolResultContent(
-  content: string | AIContent[],
-): string | Array<{ type: string; [key: string]: unknown }> {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  // Convert AIContent to API format (OpenAI multimodal format)
-  return content.map((item) => {
-    if (item.type === "image") {
-      return {
-        type: "image_url",
-        image_url: {
-          url: `data:${item.mediaType};base64,${item.data}`,
-        },
-      };
-    }
-    // Text content
-    return {
-      type: "text",
-      text: item.text,
-    };
-  });
 }
 
 /**
@@ -250,6 +217,10 @@ export class Runtime {
         id: `msg_${i}`,
         role: m.role as Message["role"],
         content: m.content,
+        providerMetadata: m.providerMetadata,
+        modelOutput: m.modelOutput,
+        tool_calls: m.tool_calls as Message["tool_calls"],
+        tool_call_id: m.tool_call_id,
       }),
     );
 
@@ -570,14 +541,28 @@ export class Runtime {
       }
 
       // Build JSON response
+      // Only unresolved client tools should be dispatched on a suspended turn.
+      // Server tools also emit action:start, but their results already exist in
+      // the history. Match generate() and StreamResult.collect() here.
+      const resolvedToolIds = new Set(
+        (messages ?? [])
+          .filter((message) => message.role === "tool" && message.tool_call_id)
+          .map((message) => message.tool_call_id),
+      );
+      const responseToolCalls = requiresAction
+        ? toolCalls.filter((call) => !resolvedToolIds.has(call.id))
+        : toolCalls;
       const response = {
         success: !error,
         content,
-        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+        toolCalls: responseToolCalls.length > 0 ? responseToolCalls : undefined,
         toolResults: toolResults.length > 0 ? toolResults : undefined,
         messages,
         requiresAction,
         error,
+        // Copilot's HTTP transport reads a top-level message for HTTP errors.
+        // Retain the structured error as well for existing API consumers.
+        ...(error ? { message: error.message } : {}),
         // Include raw events for debugging
         _events: this.config.debug ? events : undefined,
       };
@@ -603,6 +588,7 @@ export class Runtime {
       return new Response(
         JSON.stringify({
           success: false,
+          message: err instanceof Error ? err.message : "Unknown error",
           error: {
             message: err instanceof Error ? err.message : "Unknown error",
           },
@@ -922,6 +908,10 @@ export class Runtime {
     // HTTP request for extracting headers (auth context)
     _httpRequest?: Request,
     _toolSearchState?: ToolSearchState,
+    // Internal: current tool-call loop depth, threaded through the recursive self-calls
+    // so the cap is enforced across rounds (the streaming loop recurses instead of using
+    // a while-loop counter like processChatWithLoopNonStreaming).
+    _iteration = 0,
   ): AsyncGenerator<StreamEvent> {
     const debug = this.config.debug;
 
@@ -948,6 +938,32 @@ export class Runtime {
     // Track new messages created during this request
     const newMessages: DoneEventMessage[] = _accumulatedMessages || [];
     const maxIterations = this.config.maxIterations ?? 20;
+
+    // Check for abort
+    if (signal?.aborted) {
+      yield {
+        type: "error",
+        message: "Aborted",
+        code: "ABORTED",
+      } as StreamEvent;
+      return;
+    }
+
+    // Enforce the tool-call iteration cap. The streaming loop recurses (rather than using
+    // a while-loop counter like processChatWithLoopNonStreaming), so the depth is threaded
+    // through the `_iteration` arg and incremented on each recursive call below. Emit a
+    // terminal `done` so collect() can finalize messages (matching the non-streaming
+    // loop's max-iterations exit).
+    if (_iteration >= maxIterations) {
+      if (debug) {
+        console.log(`[Copilot SDK] Max iterations (${maxIterations}) reached`);
+      }
+      yield {
+        type: "done",
+        messages: newMessages.length > 0 ? newMessages : undefined,
+      } as StreamEvent;
+      return;
+    }
 
     const allTools = this.collectToolsForRequest(request);
     const nativeToolSearch = this.resolveNativeToolSearchForRequest(request);
@@ -1022,12 +1038,17 @@ export class Runtime {
       name: string;
       args: Record<string, unknown>;
       result: unknown;
+      modelOutput?: ToolModelOutput;
       tool: ToolDefinition;
     }> = [];
 
     // Tool context data for server-side tool handlers
     const toolContextData =
       "toolContext" in this.config ? this.config.toolContext : undefined;
+
+    let adapterProviderMetadata:
+      | import("../core/openai-responses").ProviderMetadata
+      | undefined;
 
     // Capture usage from adapter for onFinish callback (server-side only)
     let adapterUsage:
@@ -1046,7 +1067,13 @@ export class Runtime {
       actions: nativeToolSearch
         ? undefined
         : this.convertToolsToActions(effectiveSelectedTools),
-      toolDefinitions: nativeToolSearch ? effectiveSelectedTools : undefined,
+      // Always supplied. `actions` drives the Chat Completions path; adapters
+      // that must use /v1/responses (native tool search, or gpt-5.4+ where
+      // Chat Completions rejects function tools alongside reasoning) need the
+      // richer ToolDefinition shape. Gating this on nativeToolSearch meant the
+      // reasoning-model route could never see any tools, so it silently never
+      // engaged and those requests still 400'd on Chat Completions.
+      toolDefinitions: effectiveSelectedTools,
       systemPrompt: systemPrompt,
       config: request.config,
       signal,
@@ -1066,7 +1093,10 @@ export class Runtime {
           break;
 
         case "message:end":
-          yield event; // Natural order — always arrives after action:end from every provider
+          yield {
+            ...event,
+            providerMetadata: responseReplayMetadata(event.providerMetadata),
+          }; // Natural order — always arrives after action:end from every provider
           break;
 
         case "message:delta":
@@ -1150,11 +1180,16 @@ export class Runtime {
             );
             try {
               const result = await tool.handler(args, toolContext);
+              const modelOutput = resolveToolOutput(
+                result,
+                tool.toModelOutput?.(result),
+              );
               serverToolResults.push({
                 id: event.id,
                 name: toolName!,
                 args,
                 result,
+                modelOutput,
                 tool,
               });
               yield {
@@ -1162,6 +1197,7 @@ export class Runtime {
                 id: event.id,
                 name: toolName,
                 result,
+                modelOutput,
               } as StreamEvent;
             } catch (error) {
               const errorResult = {
@@ -1204,6 +1240,9 @@ export class Runtime {
           return; // Exit on error
 
         case "done":
+          adapterProviderMetadata = responseReplayMetadata(
+            event.providerMetadata,
+          );
           // Capture usage from adapter's done event (for onFinish callback)
           // We don't yield done yet - we need to check for tool calls first
           if (event.usage) {
@@ -1231,7 +1270,76 @@ export class Runtime {
         (tc) => !serverToolIds.has(tc.id),
       );
 
-      // If there are server-side tools executed, continue the loop by making another LLM call
+      // Build the server tool_result messages once (used by both the mixed-turn suspend path
+      // and the server-only recurse path below).
+      const serverToolResultMessages: DoneEventMessage[] =
+        serverToolResults.map((tr) => {
+          const content = tr.modelOutput
+            ? "[Tool returned content]"
+            : buildToolResultForAI(tr.tool, tr.result, tr.args);
+          return {
+            role: "tool" as const,
+            content,
+            ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
+            tool_call_id: tr.id,
+          };
+        });
+
+      // MIXED TURN: this assistant message emitted BOTH server tools (already executed inline)
+      // AND client tools (must run in the caller/browser). We cannot recurse on the server
+      // results alone — that would leave the client tool_use with no tool_result and the model
+      // would reject the next request. Instead: emit ONE assistant message carrying ALL tool_use
+      // ids, append the server results now, then SUSPEND (requiresAction) so the client runs the
+      // client tools. The caller collects the client results and resumes with the full set.
+      if (serverToolResults.length > 0 && clientToolCalls.length > 0) {
+        if (debug) {
+          console.log(
+            `[Copilot SDK] Mixed turn: ${serverToolResults.length} server + ${clientToolCalls.length} client tool(s). Suspending for client tools.`,
+          );
+        }
+
+        // Assistant message with ALL tool_calls (server + client), in the model's original order.
+        const assistantMessage: AssistantToolMessage = {
+          role: "assistant",
+          content: accumulatedText || null,
+          ...(adapterProviderMetadata
+            ? { providerMetadata: adapterProviderMetadata }
+            : {}),
+          tool_calls: toolCalls.map((tc) => ({
+            id: tc.id,
+            type: "function" as const,
+            function: {
+              name: tc.name,
+              arguments: JSON.stringify(tc.args),
+            },
+            ...(tc.extra_content ? { extra_content: tc.extra_content } : {}),
+          })),
+        };
+
+        // Accumulate the assistant message + the ALREADY-COMPUTED server results, so the parked
+        // conversation carries them forward. On resume the caller appends the client tool_results
+        // for the remaining ids, producing a complete turn.
+        newMessages.push(assistantMessage as DoneEventMessage);
+        newMessages.push(...serverToolResultMessages);
+
+        // Yield tool_calls event for the CLIENT tools only (those the caller must execute).
+        yield {
+          type: "tool_calls",
+          toolCalls: clientToolCalls,
+          assistantMessage,
+        } as StreamEvent;
+
+        yield {
+          type: "done",
+          requiresAction: true,
+          messages: newMessages,
+          usage: adapterUsage,
+        } as StreamEvent;
+        return;
+      }
+
+      // If there are server-side tools executed (and NO client tools), continue the loop by
+      // making another LLM call.
       if (serverToolResults.length > 0) {
         if (debug) {
           console.log(
@@ -1243,6 +1351,9 @@ export class Runtime {
         const assistantWithToolCalls: DoneEventMessage = {
           role: "assistant",
           content: accumulatedText || null,
+          ...(adapterProviderMetadata
+            ? { providerMetadata: adapterProviderMetadata }
+            : {}),
           tool_calls: serverToolResults.map((tr) => {
             const tc = toolCalls.find((t) => t.id === tr.id);
             return {
@@ -1257,22 +1368,7 @@ export class Runtime {
           }),
         };
 
-        // Create tool result messages (using buildToolResultForAI for AI response control)
-        const toolResultMessages: DoneEventMessage[] = serverToolResults.map(
-          (tr) => {
-            const aiContent = buildToolResultForAI(tr.tool, tr.result, tr.args);
-            // Serialize content (handles both string and multimodal)
-            const content =
-              typeof aiContent === "string"
-                ? aiContent
-                : JSON.stringify(serializeToolResultContent(aiContent));
-            return {
-              role: "tool" as const,
-              content,
-              tool_call_id: tr.id,
-            };
-          },
-        );
+        const toolResultMessages = serverToolResultMessages;
 
         // Add to accumulated messages for client
         newMessages.push(assistantWithToolCalls);
@@ -1298,7 +1394,8 @@ export class Runtime {
           })),
         );
 
-        // Continue the agent loop - pass accumulated messages and HTTP request
+        // Continue the agent loop - pass accumulated messages, HTTP request, and the
+        // incremented loop depth so the cap is enforced across recursive rounds.
         for await (const event of this.processChatWithLoop(
           nextRequest,
           signal,
@@ -1306,6 +1403,7 @@ export class Runtime {
           true, // Mark as recursive
           _httpRequest,
           nextToolSearchState,
+          _iteration + 1,
         )) {
           yield event;
         }
@@ -1318,6 +1416,9 @@ export class Runtime {
         const assistantMessage: AssistantToolMessage = {
           role: "assistant",
           content: accumulatedText || null,
+          ...(adapterProviderMetadata
+            ? { providerMetadata: adapterProviderMetadata }
+            : {}),
           tool_calls: clientToolCalls.map((tc) => ({
             id: tc.id,
             type: "function" as const,
@@ -1353,10 +1454,13 @@ export class Runtime {
     }
 
     // No tool calls - add final assistant message and we're done
-    if (accumulatedText) {
+    if (accumulatedText || adapterProviderMetadata) {
       newMessages.push({
         role: "assistant" as const,
         content: accumulatedText,
+        ...(adapterProviderMetadata
+          ? { providerMetadata: adapterProviderMetadata }
+          : {}),
       });
     }
 
@@ -1448,6 +1552,7 @@ export class Runtime {
           _isRecursive,
           _httpRequest,
           toolSearchState,
+          iteration, // carry the non-streaming loop's depth into the streaming sub-call
         )) {
           yield event;
         }
@@ -1483,7 +1588,13 @@ export class Runtime {
         actions: nativeToolSearch
           ? undefined
           : this.convertToolsToActions(effectiveSelectedTools),
-        toolDefinitions: nativeToolSearch ? effectiveSelectedTools : undefined,
+        // Always supplied. `actions` drives the Chat Completions path; adapters
+        // that must use /v1/responses (native tool search, or gpt-5.4+ where
+        // Chat Completions rejects function tools alongside reasoning) need the
+        // richer ToolDefinition shape. Gating this on nativeToolSearch meant the
+        // reasoning-model route could never see any tools, so it silently never
+        // engaged and those requests still 400'd on Chat Completions.
+        toolDefinitions: effectiveSelectedTools,
         systemPrompt: systemPrompt,
         config: request.config,
         signal,
@@ -1517,7 +1628,10 @@ export class Runtime {
             content: result.content,
           } as StreamEvent;
         }
-        yield { type: "message:end" } as StreamEvent;
+        yield {
+          type: "message:end",
+          providerMetadata: responseReplayMetadata(result.providerMetadata),
+        } as StreamEvent;
 
         // Check for tool calls
         if (result.toolCalls.length > 0) {
@@ -1564,6 +1678,7 @@ export class Runtime {
             name: string;
             args: Record<string, unknown>;
             result: unknown;
+            modelOutput?: ToolModelOutput;
             tool: ToolDefinition;
           }> = [];
 
@@ -1589,11 +1704,16 @@ export class Runtime {
 
               try {
                 const toolResult = await tool.handler(tc.args, toolContext);
+                const modelOutput = resolveToolOutput(
+                  toolResult,
+                  tool.toModelOutput?.(toolResult),
+                );
                 serverToolResults.push({
                   id: tc.id,
                   name: tc.name,
                   args: tc.args,
                   result: toolResult,
+                  modelOutput,
                   tool,
                 });
                 yield {
@@ -1601,6 +1721,7 @@ export class Runtime {
                   id: tc.id,
                   name: tc.name,
                   result: toolResult,
+                  modelOutput,
                 } as StreamEvent;
               } catch (error) {
                 const errorResult = {
@@ -1630,12 +1751,38 @@ export class Runtime {
             }
           }
 
-          // If server tools were executed, continue the loop
-          if (serverToolResults.length > 0) {
-            // Build assistant message with tool_calls
-            const assistantWithToolCalls: DoneEventMessage = {
+          // Build the server tool_result messages once (shared by the mixed-turn suspend path
+          // and the server-only recurse path below).
+          const serverToolResultMessages: DoneEventMessage[] =
+            serverToolResults.map((tr) => {
+              const content = tr.modelOutput
+                ? "[Tool returned content]"
+                : buildToolResultForAI(tr.tool, tr.result, tr.args);
+              return {
+                role: "tool" as const,
+                content,
+                ...(tr.modelOutput ? { modelOutput: tr.modelOutput } : {}),
+                tool_call_id: tr.id,
+              };
+            });
+
+          // MIXED TURN: this assistant message emitted BOTH server tools (already executed
+          // inline) AND client tools (must run in the caller/browser). Recursing on the server
+          // results alone would leave the client tool_use with no tool_result, and the model
+          // would reject the next request → the run hangs. Instead: emit ONE assistant message
+          // carrying ALL tool_use ids, append the already-computed server results, then SUSPEND
+          // (requiresAction) so the caller runs the client tools and resumes with the full set.
+          if (serverToolResults.length > 0 && clientToolCalls.length > 0) {
+            const assistantMessage: AssistantToolMessage = {
               role: "assistant",
               content: result.content || null,
+              ...(result.providerMetadata
+                ? {
+                    providerMetadata: responseReplayMetadata(
+                      result.providerMetadata,
+                    ),
+                  }
+                : {}),
               tool_calls: result.toolCalls.map((tc) => ({
                 id: tc.id,
                 type: "function" as const,
@@ -1649,24 +1796,58 @@ export class Runtime {
               })),
             };
 
-            // Build tool result messages (using buildToolResultForAI for AI response control)
-            const toolResultMessages: DoneEventMessage[] =
-              serverToolResults.map((tr) => {
-                const aiContent = buildToolResultForAI(
-                  tr.tool,
-                  tr.result,
-                  tr.args,
-                );
-                const content =
-                  typeof aiContent === "string"
-                    ? aiContent
-                    : JSON.stringify(serializeToolResultContent(aiContent));
-                return {
-                  role: "tool" as const,
-                  content,
-                  tool_call_id: tr.id,
-                };
-              });
+            // Accumulate the assistant message + the ALREADY-COMPUTED server results so the
+            // parked conversation carries them forward. On resume the caller appends the client
+            // tool_results for the remaining ids, producing a complete turn.
+            newMessages.push(assistantMessage as DoneEventMessage);
+            newMessages.push(...serverToolResultMessages);
+
+            // Yield tool_calls event for the CLIENT tools only (those the caller must execute).
+            yield {
+              type: "tool_calls",
+              toolCalls: clientToolCalls,
+              assistantMessage,
+            } as StreamEvent;
+
+            yield {
+              type: "done",
+              requiresAction: true,
+              messages: newMessages,
+              usage:
+                accumulatedUsage.total_tokens > 0
+                  ? accumulatedUsage
+                  : undefined,
+            } as StreamEvent;
+            return;
+          }
+
+          // If server tools were executed (and NO client tools), continue the loop
+          if (serverToolResults.length > 0) {
+            // Build assistant message with tool_calls
+            const assistantWithToolCalls: DoneEventMessage = {
+              role: "assistant",
+              content: result.content || null,
+              ...(result.providerMetadata
+                ? {
+                    providerMetadata: responseReplayMetadata(
+                      result.providerMetadata,
+                    ),
+                  }
+                : {}),
+              tool_calls: result.toolCalls.map((tc) => ({
+                id: tc.id,
+                type: "function" as const,
+                function: {
+                  name: tc.name,
+                  arguments: JSON.stringify(tc.args),
+                },
+                ...(tc.extra_content
+                  ? { extra_content: tc.extra_content }
+                  : {}),
+              })),
+            };
+
+            const toolResultMessages = serverToolResultMessages;
 
             // Add to accumulated messages
             newMessages.push(assistantWithToolCalls);
@@ -1697,6 +1878,13 @@ export class Runtime {
             const assistantMessage: AssistantToolMessage = {
               role: "assistant",
               content: result.content || null,
+              ...(result.providerMetadata
+                ? {
+                    providerMetadata: responseReplayMetadata(
+                      result.providerMetadata,
+                    ),
+                  }
+                : {}),
               tool_calls: clientToolCalls.map((tc) => ({
                 id: tc.id,
                 type: "function" as const,
@@ -1732,10 +1920,17 @@ export class Runtime {
         }
 
         // No tool calls - we're done
-        if (result.content) {
+        if (result.content || result.providerMetadata) {
           newMessages.push({
             role: "assistant" as const,
             content: result.content,
+            ...(result.providerMetadata
+              ? {
+                  providerMetadata: responseReplayMetadata(
+                    result.providerMetadata,
+                  ),
+                }
+              : {}),
           });
         }
 
@@ -2112,10 +2307,32 @@ export class Runtime {
               result: event.result || event.error,
             });
             break;
-          case "done":
+          case "done": {
             messages = event.messages || [];
             requiresAction = event.requiresAction || false;
+            if (requiresAction) {
+              // MIXED TURN: server tools executed inline still emit an `action:start`, so their
+              // ids were pushed into toolCalls above. On a suspend (requiresAction), any tool
+              // whose result is already present as a { role: "tool" } message in this done
+              // payload ran server-side and must NOT remain in toolCalls — otherwise the
+              // consumer treats it as a pending client tool, dispatches it to the browser, and
+              // blocks forever waiting for a response that will never come. Drop those ids.
+              // (Same rule as StreamResult.collectEvent for the streaming path.)
+              const resolvedToolIds = new Set(
+                messages
+                  .filter((m) => m.role === "tool" && m.tool_call_id)
+                  .map((m) => m.tool_call_id as string),
+              );
+              if (resolvedToolIds.size > 0) {
+                for (let i = toolCalls.length - 1; i >= 0; i--) {
+                  if (resolvedToolIds.has(toolCalls[i].id)) {
+                    toolCalls.splice(i, 1);
+                  }
+                }
+              }
+            }
             break;
+          }
           case "error":
             error = { message: event.message, code: event.code };
             break;

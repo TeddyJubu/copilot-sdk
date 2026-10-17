@@ -1,0 +1,349 @@
+{
+  "date": "2026-10-17",
+  "branch": "codex/next-beta-decisions",
+  "baseCommit": "9be63b4",
+  "automated": {
+    "node26": 461,
+    "node18": 461,
+    "failed": 0
+  },
+  "live": {
+    "uniqueChecks": 59,
+    "passed": 59,
+    "checks": [
+      {
+        "group": "responses",
+        "name": "complete: stateless text and next-turn replay",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "complete: function loop and persisted replay",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "complete: Runtime server tool replay",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "complete: stored previous_response_id continuation",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "stream: stateless text and next-turn replay",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "stream: function loop and persisted replay",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "stream: Runtime server tool replay",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "stream: stored previous_response_id continuation",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "complete: returned encrypted reasoning replay (gpt-5.2)",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "stream: returned encrypted reasoning replay (gpt-5.2)",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "Copilot JSON: real mixed tools and persisted next turn",
+        "passed": true
+      },
+      {
+        "group": "responses",
+        "name": "Copilot SSE: real mixed tools and persisted next turn",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt52_tool_images",
+        "name": "openai modern complete image recognition and saved replay",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt52_tool_images",
+        "name": "openai Runtime complete image recognition",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt52_tool_images",
+        "name": "openai modern stream image recognition and saved replay",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt52_tool_images",
+        "name": "openai Runtime stream image recognition",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt52_tool_images",
+        "name": "openai Copilot JSON mixed image tools and restored history",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt52_tool_images",
+        "name": "openai Copilot SSE mixed image tools and restored history",
+        "passed": true
+      },
+      {
+        "group": "anthropic_tool_images",
+        "name": "anthropic modern complete image recognition and saved replay",
+        "passed": true
+      },
+      {
+        "group": "anthropic_tool_images",
+        "name": "anthropic Runtime complete image recognition",
+        "passed": true
+      },
+      {
+        "group": "anthropic_tool_images",
+        "name": "anthropic modern stream image recognition and saved replay",
+        "passed": true
+      },
+      {
+        "group": "anthropic_tool_images",
+        "name": "anthropic Runtime stream image recognition",
+        "passed": true
+      },
+      {
+        "group": "anthropic_tool_images",
+        "name": "anthropic Copilot JSON mixed image tools and restored history",
+        "passed": true
+      },
+      {
+        "group": "anthropic_tool_images",
+        "name": "anthropic Copilot SSE mixed image tools and restored history",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai modern complete image input guides function arguments",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai modern stream image input guides function arguments",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai modern complete image recognition and saved replay",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai Runtime complete image recognition",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai modern stream image recognition and saved replay",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai Runtime stream image recognition",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai Copilot JSON mixed image tools and restored history",
+        "passed": true
+      },
+      {
+        "group": "openai_gpt6_images_and_tools",
+        "name": "openai Copilot SSE mixed image tools and restored history",
+        "passed": true
+      },
+      {
+        "group": "anthropic_image_inputs",
+        "name": "anthropic modern complete image input guides function arguments",
+        "passed": true
+      },
+      {
+        "group": "anthropic_image_inputs",
+        "name": "anthropic modern stream image input guides function arguments",
+        "passed": true
+      },
+      {
+        "group": "openai_decisions",
+        "name": "openai: billing, three native questions",
+        "passed": true,
+        "model": "gpt-6-luna"
+      },
+      {
+        "group": "openai_decisions",
+        "name": "openai: outage, three native questions",
+        "passed": true,
+        "model": "gpt-6-luna"
+      },
+      {
+        "group": "openai_decisions",
+        "name": "openai: native image decision",
+        "passed": true,
+        "model": "gpt-6-luna"
+      },
+      {
+        "group": "openrouter_jev_decisions",
+        "name": "openrouter: billing, three native questions",
+        "passed": true,
+        "model": "typesafe/jev-1.13-20260917"
+      },
+      {
+        "group": "openrouter_jev_decisions",
+        "name": "openrouter: outage, three native questions",
+        "passed": true,
+        "model": "typesafe/jev-1.13-20260917"
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern complete: default chat",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern complete: reasoning tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern complete: none tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern complete: Responses logprobs",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern stream: default chat",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern stream: reasoning tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern stream: none tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "modern stream: Responses logprobs",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter complete: default chat",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter complete: reasoning tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter complete: none tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter complete: Responses logprobs",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter stream: default chat",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter stream: reasoning tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter stream: none tools",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "adapter stream: Responses logprobs",
+        "passed": true
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "complete: real temperature 400, fallback disabled",
+        "passed": true,
+        "status": 400,
+        "code": "unsupported_value",
+        "param": "temperature",
+        "retries": 0,
+        "fallbacks": 0
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "complete: real temperature 400, fallback enabled",
+        "passed": true,
+        "status": 400,
+        "code": "unsupported_value",
+        "param": "temperature",
+        "retries": 0,
+        "fallbacks": 1
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "stream: real temperature 400, fallback disabled",
+        "passed": true,
+        "status": 400,
+        "code": "unsupported_value",
+        "param": "temperature",
+        "retries": 0,
+        "fallbacks": 0
+      },
+      {
+        "group": "openai_parameters_and_fallback",
+        "name": "stream: real temperature 400, fallback enabled",
+        "passed": true,
+        "status": 400,
+        "code": "unsupported_value",
+        "param": "temperature",
+        "retries": 0,
+        "fallbacks": 1
+      }
+    ]
+  },
+  "limitations": [
+    "No direct TypeSafe/Jev account credentials; Jev exercised through OpenRouter only.",
+    "No Cloudflare Workers AI credentials; transport/schema/error tests only.",
+    "Synthetic conformance checks, not production guardrail accuracy or all-model certification.",
+    "Hosted URLs and file IDs in tool outputs have fixture coverage; live image cases use inline PNG bytes."
+  ],
+  "harnessCorrection": "Two initial modern-stream assertions read textDelta instead of the documented text field. Fixed the test collector and reran both cases successfully; no SDK text-stream change was needed.",
+  "checks": {
+    "sdkTypechecks": "passed",
+    "publicCjsEsmDeclarations": "passed",
+    "sdkBuild": "2 tasks passed",
+    "workspaceBuild": "21 tasks passed"
+  }
+}

@@ -198,6 +198,8 @@ export type {
   // AI Response Control types
   AIResponseMode,
   AIContent,
+  ToolModelOutput,
+  ToolOutputPart,
   // Permission types (for persistent tool approvals)
   PermissionLevel,
   ToolPermission,
@@ -305,3 +307,19 @@ export type {
   ListThreadsOptions,
   ListThreadsResult,
 } from "../thread";
+
+export { VoiceRecorder, transcribeRecording } from "./voice-input";
+export type {
+  VoiceRecording,
+  VoiceRecorderOptions,
+  VoiceRecordingState,
+  VoiceTranscript,
+} from "./voice-input";
+export { RealtimeVoiceSession, realtimeToolDefinitions } from "./realtime";
+export type {
+  RealtimeVoiceOptions,
+  RealtimeVoiceState,
+  RealtimeTranscript,
+  RealtimeToolCall,
+  RealtimeApproval,
+} from "./realtime";

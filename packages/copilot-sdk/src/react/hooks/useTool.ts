@@ -31,6 +31,7 @@ function isZodSchema(value: unknown): boolean {
  * Configuration for registering a tool
  */
 export interface UseToolConfig<TParams = Record<string, unknown>> {
+  toModelOutput?: ToolDefinition["toModelOutput"];
   /** Unique tool name */
   name: string;
   /** Tool description for LLM */
@@ -155,6 +156,7 @@ export function useTool<TParams = Record<string, unknown>>(
       name: config.name,
       description: config.description,
       location: "client",
+      toModelOutput: (result) => configRef.current.toModelOutput?.(result),
       inputSchema,
       handler: async (params, context) => {
         return configRef.current.handler(params as TParams, context);
@@ -241,7 +243,11 @@ export function useTools(tools: ToolSet): void {
   toolsRef.current = tools;
 
   // Create a stable key from tool names to detect actual changes
-  const toolsKey = Object.keys(tools).sort().join(",");
+  const toolsKey = JSON.stringify(
+    Object.entries(tools)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, definition]) => [name, definition.available ?? true]),
+  );
 
   useEffect(() => {
     const currentTools = toolsRef.current;
@@ -252,6 +258,15 @@ export function useTools(tools: ToolSet): void {
       // Create full tool definition with name (override if toolDef has different name)
       const fullTool: ToolDefinition = {
         ...toolDef,
+        handler: toolDef.handler
+          ? (params, context) =>
+              toolsRef.current[name]?.handler?.(params, context) ?? {
+                success: false,
+                error: "Tool is no longer available",
+              }
+          : undefined,
+        toModelOutput: (result) =>
+          toolsRef.current[name]?.toModelOutput?.(result),
         name, // Use the key as the name
       };
 
@@ -269,7 +284,7 @@ export function useTools(tools: ToolSet): void {
       registeredToolsRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toolsKey]); // Only re-run when tool names change, not on every render
+  }, [toolsKey]); // Re-register when names or availability changes.
 }
 
 /**
@@ -309,6 +324,10 @@ export function useToolsArray<TParams = Record<string, unknown>>(
         name: config.name,
         description: config.description,
         location: "client",
+        toModelOutput: (result) =>
+          toolsRef.current
+            .find((tool) => tool.name === config.name)
+            ?.toModelOutput?.(result),
         inputSchema,
         handler: async (params, context) => {
           const currentConfig = toolsRef.current.find(

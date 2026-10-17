@@ -1,0 +1,97 @@
+---
+title: Recorded voice input
+description: Capture microphone audio, transcribe it on your server, and let the user review the text
+---
+
+Available in **Copilot SDK `2.5.1-beta.3`**. `VoiceRecorder` captures a recording in the browser; `transcribeRecording` uploads it to your server and returns text for review. These are framework-independent helpers, not a built-in chat microphone button or a realtime calling API.
+
+## Record and transcribe
+
+Use the [transcription server route](/docs/llm-sdk/transcription#server-route) with **LLM SDK `2.6.0-beta.2`**. The browser never needs a provider API key.
+
+```ts
+import {
+  VoiceRecorder,
+  transcribeRecording,
+  type VoiceRecordingState,
+  type VoiceTranscript,
+} from "@yourgpt/copilot-sdk/core";
+
+export function createVoiceInput(ui: {
+  setState: (state: VoiceRecordingState) => void;
+  review: (transcript: VoiceTranscript) => void;
+  showError: (error: unknown) => void;
+}) {
+  let upload: AbortController | undefined;
+  let disposed = false;
+  const recorder = new VoiceRecorder({
+    maxDurationMs: 60_000,
+    maxBytes: 20_000_000,
+    onStateChange: ui.setState,
+    onError: ui.showError,
+  });
+  const report = (error: unknown) => {
+    if (!disposed && !(error instanceof Error && error.name === "AbortError")) {
+      ui.showError(error);
+    }
+  };
+
+  return {
+    // Bind to an explicit Record button click. Disable it during an upload.
+    async start() {
+      if (disposed || upload) return;
+      try {
+        await recorder.start();
+      } catch (error) {
+        report(error);
+      }
+    },
+    // Bind to Stop, enabled only while state === 'recording'.
+    async stop() {
+      if (disposed || upload) return;
+      const controller = new AbortController();
+      upload = controller;
+      try {
+        const recording = await recorder.stop();
+        const transcript = await transcribeRecording(recording, {
+          url: "/api/transcribe",
+          signal: controller.signal,
+        });
+        if (!disposed && !controller.signal.aborted) ui.review(transcript);
+      } catch (error) {
+        report(error);
+      } finally {
+        if (upload === controller) upload = undefined;
+      }
+    },
+    cancel() {
+      upload?.abort();
+      recorder.cancel();
+    },
+    // Call on component unmount or when leaving the recording screen.
+    dispose() {
+      disposed = true;
+      upload?.abort();
+      recorder.dispose();
+    },
+  };
+}
+```
+
+The `review` callback should fill an editable composer. Submission remains a separate user action; neither helper sends a chat message. The returned `VoiceTranscript` contains `text` and `provenance`: `source: 'recorded_audio'`, media type, duration in milliseconds, and provider/model identifiers when supplied by your route.
+
+## States, limits, and cleanup
+
+`recorder.state` and `onStateChange` expose `idle`, `requesting`, `recording`, and `stopping`. Transcription upload is a separate application state. Handle microphone permission denial and unavailable browser APIs in the UI.
+
+The defaults are **60 seconds** and **20 MB**. Exceeding either limit discards the recording, releases microphone tracks, and calls `onError`; it does not automatically return a partial clip. `cancel()` discards the current recording. `dispose()` also releases resources, including when a permission request completes after cancellation. Both should be paired with aborting any upload owned by your application.
+
+`mimeTypes` optionally changes the preference order. Defaults are WebM/Opus, MP4, then Ogg/Opus, negotiated through `MediaRecorder.isTypeSupported`. Recording requires a secure context (HTTPS or localhost) and browser microphone permission.
+
+## Upload contract
+
+`transcribeRecording(recording, { url, signal?, headers?, fetch? })` sends multipart `POST` with a `file` field. It sets the multipart boundary automatically; do not set `Content-Type` yourself. Use `headers` or a custom `fetch` for your application's authentication.
+
+The server must return JSON containing a string `text`; optional `response.provider` and `response.modelId` populate provenance. Non-success HTTP responses and malformed transcripts reject. Empty transcript text is valid for silence. The helper accepts WebM, MP4/M4A, or Ogg recordings up to 25 MB.
+
+Automated tests cover recording lifecycle, limits, cancellation, and upload behavior. Live transcription checks used generated WAV/MP3 audio. Physical microphones, permission dialogs, and browser-specific recorded containers still need testing on your supported devices before production rollout. For audio playback, see [speech generation](/docs/llm-sdk/speech).

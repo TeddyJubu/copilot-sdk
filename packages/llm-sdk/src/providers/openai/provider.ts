@@ -1,3 +1,13 @@
+import { textToolOutput } from "../../core/tool-output";
+import {
+  resolveOpenAITransport,
+  useOpenAIResponses,
+  type OpenAITransportOptions,
+} from "../../core/openai-responses";
+import { OpenAIAdapter } from "../../adapters/openai";
+import type { ChatCompletionRequest } from "../../adapters/base";
+import { type OpenAIParameterOptions } from "../../core/openai-parameters";
+import { errorFromEvent, throwIfAborted } from "../../core/provider-error";
 /**
  * OpenAI Provider - Modern Pattern
  *
@@ -26,6 +36,10 @@ import type {
   FinishReason,
   CoreMessage,
 } from "../../core/types";
+import {
+  buildOpenAITokenParams,
+  toOpenAIResponseFormat,
+} from "../../adapters/base";
 
 // ============================================
 // Model Definitions
@@ -109,7 +123,8 @@ const OPENAI_MODELS: Record<string, OpenAIModelConfig> = {
 // Provider Options
 // ============================================
 
-export interface OpenAIProviderOptions {
+export interface OpenAIProviderOptions
+  extends OpenAIParameterOptions, OpenAITransportOptions {
   /** API key (defaults to OPENAI_API_KEY env var) */
   apiKey?: string;
   /** Base URL for API (defaults to https://api.openai.com/v1) */
@@ -165,6 +180,69 @@ export function openai(
     return client;
   }
 
+  function parameterOptions(params: DoGenerateParams): OpenAIParameterOptions {
+    return {
+      ...options,
+      reasoningEffort: params.reasoningEffort ?? options.reasoningEffort,
+    };
+  }
+
+  function useResponses(params: DoGenerateParams): boolean {
+    return useOpenAIResponses(
+      modelId,
+      baseURL,
+      parameterOptions(params),
+      resolveOpenAITransport(options, params.openai),
+      !!params.tools?.length,
+      params.messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          !!message.providerMetadata?.openai?.response,
+      ),
+    );
+  }
+
+  const responsesAdapter = new OpenAIAdapter({
+    ...options,
+    apiKey: apiKey ?? "",
+    model: modelId,
+    baseUrl: baseURL,
+  });
+
+  function responsesRequest(params: DoGenerateParams): ChatCompletionRequest {
+    return {
+      messages: [],
+      rawMessages: formatMessagesForOpenAI(params.messages, true),
+      toolDefinitions: params.tools?.map((raw) => {
+        const tool = raw as {
+          type: string;
+          function: { name: string; description?: string; parameters?: any };
+        };
+        if (tool.type !== "function")
+          throw new Error(
+            "Only function tools are supported by this OpenAI generation path",
+          );
+        return {
+          name: tool.function.name,
+          description: tool.function.description ?? "",
+          location: "server" as const,
+          inputSchema: tool.function.parameters,
+        };
+      }),
+      config: {
+        openai: {
+          ...resolveOpenAITransport(options, params.openai),
+          api: "responses",
+        },
+        temperature: params.temperature,
+        maxTokens: params.maxTokens,
+        responseFormat: params.responseFormat,
+        reasoningEffort: parameterOptions(params).reasoningEffort,
+      },
+      signal: params.signal,
+    };
+  }
+
   // Get model config
   const modelConfig = OPENAI_MODELS[modelId] ?? OPENAI_MODELS["gpt-4o"];
 
@@ -186,17 +264,47 @@ export function openai(
     },
 
     async doGenerate(params: DoGenerateParams): Promise<DoGenerateResult> {
+      throwIfAborted(params.signal);
+      if (useResponses(params)) {
+        const result = await responsesAdapter.complete(
+          responsesRequest(params),
+        );
+        return {
+          text: result.content,
+          toolCalls: result.toolCalls,
+          finishReason: result.toolCalls.length
+            ? "tool-calls"
+            : result.providerMetadata?.openai?.response?.refusals.length
+              ? "content-filter"
+              : "stop",
+          usage: result.usage ?? {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+          },
+          rawResponse: result.rawResponse,
+          providerMetadata: result.providerMetadata,
+        };
+      }
       const client = await getClient();
 
       const messages = formatMessagesForOpenAI(params.messages);
 
-      const response = await client.chat.completions.create({
-        model: modelId,
-        messages,
-        tools: params.tools as any,
-        temperature: params.temperature,
-        max_tokens: params.maxTokens,
-      });
+      const response = await client.chat.completions.create(
+        {
+          model: modelId,
+          messages,
+          tools: params.tools as any,
+          ...buildOpenAITokenParams(
+            modelId,
+            params.maxTokens,
+            params.temperature,
+            parameterOptions(params),
+          ),
+          response_format: toOpenAIResponseFormat(params.responseFormat),
+        },
+        { signal: params.signal },
+      );
 
       const choice = response.choices[0];
       const message = choice.message;
@@ -224,103 +332,139 @@ export function openai(
     },
 
     async *doStream(params: DoGenerateParams): AsyncGenerator<StreamChunk> {
+      throwIfAborted(params.signal);
+      if (useResponses(params)) {
+        const calls = new Map<string, { name: string; args: string }>();
+        let hasTools = false;
+        for await (const event of responsesAdapter.stream(
+          responsesRequest(params),
+        )) {
+          switch (event.type) {
+            case "message:delta":
+              yield { type: "text-delta", text: event.content };
+              break;
+            case "action:start":
+              calls.set(event.id, { name: event.name, args: "" });
+              break;
+            case "action:args": {
+              const call = calls.get(event.id);
+              if (call) call.args += event.args;
+              break;
+            }
+            case "action:end": {
+              const call = calls.get(event.id);
+              if (!call)
+                throw new Error("Responses tool call has no matching start");
+              hasTools = true;
+              yield {
+                type: "tool-call",
+                toolCall: {
+                  id: event.id,
+                  name: call.name,
+                  args: JSON.parse(call.args || "{}"),
+                },
+              };
+              calls.delete(event.id);
+              break;
+            }
+            case "error":
+              throw errorFromEvent(event);
+            case "done":
+              yield {
+                type: "finish",
+                finishReason: hasTools
+                  ? "tool-calls"
+                  : event.providerMetadata?.openai?.response?.refusals.length
+                    ? "content-filter"
+                    : "stop",
+                providerMetadata: event.providerMetadata,
+                usage: {
+                  promptTokens: event.usage?.prompt_tokens ?? 0,
+                  completionTokens: event.usage?.completion_tokens ?? 0,
+                  totalTokens: event.usage?.total_tokens ?? 0,
+                },
+              };
+              break;
+          }
+        }
+        return;
+      }
       const client = await getClient();
 
       const messages = formatMessagesForOpenAI(params.messages);
 
-      const stream = await client.chat.completions.create({
-        model: modelId,
-        messages,
-        tools: params.tools as any,
-        temperature: params.temperature,
-        max_tokens: params.maxTokens,
-        stream: true,
-      });
+      const stream = await client.chat.completions.create(
+        {
+          model: modelId,
+          messages,
+          tools: params.tools as any,
+          ...buildOpenAITokenParams(
+            modelId,
+            params.maxTokens,
+            params.temperature,
+            parameterOptions(params),
+          ),
+          response_format: toOpenAIResponseFormat(params.responseFormat),
+          stream: true,
+          stream_options: { include_usage: true },
+        },
+        { signal: params.signal },
+      );
 
-      // Track current tool call being built
-      let currentToolCall: {
-        id: string;
-        name: string;
-        arguments: string;
-      } | null = null;
-
-      let totalPromptTokens = 0;
-      let totalCompletionTokens = 0;
-
+      const toolCalls = new Map<
+        number,
+        { id: string; name: string; arguments: string }
+      >();
+      let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
+      let finishReason: FinishReason | undefined;
       for await (const chunk of stream) {
-        // Check abort
-        if (params.signal?.aborted) {
-          yield { type: "error", error: new Error("Aborted") };
-          return;
-        }
-
-        const choice = chunk.choices[0];
-        const delta = choice?.delta;
-
-        // Text content
-        if (delta?.content) {
-          yield { type: "text-delta", text: delta.content };
-        }
-
-        // Tool calls
-        if (delta?.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            if (tc.id) {
-              // New tool call - emit previous if exists
-              if (currentToolCall) {
-                yield {
-                  type: "tool-call",
-                  toolCall: {
-                    id: currentToolCall.id,
-                    name: currentToolCall.name,
-                    args: JSON.parse(currentToolCall.arguments || "{}"),
-                  },
-                };
-              }
-              currentToolCall = {
-                id: tc.id,
-                name: tc.function?.name ?? "",
-                arguments: tc.function?.arguments ?? "",
-              };
-            } else if (currentToolCall && tc.function?.arguments) {
-              // Append arguments
-              currentToolCall.arguments += tc.function.arguments;
-            }
-          }
-        }
-
-        // Finish reason
-        if (choice?.finish_reason) {
-          // Emit pending tool call
-          if (currentToolCall) {
-            yield {
-              type: "tool-call",
-              toolCall: {
-                id: currentToolCall.id,
-                name: currentToolCall.name,
-                args: JSON.parse(currentToolCall.arguments || "{}"),
-              },
-            };
-            currentToolCall = null;
-          }
-
-          // Usage from final chunk (if available)
-          if (chunk.usage) {
-            totalPromptTokens = chunk.usage.prompt_tokens;
-            totalCompletionTokens = chunk.usage.completion_tokens;
-          }
-
-          yield {
-            type: "finish",
-            finishReason: mapFinishReason(choice.finish_reason),
-            usage: {
-              promptTokens: totalPromptTokens,
-              completionTokens: totalCompletionTokens,
-              totalTokens: totalPromptTokens + totalCompletionTokens,
-            },
+        throwIfAborted(params.signal);
+        if (chunk.usage) {
+          usage = {
+            promptTokens: chunk.usage.prompt_tokens ?? 0,
+            completionTokens: chunk.usage.completion_tokens ?? 0,
+            totalTokens:
+              chunk.usage.total_tokens ??
+              (chunk.usage.prompt_tokens ?? 0) +
+                (chunk.usage.completion_tokens ?? 0),
           };
         }
+        const choice = chunk.choices?.[0];
+        if (choice?.delta?.content)
+          yield { type: "text-delta", text: choice.delta.content };
+        for (const part of choice?.delta?.tool_calls ?? []) {
+          const index = part.index ?? 0;
+          const call = toolCalls.get(index) ?? {
+            id: "",
+            name: "",
+            arguments: "",
+          };
+          if (part.id) call.id = part.id;
+          if (part.function?.name) call.name += part.function.name;
+          if (part.function?.arguments)
+            call.arguments += part.function.arguments;
+          toolCalls.set(index, call);
+        }
+        if (choice?.finish_reason)
+          finishReason = mapFinishReason(choice.finish_reason);
       }
+      throwIfAborted(params.signal);
+      if (!finishReason)
+        throw new Error("OpenAI stream ended without a finish reason");
+      // Parse all calls before yielding any executable call.
+      const calls = [...toolCalls.values()].map((call) => {
+        if (!call.id || !call.name)
+          throw new Error("OpenAI stream contains an incomplete tool call");
+        return {
+          id: call.id,
+          name: call.name,
+          args: JSON.parse(call.arguments || "{}"),
+        };
+      });
+      if (calls.length && finishReason !== "tool-calls")
+        throw new Error("OpenAI stream ended with incomplete tool calls");
+      for (const toolCall of calls) yield { type: "tool-call", toolCall };
+      yield { type: "finish", finishReason, usage };
     },
   };
 }
@@ -351,7 +495,10 @@ function mapFinishReason(reason: string | null): FinishReason {
 /**
  * Format CoreMessage[] for OpenAI API
  */
-function formatMessagesForOpenAI(messages: CoreMessage[]): any[] {
+function formatMessagesForOpenAI(
+  messages: CoreMessage[],
+  responses = false,
+): any[] {
   return messages.map((msg) => {
     switch (msg.role) {
       case "system":
@@ -373,12 +520,27 @@ function formatMessagesForOpenAI(messages: CoreMessage[]): any[] {
                 typeof part.image === "string"
                   ? part.image
                   : Buffer.from(part.image).toString("base64");
-              const url = imageData.startsWith("data:")
+              const url = /^(data:|https?:\/\/)/.test(imageData)
                 ? imageData
                 : `data:${part.mimeType ?? "image/png"};base64,${imageData}`;
               return { type: "image_url", image_url: { url, detail: "auto" } };
             }
-            return { type: "text", text: "" };
+            if (part.type === "file") {
+              if (!responses)
+                throw new Error(
+                  "File inputs require the Responses API on this OpenAI path",
+                );
+              return /^https?:\/\//.test(part.data)
+                ? { type: "input_file", file_url: part.data }
+                : {
+                    type: "input_file",
+                    filename: part.filename ?? "document.pdf",
+                    file_data: part.data.startsWith("data:")
+                      ? part.data
+                      : `data:${part.mimeType};base64,${part.data}`,
+                  };
+            }
+            throw new Error("Unsupported OpenAI message content");
           }),
         };
 
@@ -386,6 +548,9 @@ function formatMessagesForOpenAI(messages: CoreMessage[]): any[] {
         const assistantMsg: any = {
           role: "assistant",
           content: msg.content,
+          ...(responses && msg.providerMetadata
+            ? { providerMetadata: msg.providerMetadata }
+            : {}),
         };
         if (msg.toolCalls && msg.toolCalls.length > 0) {
           assistantMsg.tool_calls = msg.toolCalls.map((tc) => ({
@@ -403,7 +568,12 @@ function formatMessagesForOpenAI(messages: CoreMessage[]): any[] {
         return {
           role: "tool",
           tool_call_id: msg.toolCallId,
-          content: msg.content,
+          content: responses
+            ? msg.content
+            : textToolOutput(msg.modelOutput, msg.content),
+          ...(responses && msg.modelOutput
+            ? { modelOutput: msg.modelOutput }
+            : {}),
         };
 
       default:

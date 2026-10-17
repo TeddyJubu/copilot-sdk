@@ -1,3 +1,4 @@
+import { toolOutputForProvider } from "../../core/tool-output";
 /**
  * Anthropic Provider - Modern Pattern
  *
@@ -22,6 +23,7 @@ import type {
   FinishReason,
   CoreMessage,
 } from "../../core/types";
+import { toAnthropicOutputConfig } from "../../adapters/base";
 
 // ============================================
 // Model Definitions
@@ -32,6 +34,12 @@ interface AnthropicModelConfig {
   tools: boolean;
   thinking: boolean;
   pdf: boolean;
+  /**
+   * Native structured-output (`output_config.format`) support — GA on Claude
+   * API and Bedrock as of late 2025 for Claude 3.5 and newer. Older Claude 3
+   * base models must use a forced-tool fallback.
+   */
+  jsonMode: boolean;
   maxTokens: number;
 }
 
@@ -42,6 +50,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: true,
     pdf: true,
+    jsonMode: true,
     maxTokens: 200000,
   },
   "claude-opus-4-20250514": {
@@ -49,6 +58,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: true,
     pdf: true,
+    jsonMode: true,
     maxTokens: 200000,
   },
 
@@ -58,6 +68,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: true,
     pdf: true,
+    jsonMode: true,
     maxTokens: 200000,
   },
   "claude-3-7-sonnet-latest": {
@@ -65,6 +76,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: true,
     pdf: true,
+    jsonMode: true,
     maxTokens: 200000,
   },
 
@@ -74,6 +86,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: false,
     pdf: true,
+    jsonMode: true,
     maxTokens: 200000,
   },
   "claude-3-5-sonnet-latest": {
@@ -81,6 +94,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: false,
     pdf: true,
+    jsonMode: true,
     maxTokens: 200000,
   },
   "claude-3-5-haiku-20241022": {
@@ -88,6 +102,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: false,
     pdf: false,
+    jsonMode: true,
     maxTokens: 200000,
   },
   "claude-3-5-haiku-latest": {
@@ -95,6 +110,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: false,
     pdf: false,
+    jsonMode: true,
     maxTokens: 200000,
   },
 
@@ -104,6 +120,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: false,
     pdf: false,
+    jsonMode: false,
     maxTokens: 200000,
   },
   "claude-3-sonnet-20240229": {
@@ -111,6 +128,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: false,
     pdf: false,
+    jsonMode: false,
     maxTokens: 200000,
   },
   "claude-3-haiku-20240307": {
@@ -118,6 +136,7 @@ const ANTHROPIC_MODELS: Record<string, AnthropicModelConfig> = {
     tools: true,
     thinking: false,
     pdf: false,
+    jsonMode: false,
     maxTokens: 200000,
   },
 };
@@ -175,7 +194,7 @@ export function anthropic(
       supportsVision: modelConfig.vision,
       supportsTools: modelConfig.tools,
       supportsStreaming: true,
-      supportsJsonMode: false,
+      supportsJsonMode: modelConfig.jsonMode,
       supportsThinking: modelConfig.thinking,
       supportsPDF: modelConfig.pdf,
       maxTokens: modelConfig.maxTokens,
@@ -207,6 +226,11 @@ export function anthropic(
           type: "enabled",
           budget_tokens: options.thinking.budgetTokens ?? 10000,
         };
+      }
+
+      const outputConfig = toAnthropicOutputConfig(params.responseFormat);
+      if (outputConfig) {
+        requestOptions.output_config = outputConfig;
       }
 
       const response = await client.messages.create(requestOptions);
@@ -264,6 +288,11 @@ export function anthropic(
           type: "enabled",
           budget_tokens: options.thinking.budgetTokens ?? 10000,
         };
+      }
+
+      const outputConfig = toAnthropicOutputConfig(params.responseFormat);
+      if (outputConfig) {
+        requestOptions.output_config = outputConfig;
       }
 
       const stream = await client.messages.stream(requestOptions);
@@ -481,7 +510,9 @@ function formatMessagesForAnthropic(messages: CoreMessage[]): {
 
       pendingToolResults.push({
         toolCallId,
-        content: msg.content,
+        content: msg.modelOutput
+          ? toolOutputForProvider(msg.modelOutput, "anthropic")
+          : msg.content,
       });
     }
   }

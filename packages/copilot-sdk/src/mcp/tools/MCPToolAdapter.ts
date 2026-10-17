@@ -241,6 +241,10 @@ export class MCPToolAdapter {
       switch (content.type) {
         case "text":
           textParts.push((content as MCPTextContent).text);
+          aiContent.push({
+            type: "text",
+            text: (content as MCPTextContent).text,
+          });
           break;
 
         case "image": {
@@ -271,6 +275,7 @@ export class MCPToolAdapter {
           } else if (res.text) {
             // Regular resource with text content
             textParts.push(res.text);
+            aiContent.push({ type: "text", text: res.text });
           }
           break;
         }
@@ -308,7 +313,7 @@ export class MCPToolAdapter {
     }
 
     // Add AI content for multimodal responses
-    if (aiContent.length > 0) {
+    if (aiContent.some((part) => part.type === "image")) {
       response._aiContent = aiContent;
     }
 

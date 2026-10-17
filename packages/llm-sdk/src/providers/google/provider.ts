@@ -1,3 +1,4 @@
+import { textToolOutput } from "../../core/tool-output";
 /**
  * Google Provider - OpenAI-Compatible
  *
@@ -25,6 +26,7 @@ import type {
   FinishReason,
   CoreMessage,
 } from "../../core/types";
+import { toOpenAIResponseFormat } from "../../adapters/base";
 
 // ============================================
 // Model Definitions
@@ -211,6 +213,7 @@ export function google(
         tools: params.tools as any,
         temperature: params.temperature,
         max_tokens: params.maxTokens,
+        response_format: toOpenAIResponseFormat(params.responseFormat),
       });
 
       const choice = response.choices[0];
@@ -249,6 +252,7 @@ export function google(
         tools: params.tools as any,
         temperature: params.temperature,
         max_tokens: params.maxTokens,
+        response_format: toOpenAIResponseFormat(params.responseFormat),
         stream: true,
       });
 
@@ -418,7 +422,7 @@ function formatMessagesForGoogle(messages: CoreMessage[]): any[] {
         return {
           role: "tool",
           tool_call_id: msg.toolCallId,
-          content: msg.content,
+          content: textToolOutput(msg.modelOutput, msg.content),
         };
 
       default:

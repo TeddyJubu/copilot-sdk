@@ -1,0 +1,204 @@
+{
+  "baseCommit": "40fc00d",
+  "branch": "codex/ankush-pr-compatibility",
+  "originalHeads": {
+    "110": "6f17c8ead8376e91f5bc880b335186de1163100e",
+    "98": "71d6213344fbb4d4c1157cb8f39473caf18d7044",
+    "92": "1d0e08d0c54bb4831499c6f5ca6a77512580cf89",
+    "88": "4128769e9f988bbab3d9c70696f4e140c0e1ef07",
+    "78": "8790f9af8f9dbbca1767488e7a9cd4a30480755b"
+  },
+  "node26": {
+    "tests": 550,
+    "passed": 550
+  },
+  "node18": {
+    "tests": 536,
+    "passed": 536
+  },
+  "browser": [
+    {
+      "name": "legacy default keeps sanitized HTML",
+      "passed": true
+    },
+    {
+      "name": "literal HTML preserves script, multiline and inline snippets",
+      "passed": true
+    },
+    {
+      "name": "same-length block and inline HTML edits update",
+      "passed": true
+    },
+    {
+      "name": "switching HTML policy remounts the processor output",
+      "passed": true
+    },
+    {
+      "name": "GFM tables, tasks, links and fenced code survive literal mode",
+      "passed": true
+    },
+    {
+      "name": "HTML policy reaches user and assistant default messages",
+      "passed": true
+    },
+    {
+      "name": "HTML policy reaches user and assistant compound messages",
+      "passed": true
+    },
+    {
+      "name": "useTools availability updates and handler reads latest props",
+      "passed": true
+    },
+    {
+      "name": "code colors respect full CSS tokens and consumer overrides",
+      "passed": true
+    },
+    {
+      "name": "real highlighted tokens switch correctly between light and dark",
+      "passed": true
+    },
+    {
+      "name": "browser has no uncaught component errors",
+      "passed": true
+    }
+  ],
+  "live": [
+    {
+      "name": "OpenRouter reasoning complete and safe replay state",
+      "passed": true,
+      "usage": {
+        "promptTokens": 51,
+        "completionTokens": 53,
+        "totalTokens": 104
+      },
+      "reasoningReturned": true
+    },
+    {
+      "name": "OpenRouter reasoning stream and continuation",
+      "passed": true,
+      "reasoningParts": 6,
+      "usage": {
+        "promptTokens": 74,
+        "completionTokens": 39,
+        "totalTokens": 113
+      }
+    },
+    {
+      "name": "OpenRouter reasoning tool execution and signed continuation",
+      "passed": true,
+      "executions": 1,
+      "steps": 2,
+      "usage": {
+        "promptTokens": 1263,
+        "completionTokens": 79,
+        "totalTokens": 1342
+      }
+    },
+    {
+      "name": "OpenAI Responses preserves user prompt and structured tool history",
+      "passed": true,
+      "usage": {
+        "promptTokens": 55,
+        "completionTokens": 5,
+        "totalTokens": 60
+      }
+    },
+    {
+      "name": "Anthropic request system precedence complete",
+      "passed": true,
+      "text": "REQUEST_OVERRIDE"
+    },
+    {
+      "name": "Anthropic request system precedence stream",
+      "passed": true,
+      "text": "REQUEST_OVERRIDE"
+    }
+  ],
+  "finalOpenRouterLive": [
+    {
+      "name": "OpenRouter reasoning complete and safe replay state",
+      "passed": true,
+      "usage": {
+        "promptTokens": 51,
+        "completionTokens": 53,
+        "totalTokens": 104
+      },
+      "reasoningReturned": true
+    },
+    {
+      "name": "OpenRouter reasoning stream and continuation",
+      "passed": true,
+      "reasoningParts": 5,
+      "usage": {
+        "promptTokens": 74,
+        "completionTokens": 36,
+        "totalTokens": 110
+      }
+    },
+    {
+      "name": "OpenRouter reasoning tool execution and signed continuation",
+      "passed": true,
+      "executions": 1,
+      "steps": 2,
+      "usage": {
+        "promptTokens": 1263,
+        "completionTokens": 79,
+        "totalTokens": 1342
+      }
+    }
+  ],
+  "initialLiveAttempt": [
+    {
+      "name": "OpenRouter reasoning complete and safe replay state",
+      "passed": true,
+      "usage": {
+        "promptTokens": 51,
+        "completionTokens": 53,
+        "totalTokens": 104
+      },
+      "reasoningReturned": true
+    },
+    {
+      "name": "OpenRouter reasoning stream and continuation",
+      "passed": true,
+      "reasoningParts": 6,
+      "usage": {
+        "promptTokens": 74,
+        "completionTokens": 39,
+        "totalTokens": 113
+      }
+    },
+    {
+      "name": "OpenAI Responses preserves user prompt and structured tool history",
+      "passed": true,
+      "usage": {
+        "promptTokens": 55,
+        "completionTokens": 5,
+        "totalTokens": 60
+      }
+    },
+    {
+      "name": "Anthropic request system precedence complete",
+      "passed": true
+    },
+    {
+      "name": "Anthropic request system precedence stream",
+      "passed": false,
+      "error": "AssertionError"
+    }
+  ],
+  "anthropicDiagnosticRepeat": [
+    {
+      "name": "Anthropic request system precedence complete",
+      "passed": true
+    },
+    {
+      "name": "Anthropic request system precedence stream",
+      "passed": true
+    }
+  ],
+  "genuiPatchChecks": [
+    "PASS iframe isolates parent DOM and retains postMessage bridge",
+    "PASS theme colors resolve inside isolated frame"
+  ]
+}
