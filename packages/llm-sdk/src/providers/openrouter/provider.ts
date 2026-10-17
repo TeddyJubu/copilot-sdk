@@ -48,7 +48,16 @@ const DEFAULT_MODEL_CONFIG = {
 // Provider Options
 // ============================================
 
+export interface OpenRouterReasoningOptions {
+  effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  maxTokens?: number;
+  enabled?: boolean;
+  exclude?: boolean;
+}
+
 export interface OpenRouterProviderOptions {
+  /** Omit to preserve the selected model's reasoning defaults. */
+  reasoning?: OpenRouterReasoningOptions;
   /** API key (defaults to OPENROUTER_API_KEY env var) */
   apiKey?: string;
   /** Base URL for API (defaults to https://openrouter.ai/api/v1) */
@@ -102,6 +111,37 @@ export function openrouter(
   modelId: string,
   options: OpenRouterProviderOptions = {},
 ): LanguageModel {
+  function reasoning(params: DoGenerateParams) {
+    const configured = options.reasoning;
+    if (!configured && params.reasoningEffort === undefined) return {};
+    const effort = params.reasoningEffort ?? configured?.effort;
+    const budget = configured?.maxTokens;
+    if (effort !== undefined && budget !== undefined) {
+      throw new Error(
+        "OpenRouter reasoning accepts effort or maxTokens, not both",
+      );
+    }
+    if (
+      budget !== undefined &&
+      (!Number.isSafeInteger(budget) || budget <= 0)
+    ) {
+      throw new Error(
+        "OpenRouter reasoning maxTokens must be a positive integer",
+      );
+    }
+    return {
+      reasoning: {
+        ...(effort !== undefined ? { effort } : {}),
+        ...(budget !== undefined ? { max_tokens: budget } : {}),
+        ...(configured?.enabled !== undefined
+          ? { enabled: configured.enabled }
+          : {}),
+        ...(configured?.exclude !== undefined
+          ? { exclude: configured.exclude }
+          : {}),
+      },
+    };
+  }
   const apiKey = options.apiKey ?? process.env.OPENROUTER_API_KEY;
   const baseURL = options.baseURL ?? "https://openrouter.ai/api/v1";
 
@@ -141,7 +181,7 @@ export function openrouter(
       supportsTools: modelConfig.tools,
       supportsStreaming: true,
       supportsJsonMode: modelConfig.jsonMode,
-      supportsThinking: false,
+      supportsThinking: options.reasoning !== undefined,
       supportsPDF: false,
       maxTokens: modelConfig.maxTokens,
       supportedImageTypes: modelConfig.vision
@@ -160,6 +200,7 @@ export function openrouter(
         messages,
         temperature: params.temperature,
         max_tokens: params.maxTokens,
+        ...reasoning(params),
       };
 
       // Add tools if provided
@@ -177,7 +218,9 @@ export function openrouter(
         requestBody.response_format = responseFormat;
       }
 
-      const response = await client.chat.completions.create(requestBody);
+      const response = await client.chat.completions.create(requestBody, {
+        signal: params.signal,
+      });
 
       const choice = response.choices[0];
       const message = choice.message;
@@ -193,6 +236,10 @@ export function openrouter(
 
       return {
         text: message.content ?? "",
+        ...(reasoningTextFor(message)
+          ? { reasoningText: reasoningTextFor(message) }
+          : {}),
+        ...reasoningMetadata(message.reasoning_details),
         toolCalls,
         finishReason: mapFinishReason(choice.finish_reason),
         usage: {
@@ -215,7 +262,9 @@ export function openrouter(
         messages,
         temperature: params.temperature,
         max_tokens: params.maxTokens,
+        ...reasoning(params),
         stream: true,
+        stream_options: { include_usage: true },
       };
 
       // Add tools if provided
@@ -233,92 +282,82 @@ export function openrouter(
         requestBody.response_format = responseFormat;
       }
 
-      const stream = await client.chat.completions.create(requestBody);
+      const stream = await client.chat.completions.create(requestBody, {
+        signal: params.signal,
+      });
 
-      // Track current tool call being built
-      let currentToolCall: {
-        id: string;
-        name: string;
-        arguments: string;
-      } | null = null;
-
-      let totalPromptTokens = 0;
-      let totalCompletionTokens = 0;
-
+      // Keep parallel tool argument streams separate by their provider index.
+      const calls = new Map<
+        number,
+        { id: string; name: string; arguments: string }
+      >();
+      const details: Record<string, any>[] = [];
+      let finishReason: FinishReason = "unknown";
+      let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 };
       for await (const chunk of stream) {
-        // Check abort
-        if (params.signal?.aborted) {
-          yield { type: "error", error: new Error("Aborted") };
-          return;
-        }
-
-        const choice = chunk.choices[0];
+        if (params.signal?.aborted)
+          throw params.signal.reason ?? new Error("Aborted");
+        const choice = chunk.choices?.[0];
         const delta = choice?.delta;
-
-        // Text content
-        if (delta?.content) {
-          yield { type: "text-delta", text: delta.content };
-        }
-
-        // Tool calls
-        if (delta?.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            if (tc.id) {
-              // New tool call - emit previous if exists
-              if (currentToolCall) {
-                yield {
-                  type: "tool-call",
-                  toolCall: {
-                    id: currentToolCall.id,
-                    name: currentToolCall.name,
-                    args: JSON.parse(currentToolCall.arguments || "{}"),
-                  },
-                };
-              }
-              currentToolCall = {
-                id: tc.id,
-                name: tc.function?.name ?? "",
-                arguments: tc.function?.arguments ?? "",
-              };
-            } else if (currentToolCall && tc.function?.arguments) {
-              // Append arguments
-              currentToolCall.arguments += tc.function.arguments;
-            }
-          }
-        }
-
-        // Finish reason
-        if (choice?.finish_reason) {
-          // Emit pending tool call
-          if (currentToolCall) {
-            yield {
-              type: "tool-call",
-              toolCall: {
-                id: currentToolCall.id,
-                name: currentToolCall.name,
-                args: JSON.parse(currentToolCall.arguments || "{}"),
-              },
-            };
-            currentToolCall = null;
-          }
-
-          // Usage from final chunk (if available)
-          if (chunk.usage) {
-            totalPromptTokens = chunk.usage.prompt_tokens;
-            totalCompletionTokens = chunk.usage.completion_tokens;
-          }
-
-          yield {
-            type: "finish",
-            finishReason: mapFinishReason(choice.finish_reason),
-            usage: {
-              promptTokens: totalPromptTokens,
-              completionTokens: totalCompletionTokens,
-              totalTokens: totalPromptTokens + totalCompletionTokens,
-            },
+        if (chunk.usage)
+          usage = {
+            promptTokens: chunk.usage.prompt_tokens ?? 0,
+            completionTokens: chunk.usage.completion_tokens ?? 0,
+            totalTokens:
+              chunk.usage.total_tokens ??
+              (chunk.usage.prompt_tokens ?? 0) +
+                (chunk.usage.completion_tokens ?? 0),
           };
+        const reasoningText = reasoningTextFor(delta);
+        if (typeof reasoningText === "string" && reasoningText) {
+          yield { type: "reasoning-delta", text: reasoningText };
         }
+        for (const detail of delta?.reasoning_details ?? []) {
+          const last = details.at(-1);
+          const field =
+            detail.type === "reasoning.text"
+              ? "text"
+              : detail.type === "reasoning.summary"
+                ? "summary"
+                : undefined;
+          // Indices can repeat across distinct blocks. Encrypted data is opaque;
+          // concatenate only adjacent text/summary deltas, never signatures/blobs.
+          if (
+            field &&
+            last &&
+            last.type === detail.type &&
+            (!detail.id || !last.id || detail.id === last.id)
+          ) {
+            last[field] = (last[field] ?? "") + (detail[field] ?? "");
+            last.signature ??= detail.signature;
+            last.format ??= detail.format;
+          } else details.push({ ...detail });
+        }
+        if (delta?.content) yield { type: "text-delta", text: delta.content };
+        for (const tc of delta?.tool_calls ?? []) {
+          const index = tc.index ?? 0;
+          const call = calls.get(index) ?? { id: "", name: "", arguments: "" };
+          if (tc.id) call.id = tc.id;
+          if (tc.function?.name) call.name = tc.function.name;
+          if (tc.function?.arguments) call.arguments += tc.function.arguments;
+          calls.set(index, call);
+        }
+        if (choice?.finish_reason)
+          finishReason = mapFinishReason(choice.finish_reason);
       }
+      // Parse all calls before yielding any, so malformed arguments cannot partially execute.
+      const parsed = [...calls.values()].map((call) => ({
+        id: call.id,
+        name: call.name,
+        args: JSON.parse(call.arguments || "{}"),
+      }));
+      for (const toolCall of parsed) yield { type: "tool-call", toolCall };
+      yield {
+        type: "finish",
+        finishReason,
+        usage,
+        ...reasoningMetadata(details),
+      };
     },
   };
 }
@@ -371,7 +410,7 @@ function formatMessagesForOpenRouter(messages: CoreMessage[]): any[] {
                 typeof part.image === "string"
                   ? part.image
                   : Buffer.from(part.image).toString("base64");
-              const url = imageData.startsWith("data:")
+              const url = /^(data:|https?:\/\/)/.test(imageData)
                 ? imageData
                 : `data:${part.mimeType ?? "image/png"};base64,${imageData}`;
               return { type: "image_url", image_url: { url, detail: "auto" } };
@@ -385,6 +424,13 @@ function formatMessagesForOpenRouter(messages: CoreMessage[]): any[] {
           role: "assistant",
           content: msg.content,
         };
+        const details = (
+          msg.providerMetadata?.openrouter as
+            | { reasoningDetails?: unknown[] }
+            | undefined
+        )?.reasoningDetails;
+        if (Array.isArray(details) && details.length)
+          assistantMsg.reasoning_details = details;
         if (msg.toolCalls && msg.toolCalls.length > 0) {
           assistantMsg.tool_calls = msg.toolCalls.map((tc) => ({
             id: tc.id,
@@ -506,3 +552,45 @@ export async function searchOpenRouterModels(
 
 // Also export as createOpenRouter for backward compatibility
 export { openrouter as createOpenRouter };
+
+// Keep replay state separate from the raw response. Known reasoning fields only;
+// provider diagnostics must not become conversation metadata.
+function reasoningMetadata(details: unknown) {
+  if (!Array.isArray(details) || !details.length) return {};
+  const fields = [
+    "type",
+    "text",
+    "summary",
+    "data",
+    "signature",
+    "id",
+    "format",
+    "index",
+  ];
+  const reasoningDetails = details
+    .filter((detail) => detail && typeof detail === "object")
+    .map((detail) =>
+      Object.fromEntries(
+        fields
+          .filter((key) => detail[key] !== undefined)
+          .map((key) => [key, structuredClone(detail[key])]),
+      ),
+    );
+  return { providerMetadata: { openrouter: { reasoningDetails } } };
+}
+
+function reasoningTextFor(message: any): string | undefined {
+  const text = message?.reasoning ?? message?.reasoning_content;
+  if (typeof text === "string" && text) return text;
+  if (!Array.isArray(message?.reasoning_details)) return undefined;
+  const parts = message.reasoning_details.flatMap((detail: any) => {
+    const value =
+      detail?.type === "reasoning.text"
+        ? detail.text
+        : detail?.type === "reasoning.summary"
+          ? detail.summary
+          : undefined;
+    return typeof value === "string" ? [value] : [];
+  });
+  return parts.length ? parts.join("") : undefined;
+}

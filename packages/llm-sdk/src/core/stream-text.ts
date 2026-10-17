@@ -110,6 +110,9 @@ export async function streamText(
         })) {
           throwIfAborted(signal);
           switch (chunk.type) {
+            case "reasoning-delta":
+              yield chunk;
+              break;
             case "text-delta":
               stepText += chunk.text;
               fullText += chunk.text;

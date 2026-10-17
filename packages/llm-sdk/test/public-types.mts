@@ -93,3 +93,33 @@ const unsupportedRemoteDecisionImage: DecisionImage = {
   data: new URL("https://example.com/image.png"),
 };
 void [inlineDecisionImage, unsupportedRemoteDecisionImage];
+
+import {
+  openrouter,
+  type OpenRouterReasoningOptions,
+} from "@yourgpt/llm-sdk/openrouter";
+import { streamText } from "@yourgpt/llm-sdk";
+const reasoningOptions: OpenRouterReasoningOptions = {
+  effort: "low",
+  exclude: false,
+};
+void generateText({
+  model: openrouter("anthropic/claude-sonnet-4.5", {
+    reasoning: reasoningOptions,
+  }),
+  prompt: "hello",
+}).then((result) => {
+  const summary: string | undefined = result.reasoningText;
+  void summary;
+});
+void streamText({
+  model: openrouter("anthropic/claude-sonnet-4.5"),
+  prompt: "hello",
+}).then(async (result) => {
+  for await (const part of result.fullStream) {
+    if (part.type === "reasoning-delta") {
+      const text: string = part.text;
+      void text;
+    }
+  }
+});

@@ -1,5 +1,5 @@
 import { memo, ComponentProps } from "react";
-import { Streamdown, LinkSafetyConfig } from "streamdown";
+import { Streamdown, LinkSafetyConfig, StreamdownProps } from "streamdown";
 import { code } from "@streamdown/code";
 
 export type MarkdownProps = {
@@ -9,7 +9,109 @@ export type MarkdownProps = {
   isStreaming?: boolean;
   /** Link safety modal configuration. Disabled by default. */
   linkSafety?: LinkSafetyConfig;
+  /**
+   * How raw HTML in the markdown is treated.
+   * - "literal": shown as typed. A chat surface shows text; a person pasting
+   *   `<script>` wants to see it, and a model asked to "send this snippet" returns it as
+   *   text too — often unfenced. Under "render" both vanish (see below).
+   * - "render" (default): parsed into sanitized elements, preserving existing behavior.
+   */
+  rawHtml?: "render" | "literal";
 };
+
+// Streamdown always runs rehype-raw, so raw HTML in the markdown becomes real DOM: the
+// sanitizer then strips `<script>` outright — an assistant reply consisting of a script tag
+// renders as an EMPTY bubble — and rewrites the rest into whatever its allow-list permits.
+// Neither `skipHtml` nor `allowedTags` prevents that: both act AFTER the raw pass.
+//
+// The conversion from markdown (mdast) to HTML (hast) is the last point before that pass, and
+// remark-rehype exposes it as a per-node handler. Turning an `html` node into a `text` node
+// there means the raw parser never sees markup at all. Preferred over passing `remarkPlugins`:
+// that prop REPLACES Streamdown's defaults rather than merging, so every default (remark-gfm —
+// tables, strikethrough, autolinks, task lists) would have to be repeated here and kept in sync
+// with upstream forever. This hook leaves the whole default pipeline, and the rehype
+// sanitization that follows it, untouched.
+type RemarkRehypeOptions = NonNullable<StreamdownProps["remarkRehypeOptions"]>;
+// Derived from Streamdown's own prop type rather than importing mdast-util-to-hast directly:
+// that package is a transitive dependency here, so naming it would add coupling (and a version
+// to keep in step) for two parameter types.
+type HtmlHandler = NonNullable<
+  NonNullable<RemarkRehypeOptions["handlers"]>["html"]
+>;
+type HastContent = Exclude<ReturnType<HtmlHandler>, undefined | unknown[]>;
+
+// mdast parents whose children are flow (block) content. An `html` node under one of these is
+// a block-level HTML node; anywhere else (paragraph, heading, table cell, emphasis, link...) it
+// is inline. Listing the flow parents rather than the phrasing ones keeps the default the safe
+// one: an unknown parent is treated as inline and gets a bare text node.
+const FLOW_PARENTS = new Set([
+  "root",
+  "blockquote",
+  "listItem",
+  "footnoteDefinition",
+]);
+
+const htmlAsText: HtmlHandler = (state, node, parent) => {
+  const value = (node as { value: string }).value;
+
+  // Inline HTML already sits inside an element, so a bare text node lands in place.
+  if (parent && !FLOW_PARENTS.has(parent.type)) {
+    const text = { type: "text" as const, value };
+    state.patch(node, text);
+    return text;
+  }
+
+  // Block-level HTML is a direct child of the root (or a blockquote / list item), and the
+  // root handler does not wrap text in <p>. Left bare it would collapse onto one line under
+  // `whitespace-normal` and get neither block spacing nor the streaming caret. Wrap it
+  // and turn its newlines into <br> so a multi-line snippet still reads as typed.
+  // (Indentation still collapses; only <pre> would keep it, and Streamdown treats <pre> as a
+  // code block.)
+  //
+  // A <div>, NOT a <p>: Streamdown renders `p` through a memoised MarkdownParagraph whose
+  // comparator only looks at the node's SOURCE POSITION. Replacing the message with a string
+  // of the SAME LENGTH leaves every position identical, so the paragraph keeps rendering the
+  // previous text — `<div>alpha</div>` → `<div>bravo</div>` did not update. `div` has no such
+  // component override, so it re-renders on content change like any other element.
+  //
+  // Spacing still works: Streamdown's block container applies `space-y-4` to its children, so
+  // this div is spaced like any other block. (It carries no attributes — the sanitizer that
+  // runs after this strips `style` and `class` from generated nodes alike.)
+  const children: HastContent[] = [];
+  value.split("\n").forEach((line, i) => {
+    if (i > 0) {
+      children.push({
+        type: "element",
+        tagName: "br",
+        properties: {},
+        children: [],
+      });
+    }
+    children.push({ type: "text", value: line });
+  });
+  const result = {
+    type: "element" as const,
+    tagName: "div",
+    properties: {},
+    children,
+  };
+  state.patch(node, result);
+  return result;
+};
+
+const HTML_AS_TEXT: RemarkRehypeOptions = Object.assign(
+  { handlers: { html: htmlAsText } } satisfies RemarkRehypeOptions,
+  // Streamdown keys its module-global processor cache by `JSON.stringify(remarkRehypeOptions)`,
+  // and JSON drops function values — so this object would serialise to `{"handlers":{}}`, the
+  // same key as any other <Streamdown> on the page that passes its own `handlers`. Whichever
+  // mounted first would supply the processor for both. remark-rehype ignores unknown options,
+  // so this marker exists only to make the cache key distinct.
+  { __csdkRawHtml: "literal" },
+);
+
+// Hoisted so the identity is stable across renders — an inline object would be a new value
+// every time and defeat Streamdown's internal memoisation.
+const PLUGINS = { code };
 
 // Normalized heading component for chat UI (same size, just bold)
 // Ignore Streamdown's className to prevent its text-3xl etc. from overriding
@@ -27,7 +129,16 @@ const createHeading = (Tag: "h1" | "h2" | "h3" | "h4" | "h5" | "h6") => {
   return HeadingComponent;
 };
 
+// Streamdown's default paragraph comparator uses source positions; inline HTML
+// edits with the same length must still update their visible text.
+const Paragraph = ({
+  children,
+  node: _node,
+  ...props
+}: ComponentProps<"p"> & { node?: unknown }) => <p {...props}>{children}</p>;
+
 const headingComponents = {
+  p: Paragraph,
   h1: createHeading("h1"),
   h2: createHeading("h2"),
   h3: createHeading("h3"),
@@ -41,11 +152,18 @@ function MarkdownComponent({
   className,
   isStreaming = false,
   linkSafety = { enabled: false },
+  rawHtml = "render",
 }: MarkdownProps) {
   return (
     <div className={className}>
       <Streamdown
-        plugins={{ code }}
+        // Remount when the policy flips. Streamdown memoises its rendered elements by source
+        // POSITION, and switching `rawHtml` leaves every position unchanged — so without a new
+        // key the already-rendered output survives the switch (literal text stays literal after
+        // switching to "render", and vice versa) until the message text itself changes.
+        key={rawHtml}
+        plugins={PLUGINS}
+        remarkRehypeOptions={rawHtml === "literal" ? HTML_AS_TEXT : undefined}
         isAnimating={isStreaming}
         components={headingComponents}
         linkSafety={linkSafety}

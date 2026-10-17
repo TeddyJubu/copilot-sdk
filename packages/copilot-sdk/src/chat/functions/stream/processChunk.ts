@@ -111,6 +111,7 @@ export function processStreamChunk(
         name: chunk.name,
         status: chunk.error ? "failed" : "completed",
         args: existing?.args,
+        hidden: existing?.hidden,
         result: chunk.result,
         ...("modelOutput" in chunk && chunk.modelOutput
           ? { modelOutput: chunk.modelOutput }
@@ -128,6 +129,7 @@ export function processStreamChunk(
         name: chunk.name,
         status: chunk.result?.success ? "completed" : "failed",
         args: existing?.args,
+        hidden: existing?.hidden,
         result: chunk.result,
         ...("modelOutput" in chunk && chunk.modelOutput
           ? { modelOutput: chunk.modelOutput }
