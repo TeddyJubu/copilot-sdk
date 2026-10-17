@@ -136,12 +136,12 @@ export function validateDecisionInput(options: DecisionOptions): void {
     options.images !== undefined &&
     (!Array.isArray(options.images) ||
       !Array.from(options.images).every(
-        (image) =>
-          isDecisionRecord(image) &&
-          (image.data instanceof Uint8Array || image.data instanceof URL),
+        (image) => isDecisionRecord(image) && image.data instanceof Uint8Array,
       ))
   )
-    decisionInputError("images must contain encoded bytes or URL objects");
+    decisionInputError(
+      "Decision images must contain encoded bytes; hosted image URLs are unsupported",
+    );
 }
 function probability(value: unknown): value is number {
   return (

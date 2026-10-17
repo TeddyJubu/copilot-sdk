@@ -113,13 +113,16 @@ const images = [
 // Pass `images` alongside `state` and `questions` to experimental_decide.
 ```
 
-OpenAI accepts PNG, JPEG, WebP, and GIF bytes, or public HTTP(S) `URL` objects, with
-optional `detail`. This SDK limits inline files to 20 MiB and 128 images. It never
-downloads URLs itself. Jev accepts PNG/JPEG bytes up to 16 MiB each using referenced
+OpenAI accepts PNG, JPEG, WebP, and GIF bytes with optional `detail`, encoded as
+inline data URLs on the wire. Hosted URLs and file IDs are unsupported by the
+native Decisions endpoint. This SDK limits inline files to 20 MiB and 128 images.
+It never downloads URLs itself. Jev accepts PNG/JPEG bytes up to 16 MiB each using referenced
 native image assets and its required experimental image header. The original state
 is retained under `state` and image references under `images` in the native Jev
 request. Cloudflare accepts at most four PNG/JPEG/WebP files, 4 MiB each and 8 MiB
-total. Remote URLs and OpenAI-specific detail settings fail on Jev/Cloudflare.
+total. Remote URLs fail locally for every Decisions provider. OpenAI-specific
+detail settings fail on Jev/Cloudflare. Tool image outputs on Responses are a
+separate API and can still use hosted URLs or OpenAI file IDs.
 
 Byte format headers and size limits are checked locally. Providers perform full
 image decoding, dimension and animation validation. Jev requires still images with

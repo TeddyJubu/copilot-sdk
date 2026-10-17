@@ -36,8 +36,8 @@ export type DecisionQuestion =
     };
 export type DecisionQuestions = Readonly<Record<string, DecisionQuestion>>;
 export interface DecisionImage {
-  /** Encoded file bytes or a public HTTP(S) URL. Only OpenAI accepts URLs. */
-  data: Uint8Array | URL;
+  /** Encoded image bytes. Native Decisions endpoints do not accept hosted URLs. */
+  data: Uint8Array;
   mediaType?: "image/png" | "image/jpeg" | "image/webp" | "image/gif";
   /** OpenAI image detail. Other providers reject this setting. */
   detail?: "auto" | "low" | "high" | "original";

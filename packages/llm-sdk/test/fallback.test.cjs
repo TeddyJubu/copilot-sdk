@@ -15,7 +15,7 @@ const request = {
 };
 const compatibility = (e) =>
   e.status === 400 &&
-  e.code === "unsupported_parameter" &&
+  ["unsupported_parameter", "unsupported_value"].includes(e.code) &&
   e.param === "temperature";
 const unsupported = () =>
   Object.assign(new Error("unsupported temperature"), {
@@ -84,6 +84,16 @@ for (const mode of ["complete", "stream"]) {
     const t = setup(unsupported());
     await assert.rejects(invoke(t.chain), /unsupported temperature/);
     assert.deepEqual(t.calls, [1, 0]);
+  });
+  test(`${mode}: actual OpenAI unsupported_value temperature code requires explicit fallback`, async () => {
+    for (const enabled of [false, true]) {
+      const error = Object.assign(unsupported(), { code: "unsupported_value" });
+      const t = setup(error, enabled ? { fallbackErrors: compatibility } : {});
+      if (enabled) await invoke(t.chain);
+      else await assert.rejects(invoke(t.chain), /unsupported temperature/);
+      assert.deepEqual(t.calls, enabled ? [1, 1] : [1, 0]);
+      assert.equal(t.retries.length, 0);
+    }
   });
   for (const status of [401, 403, 404, 400]) {
     test(`${mode}: unrelated ${status} errors stop without fallback`, async () => {

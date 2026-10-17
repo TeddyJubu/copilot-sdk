@@ -66,8 +66,8 @@ can also contain structured JSON. Choices use 2–255 string keys; System One sc
 questions use 2–10 ordered levels. OpenAI supports up to 200 questions, Cloudflare
 up to 64 with restricted IDs. Unsupported options fail explicitly.
 
-Pass `images` alongside state for OpenAI, Jev, or Cloudflare. OpenAI accepts bytes
-or public HTTP(S) URL objects. Jev and Cloudflare require bytes; OpenRouter image
+Pass encoded image bytes in `images` alongside state for OpenAI, Jev, or
+Cloudflare. Native Decisions does not accept hosted image URLs; OpenRouter image
 state is unsupported. Jev image support is experimental, with PNG/JPEG dimensions
 between 280 and 1568 pixels; providers validate decoding and dimensions.
 

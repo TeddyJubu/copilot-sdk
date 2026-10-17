@@ -219,7 +219,12 @@ for (const mode of modes) {
     );
   });
   test(`${mode}: replay selects Responses and does not duplicate assistant/tool items`, async () => {
-    const output = [reasoning, call(), message("working")];
+    const output = [
+      reasoning,
+      call(),
+      { ...reasoning, id: "rs_2", encrypted_content: "second-opaque-state" },
+      { ...message("working"), phase: "commentary" },
+    ];
     const messages = [
       {
         role: "assistant",
@@ -243,13 +248,13 @@ for (const mode of modes) {
     ];
     await run(mode, {}, messages);
     assert.equal(requests[0].path, "/responses");
-    assert.deepEqual(requests[0].body.input.slice(0, 3), output);
-    assert.deepEqual(requests[0].body.input[3], {
+    assert.deepEqual(requests[0].body.input.slice(0, output.length), output);
+    assert.deepEqual(requests[0].body.input[output.length], {
       type: "function_call_output",
       call_id: "call_1",
       output: "done",
     });
-    assert.equal(requests[0].body.input.length, 4);
+    assert.equal(requests[0].body.input.length, output.length + 1);
   });
   test(`${mode}: conflicting Chat/Responses options fail before transport`, async () => {
     await assert.rejects(

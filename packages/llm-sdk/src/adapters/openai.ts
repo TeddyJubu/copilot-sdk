@@ -8,6 +8,7 @@ import {
 } from "../core/openai-responses";
 import {
   buildOpenAIParameters,
+  filterOpenAIResponseInclude,
   type OpenAIParameterOptions,
 } from "../core/openai-parameters";
 import { providerErrorEvent, throwIfAborted } from "../core/provider-error";
@@ -495,6 +496,16 @@ export class OpenAIAdapter implements LLMAdapter {
       request.config?.responseFormat,
     );
     const modelIdForPayload = request.config?.model || this.model;
+    const include = filterOpenAIResponseInclude(
+      modelIdForPayload,
+      [
+        ...new Set([
+          ...(options?.include ?? []),
+          ...(options?.store === false ? ["reasoning.encrypted_content"] : []),
+        ]),
+      ],
+      this.parameterOptions(request),
+    );
     const payload = {
       model: modelIdForPayload,
       instructions: request.systemPrompt,
@@ -528,18 +539,7 @@ export class OpenAIAdapter implements LLMAdapter {
       ...(options?.promptCacheRetention !== undefined
         ? { prompt_cache_retention: options.promptCacheRetention }
         : {}),
-      ...(options?.store === false || options?.include
-        ? {
-            include: [
-              ...new Set([
-                ...(options?.include ?? []),
-                ...(options?.store === false
-                  ? ["reasoning.encrypted_content"]
-                  : []),
-              ]),
-            ],
-          }
-        : {}),
+      ...(include ? { include } : {}),
       ...(responsesTextFormat ? { text: { format: responsesTextFormat } } : {}),
       stream,
     };

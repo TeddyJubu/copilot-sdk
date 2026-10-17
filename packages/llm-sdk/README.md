@@ -15,8 +15,10 @@ npm install @yourgpt/llm-sdk @anthropic-ai/sdk
 The SDK normalizes token limits and sampling options for recognized OpenAI model
 families, including GPT-6. Reasoning stays enabled by default. An unsupported
 `temperature` is omitted with a warning; the SDK does not silently disable
-reasoning. Use `onWarning` in the OpenAI provider configuration to handle these
-warnings yourself.
+reasoning. Responses also omits `message.output_text.logprobs` from `include`
+while reasoning is enabled, preserving other requested fields and encrypted
+replay state. Use `onWarning` in the OpenAI provider configuration to handle
+these warnings yourself.
 
 For a model that supports non-reasoning mode, select it explicitly when sampling
 control is required:
@@ -116,9 +118,12 @@ support remain model-specific. Raw usage preserves cache/reasoning breakdowns;
 this does not add pricing/accounting logic.
 
 Modern Responses accepts image URLs, data URLs/bytes, and file URL/base64 inputs.
-This does not add generalized image-bearing function results, native MCP approval
-flows, background jobs, or Decisions. Failed/incomplete/cancelled streams do not
-produce executable partial function calls or a successful final result.
+Function results can return images through `toModelOutput` or `_aiContent` on
+OpenAI Responses and Anthropic. Native Decisions uses the separate
+`experimental_decide` API described in [the Decisions guide](./docs/decisions.md).
+Native MCP approval flows and background jobs are not covered by this integration.
+Failed/incomplete/cancelled streams do not produce executable partial function
+calls or a successful final result.
 
 The contracts were checked against [OpenAI conversation state](https://developers.openai.com/api/docs/guides/conversation-state),
 [Responses request fields](https://developers.openai.com/api/reference/resources/responses/methods/create),
@@ -151,7 +156,7 @@ const adapter = createFallbackChain({
     const e = error as { status?: number; code?: string; param?: string };
     return (
       e?.status === 400 &&
-      e.code === "unsupported_parameter" &&
+      ["unsupported_parameter", "unsupported_value"].includes(e.code ?? "") &&
       e.param === "temperature"
     );
   },
@@ -164,6 +169,12 @@ or use `retryableErrors: () => true` for compatibility failures. Cancellation an
 errors after stream output or tool events never retry or switch models. Provider
 status/code/parameter fields survive OpenAI streaming errors; raw error causes
 are retained only in-process and omitted from JSON/SSE output.
+
+The live parameter regression checks both OpenAI error codes above. In particular,
+GPT-6 Luna returns `unsupported_value` when `temperature: 0` is deliberately sent
+with reasoning enabled. Normal SDK requests omit that unsupported parameter.
+`TRAINING_CONFLICT` is application policy: a provider error must not be interpreted
+as a successful guardrail decision or automatically become `respond`.
 
 Stream readers and final-result promises share one execution, including tool
 execution. Later readers replay retained stream parts; pass an abort signal to

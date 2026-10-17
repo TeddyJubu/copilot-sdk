@@ -40,21 +40,6 @@ export function prepareDecisionImages(
       if (!["auto", "low", "high", "original"].includes(image.detail))
         decisionInputError("Invalid image detail");
     }
-    if (image.data instanceof URL) {
-      if (provider !== "openai")
-        unsupportedDecision(
-          "This decision provider requires inline image bytes",
-        );
-      if (
-        !["http:", "https:"].includes(image.data.protocol) ||
-        image.data.username ||
-        image.data.password
-      )
-        decisionInputError(
-          "Decision image URL must be HTTP(S) without credentials",
-        );
-      return { url: image.data.href, detail: image.detail };
-    }
     const data = Buffer.from(image.data);
     const signature = data.subarray(0, 12).toString("latin1");
     const mediaType = signature.startsWith("\x89PNG\r\n\x1a\n")

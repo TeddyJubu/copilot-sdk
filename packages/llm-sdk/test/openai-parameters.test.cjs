@@ -140,6 +140,51 @@ for (const mode of [
   "runtime-complete",
   "runtime-stream",
 ]) {
+  for (const [name, model, parameterOptions, expected] of [
+    ["reasoning", "gpt-6-luna", {}, false],
+    ["explicit none", "gpt-6-luna", { reasoningEffort: "none" }, true],
+    ["legacy", "gpt-4o", {}, true],
+    ["passthrough", "gpt-6-luna", { parameterPolicy: "passthrough" }, true],
+  ]) {
+    test(`${mode}: ${name} Responses logprobs compatibility preserves replay includes`, async () => {
+      const warnings = [];
+      const include = [
+        "message.output_text.logprobs",
+        "reasoning.encrypted_content",
+      ];
+      await run(
+        mode,
+        model,
+        {
+          ...parameterOptions,
+          openai: { api: "responses", responses: { store: false, include } },
+        },
+        {
+          provider: {
+            ...parameterOptions,
+            onWarning: (warning) => warnings.push(warning),
+          },
+        },
+      );
+      assert.deepEqual(
+        requests[0].body.include,
+        expected ? include : ["reasoning.encrypted_content"],
+      );
+      assert.equal(
+        warnings.some((warning) => warning.includes("logprobs")),
+        !expected,
+      );
+      assert.equal(include.length, 2, "Caller options must not be mutated");
+    });
+  }
+}
+
+for (const mode of [
+  "modern-complete",
+  "modern-stream",
+  "runtime-complete",
+  "runtime-stream",
+]) {
   for (const model of [
     "gpt-5",
     "gpt-5.4",

@@ -85,3 +85,11 @@ void realtimeModel.createCall({
   turnDetection: { type: "semantic_vad", eagerness: "medium" },
 });
 void realtimeModel.createClientSecret({ expiresAfterSeconds: 60 });
+
+import type { DecisionImage } from "@yourgpt/llm-sdk";
+const inlineDecisionImage: DecisionImage = { data: new Uint8Array() };
+const unsupportedRemoteDecisionImage: DecisionImage = {
+  // @ts-expect-error Native Decisions requires inline image bytes.
+  data: new URL("https://example.com/image.png"),
+};
+void [inlineDecisionImage, unsupportedRemoteDecisionImage];

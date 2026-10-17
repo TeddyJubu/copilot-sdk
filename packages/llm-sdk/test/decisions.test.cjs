@@ -430,18 +430,30 @@ test("native image formats: OpenAI data URL, Jev referenced assets, Cloudflare b
       ]);
   }
 });
-test("OpenAI forwards URLs and detail without downloading them", async () => {
+test("OpenAI forwards inline image detail", async () => {
   const { model, calls } = stub();
   await request(model, {
-    images: [{ data: new URL("https://example.com/test.png"), detail: "low" }],
+    images: [{ data: png, detail: "low" }],
   });
   assert.deepEqual(calls[0].body.input[0].content[1], {
     type: "input_image",
-    image_url: "https://example.com/test.png",
+    image_url: `data:image/png;base64,${png.toString("base64")}`,
     detail: "low",
   });
   assert.equal(calls.length, 1);
 });
+for (const provider of Object.keys(factories)) {
+  test(`${provider}: Decisions rejects remote image URLs before transport`, async () => {
+    const { model, calls } = stub(provider);
+    await assert.rejects(
+      request(model, {
+        images: [{ data: new URL("https://example.com/test.png") }],
+      }),
+      /encoded bytes|inline image bytes/,
+    );
+    assert.equal(calls.length, 0);
+  });
+}
 test("unsupported and oversized images are never silently dropped", async () => {
   for (const [provider, images] of [
     ["openrouter", [{ data: png }]],

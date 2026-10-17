@@ -21,7 +21,9 @@ if (!key) throw new Error("Provider key is missing");
 const png =
   "iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAAb0lEQVR4nO3PAQkAAAyEwO9feoshgnABdNvJ8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ3I8QUNyPEFDcjxBQ2oPcf88OIhvJ6vAAAAAElFTkSuQmCC";
 const providerModule = require(`../../dist/providers/${provider}/index.js`);
-const modelId = provider === "openai" ? "gpt-5.2" : "claude-sonnet-4-5";
+const modelId =
+  process.env.IMAGE_TEST_MODEL ||
+  (provider === "openai" ? "gpt-5.2" : "claude-sonnet-4-5");
 const options = {
   apiKey: key,
   ...(provider === "openai"
@@ -66,6 +68,52 @@ async function check(name, fn) {
   }
 }
 (async () => {
+  for (const streaming of [false, true]) {
+    await check(
+      `${provider} modern ${streaming ? "stream" : "complete"} image input guides function arguments`,
+      async () => {
+        const colors = [];
+        const params = {
+          model,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: "Look at this image, then call record_color with its dominant color. Do not answer without calling it. Once recorded, answer only the color.",
+                },
+                {
+                  type: "image",
+                  image: `data:image/png;base64,${png}`,
+                  mimeType: "image/png",
+                },
+              ],
+            },
+          ],
+          tools: {
+            record_color: tool({
+              description:
+                "Record the dominant color seen in the supplied image.",
+              parameters: z.object({ color: z.enum(["red", "green", "blue"]) }),
+              execute: async ({ color }) => {
+                colors.push(color);
+                return { recorded: color };
+              },
+            }),
+          },
+          maxSteps: 3,
+          maxTokens: 1024,
+          signal: AbortSignal.timeout(60000),
+        };
+        const result = await (streaming
+          ? streamText(params)
+          : generateText(params));
+        assert.match(await result.text, /\bblue\b/i);
+        assert.deepEqual(colors, ["blue"]);
+      },
+    );
+  }
   for (const streaming of [false, true]) {
     await check(
       `${provider} modern ${streaming ? "stream" : "complete"} image recognition and saved replay`,

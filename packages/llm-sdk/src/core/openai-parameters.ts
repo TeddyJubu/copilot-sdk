@@ -32,6 +32,30 @@ export function isOpenAIReasoningModel(model: string | undefined): boolean {
   return capabilities(model ?? "").reasoning;
 }
 
+/** Log probabilities, like temperature, are unavailable while reasoning is enabled. */
+export function filterOpenAIResponseInclude(
+  model: string,
+  include: string[],
+  options: OpenAIParameterOptions = {},
+): string[] | undefined {
+  const c = capabilities(model);
+  let result = include;
+  if (
+    options.parameterPolicy !== "passthrough" &&
+    c.reasoning &&
+    !(options.reasoningEffort === "none" && c.supportsNone) &&
+    include.includes("message.output_text.logprobs")
+  ) {
+    result = include.filter(
+      (value) => value !== "message.output_text.logprobs",
+    );
+    (options.onWarning ?? console.warn)(
+      `[llm-sdk] ${model}: omitted message.output_text.logprobs because reasoning is enabled.`,
+    );
+  }
+  return result.length ? result : undefined;
+}
+
 export function requiresOpenAIResponses(
   model: string,
   baseUrl: string | undefined,
