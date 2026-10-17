@@ -8,7 +8,8 @@ project in `yourgpt-docs`.
 
 ## Develop and validate
 
-From the workspace root, with Node.js 20.9+ and pnpm:
+Use Node.js 22 or newer and the pinned pnpm 11.5.1 for this workspace.
+Published SDK packages retain Node.js 18+ support. From the workspace root:
 
 ```bash
 pnpm install
@@ -52,3 +53,15 @@ Deploy the documentation and existing playground projects separately. After
 both deploy, verify the public documentation routes and the playground's key
 entry, core checks, chat and media controls. Hosted feature calls require the
 caller's provider key; they do not use shared environment keys.
+
+## Release and deployment
+
+The [2.6.0 promotion guide](content/docs/release-2-6.mdx) describes the earlier
+verified beta baseline. This checkout also includes the unreleased next-beta
+features documented above; a website deployment does not publish their npm exports.
+The Release workflow is manual, with publishing disabled by default. Exact npm
+versions and dist-tags must be approved separately.
+
+Machine-readable routes (`/llms.txt`, `/llms-full.txt`, `/llms.mdx/docs/...`)
+derive from the same pages. Keep public API imports, limitations and validation
+status consistent between these pages and package guides.

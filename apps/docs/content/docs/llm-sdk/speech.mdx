@@ -1,0 +1,91 @@
+---
+title: Speech generation
+description: Generate buffered audio with OpenAI TTS and play it in your application
+---
+
+Available in **LLM SDK `2.6.0-beta.2`**. `generateSpeech` uses a separate `SpeechModel`; it does not take a chat model or create a realtime voice session. OpenAI is the built-in speech provider in this release.
+
+## Server route
+
+Keep `OPENAI_API_KEY` on the server. Add your application's authentication and rate limits to the route.
+
+```ts title="app/api/speech/route.ts"
+import { generateSpeech } from "@yourgpt/llm-sdk";
+import { openaiSpeech } from "@yourgpt/llm-sdk/openai";
+
+export async function POST(request: Request) {
+  const body = await request.json();
+  if (typeof body.text !== "string" || !body.text.trim()) {
+    return new Response("Text required", { status: 400 });
+  }
+  const speech = await generateSpeech({
+    model: openaiSpeech("gpt-4o-mini-tts"),
+    text: body.text,
+    voice: "alloy",
+    outputFormat: "wav",
+    instructions: "Speak clearly and warmly.",
+    speed: 1,
+    signal: request.signal,
+  });
+  return new Response(new Uint8Array(speech.audio.uint8Array), {
+    headers: {
+      "Content-Type": speech.audio.mediaType,
+      "Cache-Control": "no-store",
+    },
+  });
+}
+```
+
+The OpenAI helper defaults to `gpt-4o-mini-tts` when no model ID is supplied. Provider configuration accepts an API key, base URL, organization/project, and custom fetch. A custom endpoint needs its own compatibility validation.
+
+## Options and result
+
+| Option         | Meaning                                                                          |
+| -------------- | -------------------------------------------------------------------------------- |
+| `text`         | Nonempty text, at most 4096 characters for this provider                         |
+| `voice`        | Provider voice name                                                              |
+| `outputFormat` | `mp3`, `opus`, `aac`, `flac`, `wav`, or `pcm`                                    |
+| `speed`        | Between 0.25 and 4                                                               |
+| `instructions` | Delivery guidance, at most 4096 characters; unsupported for `tts-1` / `tts-1-hd` |
+| `signal`       | Cancellation signal                                                              |
+
+The result contains `audio.uint8Array`, a lazy `audio.base64`, `audio.mediaType`, `audio.format`, `response` metadata, `warnings`, and optional `usage`. Metadata includes provider/model and request ID when available. Usage is not invented if the provider omits it.
+
+Audio is buffered, bounded at 25 MB, and checked for the expected container header; the SDK does not fully decode the codec. PCM is raw 24 kHz signed 16-bit little-endian. Prefer WAV or MP3 for ordinary browser playback. Live checks covered WAV/MP3; other formats have fixture coverage.
+
+## Browser playback
+
+Call this from a user action and identify the speech as AI-generated:
+
+```ts
+async function playSpeech(text: string) {
+  const response = await fetch("/api/speech", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  });
+  if (!response.ok) throw new Error("Speech generation failed");
+  const url = URL.createObjectURL(await response.blob());
+  const player = new Audio(url);
+  const release = () => URL.revokeObjectURL(url);
+  player.addEventListener("ended", release, { once: true });
+  player.addEventListener("error", release, { once: true });
+  try {
+    await player.play();
+  } catch (error) {
+    release();
+    throw error;
+  }
+  return () => {
+    player.pause();
+    release();
+  };
+}
+// Keep and call the returned cleanup when playback is cancelled or the UI unmounts.
+```
+
+## Errors and cancellation
+
+`AudioAPIError` exposes `code`, optional HTTP `status`, and optional `requestId`. Codes are `invalid_input`, `unsupported_option`, `provider_error`, `invalid_response`, and `network_error`. Abort errors retain cancellation semantics. Provider error bodies and audio/text are not logged by these helpers. No automatic chargeable retries occur.
+
+For recorded input, see [transcription](/docs/llm-sdk/transcription) and [voice input](/docs/chat/voice-input). Realtime calls, streaming audio output, voice cloning, and image generation are outside this release. Other speech providers can implement the exported `SpeechModel` contract.

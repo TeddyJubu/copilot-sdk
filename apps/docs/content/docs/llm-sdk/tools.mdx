@@ -358,6 +358,14 @@ import type { Tool, ToolContext, ToolCall, ToolResult } from '@yourgpt/llm-sdk';
 
 ---
 
+## Native image results in beta
+
+Add optional synchronous `toModelOutput(result)` to a tool definition to map its return value to typed text/image content for the model. The original `execute` result remains available to your application. The mapper runs once per successful execution; returning `undefined` keeps the existing fallback behavior.
+
+OpenAI Responses and Anthropic support these outputs in the beta. See [image tool results](/docs/tools/image-results) for a complete typed example, supported media, `_aiContent`, and provider limitations. Function arguments still follow the tool's JSON schema.
+
+---
+
 ## Next Steps
 
 - [generateText()](/docs/llm-sdk/generate-text) - Use tools with text generation

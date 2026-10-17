@@ -5,12 +5,14 @@ description: Run each SDK feature in the existing Copilot playground and underst
 
 The Feature Lab lives in the existing `examples/playground` application. It uses
 the workspace SDK packages and shares the dashboard's **API keys** settings.
-It is on the next-beta branch and **has not been deployed to the public site**.
-Use the local page until deployment is complete.
+The hosted route is [/playground/features](/playground/features) when the current
+playground deployment is available. Each feature links to its API guide. The
+playground runs workspace source, including next-beta APIs that are **not yet
+published on npm**; see [release availability](/docs/llm-sdk/beta-upgrade).
 
 ## Start the playground
 
-From the repository root, with Node.js 20.9+ and pnpm:
+From the repository root, with Node.js 22+ and the pinned pnpm 11.5.1:
 
 ```bash
 pnpm install

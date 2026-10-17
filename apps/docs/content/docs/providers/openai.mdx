@@ -3,8 +3,8 @@ title: OpenAI
 description: Configure OpenAI chat, Responses, reasoning parameters, and media APIs.
 ---
 
-import { Callout } from 'fumadocs-ui/components/callout';
-import { Tab, Tabs } from 'fumadocs-ui/components/tabs';
+import { Callout } from "fumadocs-ui/components/callout";
+import { Tab, Tabs } from "fumadocs-ui/components/tabs";
 
 <ProviderHeader
   provider="openai"
@@ -45,12 +45,12 @@ OPENAI_API_KEY=sk-...
 ### 4. Usage
 
 ```ts
-import { generateText } from '@yourgpt/llm-sdk';
-import { openai } from '@yourgpt/llm-sdk/openai';
+import { generateText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
 
 const result = await generateText({
-  model: openai('gpt-4o'),
-  prompt: 'Explain quantum computing simply.',
+  model: openai("gpt-4o"),
+  prompt: "Explain quantum computing simply.",
 });
 
 console.log(result.text);
@@ -59,15 +59,15 @@ console.log(result.text);
 ### 5. Streaming (API Route)
 
 ```ts title="app/api/chat/route.ts"
-import { streamText } from '@yourgpt/llm-sdk';
-import { openai } from '@yourgpt/llm-sdk/openai';
+import { streamText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
 
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
   const result = await streamText({
-    model: openai('gpt-4o'),
-    system: 'You are a helpful assistant.',
+    model: openai("gpt-4o"),
+    system: "You are a helpful assistant.",
     messages,
   });
 
@@ -77,38 +77,28 @@ export async function POST(req: Request) {
 
 ---
 
-## Available Models
+## Model selection
 
-```ts
-// Latest and best
-openai('gpt-4o')              // Fastest GPT-4 class
-openai('gpt-5.2')         // Cost-effective, very capable
-
-// GPT-4 Turbo
-openai('gpt-4-turbo')         // 128K context
-
-// GPT-3.5
-openai('gpt-3.5-turbo')       // Fast and cheap
-```
+The examples use specific model IDs; they are not a ranking of current models. Choose a model available to your account from the [OpenAI model catalog](https://developers.openai.com/api/docs/models), and verify its supported parameters and transport. See the [beta upgrade guide](/docs/beta) for the released SDK versions and tested scope.
 
 ---
 
 ## Configuration Options
 
 ```ts
-import { openai } from '@yourgpt/llm-sdk/openai';
+import { openai } from "@yourgpt/llm-sdk/openai";
 
 // Custom API key
-const model = openai('gpt-4o', {
-  apiKey: 'sk-custom-key',
+const model = openai("gpt-4o", {
+  apiKey: "sk-custom-key",
 });
 
 // With generation options
 const result = await generateText({
-  model: openai('gpt-4o'),
-  prompt: 'Hello',
-  temperature: 0.7,        // Availability depends on model and reasoning settings
-  maxTokens: 4096,         // Max response length
+  model: openai("gpt-4o"),
+  prompt: "Hello",
+  temperature: 0.7, // Availability depends on model and reasoning settings
+  maxTokens: 4096, // Max response length
 });
 ```
 
@@ -119,22 +109,22 @@ const result = await generateText({
 OpenAI has excellent tool/function calling support:
 
 ```ts
-import { generateText, tool } from '@yourgpt/llm-sdk';
-import { openai } from '@yourgpt/llm-sdk/openai';
-import { z } from 'zod';
+import { generateText, tool } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+import { z } from "zod";
 
 const result = await generateText({
-  model: openai('gpt-4o'),
-  prompt: 'What is the weather in Tokyo?',
+  model: openai("gpt-4o"),
+  prompt: "What is the weather in Tokyo?",
   tools: {
     getWeather: tool({
-      description: 'Get weather for a city',
+      description: "Get weather for a city",
       parameters: z.object({
-        city: z.string().describe('City name'),
+        city: z.string().describe("City name"),
       }),
       execute: async ({ city }) => {
         // Your weather API call
-        return { temperature: 22, condition: 'sunny' };
+        return { temperature: 22, condition: "sunny" };
       },
     }),
   },
@@ -150,13 +140,13 @@ GPT-4o supports image analysis. Send images in your messages:
 
 ```ts
 const result = await generateText({
-  model: openai('gpt-4o'),
+  model: openai("gpt-4o"),
   messages: [
     {
-      role: 'user',
+      role: "user",
       content: [
-        { type: 'text', text: "What's in this image?" },
-        { type: 'image', image: base64ImageData },
+        { type: "text", text: "What's in this image?" },
+        { type: "image", image: base64ImageData },
       ],
     },
   ],
@@ -170,16 +160,12 @@ const result = await generateText({
 Use with the Copilot React components:
 
 ```tsx title="app/providers.tsx"
-'use client';
+"use client";
 
-import { CopilotProvider } from '@yourgpt/copilot-sdk/react';
+import { CopilotProvider } from "@yourgpt/copilot-sdk/react";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return (
-    <CopilotProvider runtimeUrl="/api/chat">
-      {children}
-    </CopilotProvider>
-  );
+  return <CopilotProvider runtimeUrl="/api/chat">{children}</CopilotProvider>;
 }
 ```
 
@@ -187,13 +173,42 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
 ## Pricing
 
-| Model | Input | Output |
-|-------|-------|--------|
-| gpt-4o | $2.50/1M tokens | $10/1M tokens |
-| gpt-5.2 | $0.15/1M tokens | $0.60/1M tokens |
-| gpt-3.5-turbo | $0.50/1M tokens | $1.50/1M tokens |
+Use [OpenAI API pricing](https://openai.com/api/pricing/) for current rates. Provider metadata and normalized token totals have different scopes; [cache-aware usage and pricing](/docs/advanced/prompt-caching#usage-and-validation-limits) are still pending.
 
-*Prices as of late 2024. Check [OpenAI pricing](https://openai.com/pricing) for current rates.*
+---
+
+## Reasoning model parameters
+
+The beta recognizes GPT-5/GPT-6 and o-series reasoning families. When reasoning is active, it omits unsupported `temperature` values and emits a warning. A request such as `temperature: 0` no longer relies on treating GPT-6 Luna as a legacy sampling model.
+
+The SDK does not disable reasoning automatically to preserve temperature. If your model supports non-reasoning mode and you explicitly want it:
+
+```ts
+import { generateText } from "@yourgpt/llm-sdk";
+import { openai } from "@yourgpt/llm-sdk/openai";
+
+const result = await generateText({
+  model: openai("gpt-6-luna", {
+    reasoningEffort: "none",
+    onWarning: (message) => console.warn(message),
+  }),
+  prompt: "Classify this message: I need help changing my password.",
+  temperature: 0,
+  maxTokens: 128,
+});
+```
+
+Unsupported reasoning-effort combinations fail before a request. `maxTokens` maps to `max_completion_tokens` for reasoning Chat requests, `max_tokens` for legacy Chat, and `max_output_tokens` for Responses.
+
+OpenAI-compatible servers with different parameter semantics can opt out with provider option `parameterPolicy: 'passthrough'`; this gives your application responsibility for compatible parameters. `onWarning` lets you observe normalization. See [compatibility fallback](/docs/providers/fallback#compatibility-fallback-without-retries) for advancing past a narrowly identified parameter error without retrying the same invalid request.
+
+---
+
+## Responses, image tools, and audio
+
+Use `api: 'responses'` to select Responses explicitly. The default `api: 'auto'` preserves compatibility routing, including Chat defaults for custom endpoints. See the [Responses guide](/docs/llm-sdk/responses) for stored/stateless continuation and the [cache options](/docs/advanced/prompt-caching) supported by this beta.
+
+Native [image tool results](/docs/tools/image-results) require Responses on OpenAI; ordinary image inputs in user messages are a separate feature. [Speech generation](/docs/llm-sdk/speech) and [transcription](/docs/llm-sdk/transcription) use separate audio model factories. Native Decisions and realtime calls remain [pending](/docs/beta#still-pending).
 
 ---
 

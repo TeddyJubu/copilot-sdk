@@ -1,0 +1,65 @@
+---
+title: Transcription
+description: Transcribe recorded audio with OpenAI and preserve timestamps and speaker information
+---
+
+Available in **LLM SDK `2.6.0-beta.2`**. `transcribe` accepts a recorded audio file and a `TranscriptionModel`. OpenAI is the built-in transcription provider. This API does not stream live microphone audio.
+
+## Server route
+
+Use this multipart route with the [Copilot recorder](/docs/chat/voice-input). Add application authentication, request-size limits, and rate limiting on your server.
+
+```ts title="app/api/transcribe/route.ts"
+import { transcribe } from "@yourgpt/llm-sdk";
+import { openaiTranscription } from "@yourgpt/llm-sdk/openai";
+
+export async function POST(request: Request) {
+  const form = await request.formData();
+  const file = form.get("file");
+  if (!(file instanceof Blob)) {
+    return new Response("Audio file required", { status: 400 });
+  }
+  const result = await transcribe({
+    model: openaiTranscription("gpt-4o-mini-transcribe"),
+    audio: file,
+    language: "en",
+    signal: request.signal,
+  });
+  return Response.json(result);
+}
+```
+
+`openaiTranscription()` defaults to `gpt-4o-mini-transcribe`. It reads the server's `OPENAI_API_KEY`; explicit provider configuration is also available.
+
+## Inputs and result
+
+`audio` accepts a `Blob`, `Uint8Array`, `ArrayBuffer`, or base64 string. Supply `mediaType` for byte/base64 inputs. You can supply `filename`; otherwise the helper derives one from the media type. Optional `language` and `prompt` depend on the selected model. Pass `signal` for cancellation.
+
+Encoded files must be nonempty and at most 25 MB, with matching file extensions and container headers. Supported containers include MP3/MPEG/MPGA, MP4/M4A, WAV, WebM, Ogg, and FLAC. Remote URLs are not fetched. Raw PCM requires a separately configured realtime protocol and is not accepted here.
+
+The result includes `text`, `response` metadata, `warnings`, optional `usage`, and optional provider extras in `providerMetadata`. When returned by the provider, it also retains `language`, `durationSeconds`, timed `segments`, `words`, and segment `speaker` labels. An empty transcript is valid for silence; missing/non-string transcript text is an invalid response.
+
+## Timestamps and speakers
+
+```ts
+import { transcribe } from "@yourgpt/llm-sdk";
+import { openaiTranscription } from "@yourgpt/llm-sdk/openai";
+
+declare const recordedAudio: Blob;
+const timed = await transcribe({
+  model: openaiTranscription("whisper-1"),
+  audio: recordedAudio,
+  providerOptions: {
+    openai: { timestampGranularities: ["word", "segment"] },
+  },
+});
+
+const speakers = await transcribe({
+  model: openaiTranscription("gpt-4o-transcribe-diarize"),
+  audio: recordedAudio,
+});
+```
+
+Whisper timestamps select `verbose_json`. Diarization selects `diarized_json` and automatic chunking; it does not accept prompts or timestamp granularities. Compatible GPT-4o transcription models can request `includeLogprobs: true`. The initial implementation does not expose every option on newer transcription models, such as keyword lists or multiple language hints.
+
+Both audio helpers use [`AudioAPIError`](/docs/llm-sdk/speech#errors-and-cancellation) and preserve cancellation without automatic retries. WAV/MP3 round trips, timestamps, and speaker segments were checked with real responses. Browser container/device behavior still requires physical-device testing for your target browsers.

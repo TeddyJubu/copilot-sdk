@@ -203,5 +203,21 @@
     "No Java SDK tests",
     "Synthetic API checks, not a production classification accuracy evaluation",
     "No npm publication or main merge"
-  ]
+  ],
+  "localReconciliation": {
+    "productionHead": "6c27113ff7d86439f5521f70389d01322f9afbfd",
+    "uiHead": "7d6fa2d",
+    "sdkRuntimeSourceUnchanged": true,
+    "node": "22.23.3",
+    "pnpm": "11.5.1",
+    "freshFrozenInstall": "passed",
+    "workspaceBuilds": 21,
+    "cachedBuilds": 0,
+    "automatedTests": 550,
+    "failed": 0,
+    "sdkTypechecks": "passed",
+    "publicCjsEsmDeclarations": "passed",
+    "dependencyAgeGate": "passed; no new lockfile versions",
+    "npmPublished": false
+  }
 }

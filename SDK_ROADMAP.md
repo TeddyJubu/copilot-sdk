@@ -1,5 +1,7 @@
 # YourGPT Copilot SDK - Feature Roadmap
 
+> **Status, 17 October 2026:** The roadmap and competitor comparisons below are historical planning material, not a verified current feature/support matrix. See the [published release](./docs/releases/2026-10-17-beta.md) and [current beta guide](./apps/docs/content/docs/beta.mdx) for released versions, actual APIs, and pending work.
+
 > The most developer-friendly AI SDK with unique **App Context Awareness** features.
 
 ---

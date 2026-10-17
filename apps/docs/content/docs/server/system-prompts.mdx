@@ -1,0 +1,82 @@
+---
+title: System prompts
+description: Set Runtime instructions, understand precedence, and upgrade the Anthropic system-message fix
+---
+
+Use **`systemPrompt`** for Runtime instructions. Put user, assistant, and tool conversation content in `messages`. For the separate `generateText` / `streamText` API, the option is named **`system`**.
+
+## Runtime usage
+
+```ts
+import { createRuntime } from "@yourgpt/llm-sdk";
+import { createAnthropic } from "@yourgpt/llm-sdk/anthropic";
+
+const runtime = createRuntime({
+  provider: createAnthropic({ apiKey: process.env.ANTHROPIC_API_KEY }),
+  model: "claude-sonnet-4-5",
+  systemPrompt: "Classify the email. Do not answer it.",
+});
+
+const result = await runtime.chat({
+  messages: [{ role: "user", content: "Subject: Invoice correction" }],
+});
+```
+
+A nonempty request `systemPrompt` overrides the runtime default. An omitted or empty string falls back to that default. The same selection applies to `chat`, `generate`, `stream`, and `processChat`.
+
+```ts
+await runtime.chat({
+  systemPrompt: "Classify billing emails as REVIEW. Return one word only.",
+  messages: [{ role: "user", content: "Please correct my invoice." }],
+});
+```
+
+Keep application-owned instructions in server code. Validate client-supplied messages before treating any of them as system instructions.
+
+## Anthropic system-role messages
+
+Starting in **LLM SDK `2.6.0-beta.2`**, Anthropic Runtime also preserves system-role messages from existing histories:
+
+```ts
+await runtime.chat({
+  systemPrompt: "Classify the email.",
+  messages: [
+    { role: "system", content: "Do not answer the email." },
+    { role: "user", content: "Please correct my invoice." },
+  ],
+});
+```
+
+The effective Anthropic request has:
+
+```ts
+{
+  system: 'Classify the email.\nDo not answer the email.',
+  messages: [{ role: 'user', content: 'Please correct my invoice.' }],
+}
+```
+
+The effective explicit/default prompt is first, then distinct system-role instructions in their original order. Both are instructions; the first does not erase or override the second. Since `2.6.0-beta.3`, text repeated between the explicit/default prompt and a system message is sent once. Intentionally repeated instructions appearing only in system messages retain their order. Prefer the explicit field for new application code.
+
+The fix extracts instructions before removing system messages from Anthropic's conversation array. Typed messages, raw tool histories, streaming, non-streaming, and tool continuations use the same behavior. Caller messages are not mutated. Since `2.6.0-beta.3`, null and unsupported non-text system content are ignored while valid text is retained, restoring tolerance for existing proxy inputs.
+
+### Upgrading from the previous beta
+
+In `2.6.0-beta.1`, Anthropic Runtime silently dropped `role: 'system'` messages. Explicit `systemPrompt` worked. Applications using only the explicit field retain their behavior; applications using system-role messages now apply those instructions. This can change an answer that previously ignored the application's rules.
+
+The separate modern Anthropic provider already handled system-role messages. The Runtime fix does not rename its API:
+
+```ts
+import { generateText } from "@yourgpt/llm-sdk";
+import { anthropic } from "@yourgpt/llm-sdk/anthropic";
+
+await generateText({
+  model: anthropic("claude-sonnet-4-5"),
+  system: "Classify the email. Do not answer it.",
+  messages: [{ role: "user", content: "Please correct my invoice." }],
+});
+```
+
+## Guardrail output validation
+
+Delivering instructions is separate from validating a result. A prompt asking for JSON may still produce Markdown fences or malformed output. Use supported [structured output](/docs/llm-sdk/structured-output), validate the returned schema, and handle provider or parsing failure explicitly. The SDK does not define a default `respond` decision for your application, and this feature is not the pending native Decisions API.

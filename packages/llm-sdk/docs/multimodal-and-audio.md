@@ -1,5 +1,12 @@
 # Image tool results and recorded audio
 
+First published in LLM SDK **`2.6.0-beta.2`**, with Copilot integration in **`2.5.1-beta.3`**; included in both stable **`2.6.0`** packages.
+For the navigable documentation, start with the [beta upgrade guide](https://copilot-sdk.yourgpt.ai/docs/beta),
+[image tool results](https://copilot-sdk.yourgpt.ai/docs/tools/image-results),
+[speech](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/speech),
+[transcription](https://copilot-sdk.yourgpt.ai/docs/llm-sdk/transcription), and
+[recorded voice input](https://copilot-sdk.yourgpt.ai/docs/chat/voice-input).
+
 These APIs are additive. Chat configuration, ordinary JSON/string tool results, and the existing screenshot `addAsUserMessage` attachment path retain their behavior. Native image tool output requires OpenAI **Responses** or Anthropic. TTS and recorded-file STT currently have an OpenAI implementation; other providers can implement the separate `SpeechModel` / `TranscriptionModel` contracts.
 
 ## Tools that return images

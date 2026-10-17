@@ -3,6 +3,10 @@ title: OpenAI Responses
 description: Select the Responses API, preserve conversation state, and keep diagnostics on the server.
 ---
 
+Responses first shipped in LLM SDK `2.6.0-beta.2`; use the compatibility-fixed
+`2.6.0-beta.3` with Copilot SDK `2.5.1-beta.3`. There is no separate
+`runtime.response()` method.
+
 Use `api: "responses"` to select OpenAI Responses, including calls without tools.
 The installed `openai` peer must expose `responses.create`; an older client fails
 with an actionable error. A compatible Chat endpoint does not automatically

@@ -22,19 +22,19 @@ Keep the provider peer packages required by your application installed. This
 command does not install the unreleased features below. Recheck dist-tags before
 a later upgrade; an unqualified install follows `latest`, not `beta`.
 
-| Capability                                                                   | Availability                                           |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Reasoning parameters and configurable compatibility fallback                 | Included in the published beta                         |
-| OpenAI Responses and conversation replay                                     | Included in the published beta                         |
-| Images returned by tools; TTS and recorded-file STT                          | Included in the published beta                         |
-| Structured tool content, Anthropic system content and response privacy fixes | LLM SDK `2.6.0-beta.3`                                 |
-| Native Decisions                                                             | Implemented on `codex/next-beta-decisions`, unreleased |
-| Realtime voice; image generation and editing                                 | Implemented on that branch, unreleased                 |
-| Playground Feature Lab                                                       | Implemented locally; public deployment pending         |
+| Capability                                                                   | Availability                                        |
+| ---------------------------------------------------------------------------- | --------------------------------------------------- |
+| Reasoning parameters and configurable compatibility fallback                 | Included in the published beta                      |
+| OpenAI Responses and conversation replay                                     | Included in the published beta                      |
+| Images returned by tools; TTS and recorded-file STT                          | Included in the published beta                      |
+| Structured tool content, Anthropic system content and response privacy fixes | LLM SDK `2.6.0-beta.3`                              |
+| Native Decisions                                                             | Available in workspace source; not published on npm |
+| Realtime voice; image generation and editing                                 | Available in workspace source; not published on npm |
+| Playground Feature Lab                                                       | Runs workspace source; see the Feature Lab guide    |
 
 The next-beta version has not been assigned. Its workspace package version is
-not evidence of npm publication. The separate production release candidate has
-not been released by this work.
+not evidence of npm publication. The website and playground deploy separately from npm. The earlier production
+promotion is documented in the [2.6.0 baseline guide](/docs/release-2-6).
 
 ## Compatibility fixes in 2.6.0-beta.3
 
